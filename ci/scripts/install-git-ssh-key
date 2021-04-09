@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+# we don't take the key as an argument, that way it does not end up in the logs.
+if [[ -z "${GIT_SSH_KEY}" ]] ; then
+    echo "GIT_SSH_KEY not defined"
+    echo 'USAGE:'
+    echo '  $ export GIT_SSH_KEY="my-key-here"'
+    echo '  $ install-git-ssh-key'
+    exit 1
+fi
+
+ssh_dir="${HOME}/.ssh"
+
+mkdir -p "${ssh_dir}"
+chmod 700 "${ssh_dir}"
+
+echo "${GIT_SSH_KEY}" > "${ssh_dir}/id_git"
+
+config_dir="${ssh_dir}/config"
+
+{
+    echo "Host gitlab.eng.vmware.com"
+    echo "   HostName gitlab.eng.vmware.com"
+    echo "   User git"
+    echo "   IdentityFile ~/.ssh/id_git"
+    echo "   StrictHostKeyChecking no"
+} >> "${config_dir}"
+
+chmod 600 "${ssh_dir}"/*
+
+git config --global url."git@gitlab.eng.vmware.com:".insteadOf "https://gitlab.eng.vmware.com/"
