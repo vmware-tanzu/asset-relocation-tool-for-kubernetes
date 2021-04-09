@@ -101,7 +101,7 @@ var _ = Describe("List Images command", func() {
 		define.Then(`^the command exits with an error about the missing helm chart$`, func() {
 			Eventually(commandSession).Should(gexec.Exit(1))
 			Expect(commandSession.Err).To(Say("Error: failed to load helm chart: no Chart.yaml exists in directory"))
-			Expect(commandSession.Err).To(Say("chart-mover/features/fixtures/empty-directory"))
+			Expect(commandSession.Err).To(Say("features/fixtures/empty-directory"))
 		})
 		define.Then(`^it prints the usage$`, func() {
 			Expect(commandSession.Out).To(Say("Usage:"))
