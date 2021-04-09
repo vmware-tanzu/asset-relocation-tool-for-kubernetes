@@ -9,7 +9,7 @@ import (
 
 type RewriteRules struct {
 	Registry         string `json:"registry"`
-	RepositoryPrefix string `json:"repository_prefix"`
+	RepositoryPrefix string `json:"repositoryPrefix"`
 	Repository       string `json:"repository"`
 	Tag              string `json:"tag"`
 	Digest           string `json:"digest"`

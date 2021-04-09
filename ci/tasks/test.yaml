@@ -1,0 +1,18 @@
+---
+platform: linux
+
+params:
+  GIT_SSH_KEY:
+  GOPRIVATE: gitlab.eng.vmware.com
+
+inputs:
+  - name: source
+
+run:
+  path: /bin/bash
+  dir: source
+  args:
+    - -exc
+    - |
+      ci/scripts/install-git-ssh-key
+      make test

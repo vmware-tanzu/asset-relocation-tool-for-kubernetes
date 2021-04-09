@@ -1,0 +1,31 @@
+---
+resources:
+  - name: source
+    type: git
+    icon: gitlab
+    source:
+      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/chart-mover.git
+      private_key: ((gitlab.private_key))
+      branch: master
+
+  - name: golang-image
+    type: registry-image
+    icon: docker
+    source:
+      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/library/golang
+      tag: 1.16
+      username: ((harbor.username))
+      password: ((harbor.token))
+
+jobs:
+  - name: test
+    plan:
+      - in_parallel:
+          - get: golang-image
+          - get: source
+            trigger: true
+      - task: run-tests
+        image: golang-image
+        file: source/ci/tasks/test.yaml
+        params:
+          GIT_SSH_KEY: ((gitlab.private_key))
