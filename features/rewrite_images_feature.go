@@ -69,7 +69,7 @@ var _ = Describe("Rewrite Images command", func() {
 		define.When(`^running chart-mover rewrite-images$`, func() {
 			args := []string{"rewrite-images", ChartPath}
 			if ImageTemplateFile != "" {
-				args = append(args, "--images", ImageTemplateFile)
+				args = append(args, "--image-templates", ImageTemplateFile)
 			}
 			if RewriteRulesFile != "" {
 				args = append(args, "--rules-file", RewriteRulesFile)

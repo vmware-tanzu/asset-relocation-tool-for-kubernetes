@@ -14,9 +14,10 @@ func init() {
 }
 
 var ListImagesCmd = &cobra.Command{
-	Use:   "list-images <chart>",
-	Short: "Renders and lists the images, found using the image list file",
-	//Long:  "",
+	Use:     "list-images <chart>",
+	Short:   "Lists the container images in a chart",
+	Long:    "Finds, renders and lists the container images found in a Helm chart, using an image template file to detect the templates that build the image reference.",
+	PreRunE: RunSerially(LoadChart, LoadImageTemplates),
 	Run: func(cmd *cobra.Command, args []string) {
 		var images []string
 

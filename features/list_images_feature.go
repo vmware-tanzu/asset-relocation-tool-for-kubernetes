@@ -57,7 +57,7 @@ var _ = Describe("List Images command", func() {
 		define.When(`^running chart-mover list-images$`, func() {
 			args := []string{"list-images", ChartPath}
 			if ImageTemplateFile != "" {
-				args = append(args, "--images", ImageTemplateFile)
+				args = append(args, "--image-templates", ImageTemplateFile)
 			}
 			command := exec.Command(ChartMoverBinaryPath, args...)
 			var err error

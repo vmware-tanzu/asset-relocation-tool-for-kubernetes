@@ -11,13 +11,16 @@ import (
 func init() {
 	rootCmd.AddCommand(RewriteActionsCmd)
 	RewriteActionsCmd.SetOut(os.Stdout)
+
+	RewriteActionsCmd.Flags().StringVar(&RewriteRulesFile, "rules-file", "", "File with rewrite rules")
+	_ = RewriteActionsCmd.MarkFlagRequired("rules-file")
 }
 
 var RewriteActionsCmd = &cobra.Command{
 	Use:   "rewrite-actions <chart>",
-	Short: "Prints a list of actions to rewrite a chart to applying the rewrite rules",
+	Short: "Generate a list of rewrite actions, based on the rewrite rules, to modify container image references in a Helm chart",
 	//Long:  "",
-	PreRunE: LoadRewriteRules,
+	PreRunE: RunSerially(LoadChart, LoadImageTemplates, LoadRewriteRules),
 	Run: func(cmd *cobra.Command, args []string) {
 		var actions []*lib.RewriteAction
 
