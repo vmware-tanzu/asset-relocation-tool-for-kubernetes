@@ -1,110 +1,64 @@
 package lib_test
 
 import (
-	dockerparser "github.com/novln/docker-parser"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
 )
 
-var _ = Describe("RewriteRules", func() {
-	var rules RewriteRules
+var _ = Describe("RewriteRules", func() {})
 
-	Describe("RewriteImage", func() {
-		Context("registry only", func() {
-			BeforeEach(func() {
-				rules = RewriteRules{
-					Registry: "internal.vmware.com",
+var _ = Describe("RewriteAction", func() {
+	Describe("ToMap", func() {
+		Context("one key", func() {
+			It("becomes a flat map", func() {
+				action := &lib.RewriteAction{
+					Path:  ".alpha",
+					Value: "needle",
 				}
-			})
 
-			It("rewrites the images correctly", func() {
-				image, _ := dockerparser.Parse("myrepo/myimage")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("internal.vmware.com/myrepo/myimage:latest"))
-
-				image, _ = dockerparser.Parse("docker.io/myrepo/myimage")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("internal.vmware.com/myrepo/myimage:latest"))
-
-				image, _ = dockerparser.Parse("docker.io/myrepo/myimage:1.2.3")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("internal.vmware.com/myrepo/myimage:1.2.3"))
+				haystack := action.ToMap()
+				Expect(haystack).To(HaveKeyWithValue("alpha", "needle"))
 			})
 		})
 
-		Context("repository prefix", func() {
-			BeforeEach(func() {
-				rules = RewriteRules{
-					Registry:         "internal.vmware.com",
-					RepositoryPrefix: "partnerco",
+		Context("two keys", func() {
+			It("becomes a nested map", func() {
+				action := &lib.RewriteAction{
+					Path:  ".alpha.bravo",
+					Value: "needle",
 				}
-			})
 
-			It("rewrites the images correctly", func() {
-				image, _ := dockerparser.Parse("myrepo/myimage")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("internal.vmware.com/partnerco/myrepo/myimage:latest"))
-
-				image, _ = dockerparser.Parse("docker.io/myrepo/myimage")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("internal.vmware.com/partnerco/myrepo/myimage:latest"))
-
-				image, _ = dockerparser.Parse("docker.io/myrepo/myimage:1.2.3")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("internal.vmware.com/partnerco/myrepo/myimage:1.2.3"))
+				haystack := action.ToMap()
+				Expect(haystack).To(HaveKey("alpha"))
+				haystackLevelTwo := haystack["alpha"]
+				Expect(haystackLevelTwo).To(HaveKeyWithValue("bravo", "needle"))
 			})
 		})
 
-		Context("tag, no digest", func() {
-			BeforeEach(func() {
-				rules = RewriteRules{
-					Tag: "suspicious",
+		Context("multiple keys", func() {
+			It("becomes a deeply nested map", func() {
+				action := &lib.RewriteAction{
+					Path:  ".alpha.bravo.charlie.delta",
+					Value: "needle",
 				}
-			})
 
-			It("rewrites the images correctly", func() {
-				image, _ := dockerparser.Parse("myrepo/myimage")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("docker.io/myrepo/myimage:suspicious"))
+				haystack := action.ToMap()
+				Expect(haystack).To(HaveKey("alpha"))
 
-				image, _ = dockerparser.Parse("docker.io/myrepo/myimage")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("docker.io/myrepo/myimage:suspicious"))
+				var ok bool
+				haystack, ok = haystack["alpha"].(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(haystack).To(HaveKey("bravo"))
 
-				image, _ = dockerparser.Parse("docker.io/myrepo/myimage:1.2.3")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("docker.io/myrepo/myimage:suspicious"))
-			})
-		})
+				haystack, ok = haystack["bravo"].(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(haystack).To(HaveKey("charlie"))
 
-		Context("digest, no tag", func() {
-			BeforeEach(func() {
-				rules = RewriteRules{
-					Digest: "sha256:fc92eec5cac70b0c324cec2933cd7db1c0eae7c9e2649e42d02e77eb6da0d15f",
-				}
-			})
+				haystack, ok = haystack["charlie"].(map[string]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(haystack).To(HaveKeyWithValue("delta", "needle"))
 
-			It("rewrites the images correctly", func() {
-				image, _ := dockerparser.Parse("myrepo/myimage")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("docker.io/myrepo/myimage@sha256:fc92eec5cac70b0c324cec2933cd7db1c0eae7c9e2649e42d02e77eb6da0d15f"))
-
-				image, _ = dockerparser.Parse("docker.io/myrepo/myimage")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("docker.io/myrepo/myimage@sha256:fc92eec5cac70b0c324cec2933cd7db1c0eae7c9e2649e42d02e77eb6da0d15f"))
-
-				image, _ = dockerparser.Parse("docker.io/myrepo/myimage:1.2.3")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("docker.io/myrepo/myimage@sha256:fc92eec5cac70b0c324cec2933cd7db1c0eae7c9e2649e42d02e77eb6da0d15f"))
-			})
-		})
-
-		Context("tags and digests", func() {
-			BeforeEach(func() {
-				rules = RewriteRules{
-					Digest: "sha256:fc92eec5cac70b0c324cec2933cd7db1c0eae7c9e2649e42d02e77eb6da0d15f",
-					Tag:    "suspicious",
-				}
-			})
-
-			It("rewrites the images correctly", func() {
-				image, _ := dockerparser.Parse("myrepo/myimage")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("docker.io/myrepo/myimage@sha256:fc92eec5cac70b0c324cec2933cd7db1c0eae7c9e2649e42d02e77eb6da0d15f"))
-
-				image, _ = dockerparser.Parse("docker.io/myrepo/myimage")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("docker.io/myrepo/myimage@sha256:fc92eec5cac70b0c324cec2933cd7db1c0eae7c9e2649e42d02e77eb6da0d15f"))
-
-				image, _ = dockerparser.Parse("docker.io/myrepo/myimage:1.2.3")
-				Expect(rules.RewriteImage(image).Remote()).To(Equal("docker.io/myrepo/myimage@sha256:fc92eec5cac70b0c324cec2933cd7db1c0eae7c9e2649e42d02e77eb6da0d15f"))
 			})
 		})
 	})

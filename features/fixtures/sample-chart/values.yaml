@@ -7,7 +7,14 @@ replicaCount: 1
 image:
   repository: nginx
   tag: stable
-  pullPolicy: IfNotPresent
+
+wellDefinedImage:
+  registry: docker.io
+  repository: python
+  tag: stable
+
+singleTemplateImage:
+  image: "busybox:latest"
 
 imagePullSecrets: []
 nameOverride: ""

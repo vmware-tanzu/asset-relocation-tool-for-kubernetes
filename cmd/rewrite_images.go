@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
 )
 
 func init() {
@@ -21,14 +22,28 @@ var RewriteImagesCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		var images []string
 
-		for _, image := range ImageTemplates {
-			err := image.Render(Chart)
+		for _, imageTemplate := range ImageTemplates {
+			originalImage, err := imageTemplate.Render(Chart, []*lib.RewriteAction{})
 			if err != nil {
 				cmd.PrintErrln(err.Error())
 				return
 			}
 
-			images = append(images, Rules.RewriteImage(image.OriginalImage).Remote())
+			actions, err := imageTemplate.Apply(originalImage, Rules)
+			//cmd.PrintErrf("actions: %+v\n", actions)
+			if err != nil {
+				cmd.PrintErrln(err.Error())
+				return
+			}
+
+			rewrittenImage, err := imageTemplate.Render(Chart, actions)
+			if err != nil {
+				cmd.PrintErrln(err.Error())
+				return
+			}
+			//cmd.PrintErrf("image: %s\n", rewrittenImage.Remote())
+
+			images = append(images, rewrittenImage.Remote())
 		}
 
 		encoded, err := json.Marshal(images)

@@ -1,2 +1,3 @@
 - "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-
+- "{{ .Values.wellDefinedImage.registry }}/{{ .Values.wellDefinedImage.repository }}:{{ .Values.wellDefinedImage.tag }}"
+- "{{ .Values.singleTemplateImage.image }}"

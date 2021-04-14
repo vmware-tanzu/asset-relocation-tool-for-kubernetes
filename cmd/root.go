@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
 )
 
 const AppName = "chart-mover"
@@ -31,14 +32,14 @@ var rootCmd = &cobra.Command{
 	PersistentPreRunE: RunSerially(LoadChart, LoadImageTemplates),
 	Args:              cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		for _, image := range ImageTemplates {
-			err := image.Render(Chart)
+		for _, imageTemplate := range ImageTemplates {
+			_, err := imageTemplate.Render(Chart, []*lib.RewriteAction{})
 			if err != nil {
 				cmd.PrintErrln(err.Error())
 				return
 			}
 
-			//newActions, err := image.Apply(rules)
+			//newActions, err := imageTemplate.Apply(rules)
 		}
 
 		//PullImages(ImageTemplates)

@@ -9,16 +9,17 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(ListImagesCmd)
-	ListImagesCmd.SetOut(os.Stdout)
+	rootCmd.AddCommand(RewriteActionsCmd)
+	RewriteActionsCmd.SetOut(os.Stdout)
 }
 
-var ListImagesCmd = &cobra.Command{
-	Use:   "list-images <chart>",
-	Short: "Renders and lists the images, found using the image list file",
+var RewriteActionsCmd = &cobra.Command{
+	Use:   "rewrite-actions <chart>",
+	Short: "Prints a list of actions to rewrite a chart to applying the rewrite rules",
 	//Long:  "",
+	PreRunE: LoadRewriteRules,
 	Run: func(cmd *cobra.Command, args []string) {
-		var images []string
+		var actions []*lib.RewriteAction
 
 		for _, imageTemplate := range ImageTemplates {
 			image, err := imageTemplate.Render(Chart, []*lib.RewriteAction{})
@@ -27,10 +28,16 @@ var ListImagesCmd = &cobra.Command{
 				return
 			}
 
-			images = append(images, image.Remote())
+			newActions, err := imageTemplate.Apply(image, Rules)
+			if err != nil {
+				cmd.PrintErrln(err.Error())
+				return
+			}
+
+			actions = append(actions, newActions...)
 		}
 
-		encoded, err := json.Marshal(images)
+		encoded, err := json.Marshal(actions)
 		if err != nil {
 			cmd.PrintErrln(err.Error())
 			return

@@ -1,6 +1,6 @@
 // +build feature
 
-package features_test
+package features
 
 import (
 	"testing"

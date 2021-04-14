@@ -30,6 +30,10 @@ func LoadChart(cmd *cobra.Command, args []string) error {
 }
 
 func LoadImageTemplates(cmd *cobra.Command, args []string) error {
+	if ImageListFile == "" {
+		return errors.New("image list file is required")
+	}
+
 	fileContents, err := ioutil.ReadFile(ImageListFile)
 	if err != nil {
 		return errors.Wrap(err, "failed to read image list file")
@@ -55,6 +59,10 @@ func LoadImageTemplates(cmd *cobra.Command, args []string) error {
 var Rules *lib.RewriteRules
 
 func LoadRewriteRules(cmd *cobra.Command, args []string) error {
+	if RewriteRulesFile == "" {
+		return errors.New("rewrite rules file is required")
+	}
+
 	fileContents, err := ioutil.ReadFile(RewriteRulesFile)
 	if err != nil {
 		return errors.Wrap(err, "failed to read rewrite rules file")

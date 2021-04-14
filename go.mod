@@ -6,6 +6,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/bunniesandbeatings/goerkin v0.1.4-beta
 	github.com/cyphar/filepath-securejoin v0.2.2 // indirect
+	github.com/divideandconquer/go-merge v0.0.0-20160829212531-bc6b3a394b4e
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/novln/docker-parser v1.0.0
