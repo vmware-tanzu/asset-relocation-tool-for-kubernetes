@@ -10,9 +10,7 @@ import (
 	"github.com/divideandconquer/go-merge/merge"
 	dockerparser "github.com/novln/docker-parser"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
-	"k8s.io/helm/pkg/chartutil"
-	"k8s.io/helm/pkg/proto/hapi/chart"
+	"helm.sh/helm/v3/pkg/chart"
 )
 
 var (
@@ -31,11 +29,6 @@ type ImageTemplate struct {
 	RegistryAndRepositoryTemplate string
 	TagTemplate                   string
 	DigestTemplate                string
-}
-
-//go:generate counterfeiter . HelmChart
-type HelmChart interface {
-	GetValues() *chart.Config
 }
 
 func NewFromString(input string) (*ImageTemplate, error) {
@@ -81,27 +74,18 @@ func NewFromString(input string) (*ImageTemplate, error) {
 	return imageTemplate, nil
 }
 
-func (t *ImageTemplate) Render(chart HelmChart, rewriteActions []*RewriteAction) (*dockerparser.Reference, error) {
-	chartValues := make(map[string]interface{})
-	err := yaml.Unmarshal([]byte(chart.GetValues().GetRaw()), chartValues)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to load chart values")
-	}
-
-	values := chartutil.Values{
-		"Values": chartValues,
+func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions []*RewriteAction) (*dockerparser.Reference, error) {
+	values := map[string]interface{}{
+		"Values": chart.Values,
 	}
 	for _, action := range rewriteActions {
 		actionMap := action.ToMap()
 		result := merge.Merge(values, actionMap)
-		values, _ = result.(chartutil.Values)
+		values, _ = result.(map[string]interface{})
 	}
 
-	//encoded, _ := yaml.Marshal(values)
-	//_, _ = fmt.Fprintln(os.Stderr, string(encoded))
-
 	output := bytes.Buffer{}
-	err = t.Template.Execute(&output, values)
+	err := t.Template.Execute(&output, values)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to render image")
 	}

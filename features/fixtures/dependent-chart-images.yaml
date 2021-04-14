@@ -1,0 +1,4 @@
+- "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+- "{{ .sample-chart.image.repository }}:{{ .sample-chart.image.tag }}"
+- "{{ .sample-chart.wellDefinedImage.registry }}/{{ .sample-chart.wellDefinedImage.repository }}:{{ .sample-chart.wellDefinedImage.tag }}"
+- "{{ .sample-chart.singleTemplateImage.image }}"

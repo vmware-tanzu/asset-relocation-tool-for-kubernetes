@@ -9,7 +9,6 @@ import (
 	. "github.com/bunniesandbeatings/goerkin"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 )
 
@@ -93,22 +92,6 @@ var _ = Describe("Rewrite Images command", func() {
 			Expect(images[0]).To(Equal("my-registry.example.com/library/nginx:stable"))
 			Expect(images[1]).To(Equal("my-registry.example.com/library/python:stable"))
 			Expect(images[2]).To(Equal("my-registry.example.com/library/busybox:latest"))
-		})
-
-		define.Then(`^the command exits with an error about the missing helm chart$`, func() {
-			Eventually(CommandSession).Should(gexec.Exit(1))
-			Expect(CommandSession.Err).To(Say("Error: failed to load helm chart: no Chart.yaml exists in directory"))
-			Expect(CommandSession.Err).To(Say("features/fixtures/empty-directory"))
-		})
-
-		define.Then(`^the command exits with an error about the missing images template list file$`, func() {
-			Eventually(CommandSession).Should(gexec.Exit(1))
-			Expect(CommandSession.Err).To(Say("Error: image list file is required"))
-		})
-
-		define.Then(`^the command exits with an error about the missing rules file$`, func() {
-			Eventually(CommandSession).Should(gexec.Exit(1))
-			Expect(CommandSession.Err).To(Say("Error: rewrite rules file is required"))
 		})
 	})
 })

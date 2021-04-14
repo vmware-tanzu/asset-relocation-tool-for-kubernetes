@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
 	"gopkg.in/yaml.v2"
-	"k8s.io/helm/pkg/chartutil"
-	"k8s.io/helm/pkg/proto/hapi/chart"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
 var (
@@ -22,9 +22,9 @@ func LoadChart(cmd *cobra.Command, args []string) error {
 	}
 
 	var err error
-	Chart, err = chartutil.Load(args[0])
+	Chart, err = loader.Load(args[0])
 	if err != nil {
-		return errors.Wrap(err, "failed to load helm chart")
+		return errors.Wrapf(err, "failed to load helm chart at \"%s\"", args[0])
 	}
 	return nil
 }

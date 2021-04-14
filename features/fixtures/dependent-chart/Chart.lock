@@ -1,0 +1,6 @@
+dependencies:
+- name: sample-chart
+  repository: file://../sample-chart
+  version: 0.1.0
+digest: sha256:c2723c1fd66f9af4b43a9a37331a16225ed7f7600d1bc8079f4efa051f2111ec
+generated: "2021-04-14T13:43:18.326684-05:00"

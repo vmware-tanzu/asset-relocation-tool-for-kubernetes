@@ -21,19 +21,16 @@ var (
 )
 
 func DefineCommonSteps(define goerkin.Definitions) {
-	featuresDirectory, err := os.Getwd()
-	Expect(err).ToNot(HaveOccurred())
-
 	define.Given(`^a directory based helm chart`, func() {
-		ChartPath = path.Join(featuresDirectory, "fixtures", "sample-chart")
+		ChartPath = path.Join("fixtures", "sample-chart")
 	})
 
 	define.Given(`^a tgz based helm chart`, func() {
-		ChartPath = path.Join(featuresDirectory, "fixtures", "sample-chart-0.1.0.tgz")
+		ChartPath = path.Join("fixtures", "sample-chart-0.1.0.tgz")
 	})
 
 	define.Given(`^an image template list file$`, func() {
-		ImageTemplateFile = path.Join(featuresDirectory, "fixtures", "sample-chart-images.yaml")
+		ImageTemplateFile = path.Join("fixtures", "sample-chart-images.yaml")
 	})
 
 	define.Given("^no image template list file$", func() {
@@ -41,7 +38,7 @@ func DefineCommonSteps(define goerkin.Definitions) {
 	})
 
 	define.Given(`^a rules file that rewrites the registry$`, func() {
-		RewriteRulesFile = path.Join(featuresDirectory, "fixtures", "rules", "replace-registry.yaml")
+		RewriteRulesFile = path.Join("fixtures", "rules", "replace-registry.yaml")
 	})
 
 	define.Given("^no rewrite rules file$", func() {
@@ -68,6 +65,23 @@ func DefineCommonSteps(define goerkin.Definitions) {
 
 	define.Then(`^the command exits without error$`, func() {
 		Eventually(CommandSession).Should(gexec.Exit(0))
+	})
+
+	define.Then(`^the command exits with an error about the missing helm chart$`, func() {
+		Eventually(CommandSession).Should(gexec.Exit(1))
+		Expect(CommandSession.Err).To(Say("Error: failed to load helm chart at \""))
+		// Skipping the first part of the path which would be host-specific
+		Expect(CommandSession.Err).To(Say("fixtures/empty-directory\": Chart.yaml file is missing"))
+	})
+
+	define.Then(`^the command exits with an error about the missing images template list file$`, func() {
+		Eventually(CommandSession).Should(gexec.Exit(1))
+		Expect(CommandSession.Err).To(Say("Error: image list file is required"))
+	})
+
+	define.Then(`^the command exits with an error about the missing rules file$`, func() {
+		Eventually(CommandSession).Should(gexec.Exit(1))
+		Expect(CommandSession.Err).To(Say("Error: rewrite rules file is required"))
 	})
 
 	define.Then(`^it prints the usage$`, func() {

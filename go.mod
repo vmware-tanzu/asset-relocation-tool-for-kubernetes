@@ -3,11 +3,8 @@ module gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2
 go 1.16
 
 require (
-	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/bunniesandbeatings/goerkin v0.1.4-beta
-	github.com/cyphar/filepath-securejoin v0.2.2 // indirect
 	github.com/divideandconquer/go-merge v0.0.0-20160829212531-bc6b3a394b4e
-	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/novln/docker-parser v1.0.0
 	github.com/onsi/ginkgo v1.15.0
@@ -15,6 +12,11 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.1.3
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/apimachinery v0.17.2 // indirect
-	k8s.io/helm v2.17.0+incompatible
+	helm.sh/helm/v3 v3.5.3
+)
+
+replace (
+	github.com/docker/distribution => github.com/docker/distribution v0.0.0-20191216044856-a8371794149d
+	github.com/docker/docker => github.com/docker/docker v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
+
 )

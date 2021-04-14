@@ -6,10 +6,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	. "gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib/libfakes"
-	"gopkg.in/yaml.v2"
-
-	helmchart "k8s.io/helm/pkg/proto/hapi/chart"
+	"helm.sh/helm/v3/pkg/chart"
 )
 
 var _ = Describe("NewFromString", func() {
@@ -96,7 +93,7 @@ var _ = Describe("NewFromString", func() {
 })
 
 type TableInput struct {
-	Values   map[string]string
+	Values   map[string]interface{}
 	Template string
 }
 type TableOutput struct {
@@ -107,27 +104,27 @@ type TableOutput struct {
 
 var (
 	imageAlone = &TableInput{
-		Values: map[string]string{
+		Values: map[string]interface{}{
 			"image": "ubuntu:latest",
 		},
 		Template: "{{ .Values.image }}",
 	}
 	imageAndTag = &TableInput{
-		Values: map[string]string{
+		Values: map[string]interface{}{
 			"image": "petewall/amazingapp",
 			"tag":   "latest",
 		},
 		Template: "{{ .Values.image }}:{{ .Values.tag }}",
 	}
 	registryAndImage = &TableInput{
-		Values: map[string]string{
+		Values: map[string]interface{}{
 			"registry": "quay.io",
 			"image":    "proxy/nginx",
 		},
 		Template: "{{ .Values.registry }}/{{ .Values.image }}",
 	}
 	registryImageAndTag = &TableInput{
-		Values: map[string]string{
+		Values: map[string]interface{}{
 			"registry": "quay.io",
 			"image":    "busycontainers/busybox",
 			"tag":      "busiest",
@@ -135,7 +132,7 @@ var (
 		Template: "{{ .Values.registry }}/{{ .Values.image }}:{{ .Values.tag }}",
 	}
 	imageAndDigest = &TableInput{
-		Values: map[string]string{
+		Values: map[string]interface{}{
 			"image":  "petewall/platformio",
 			"digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
@@ -153,21 +150,13 @@ var (
 	registryTagAndDigestRule = &RewriteRules{Registry: "registry.vmware.com", Tag: "explosive", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
 )
 
-func MakeFakeChart(values map[string]string) *libfakes.FakeHelmChart {
-	chart := &libfakes.FakeHelmChart{}
-	encoded, err := yaml.Marshal(values)
-	Expect(err).ToNot(HaveOccurred())
-	chart.GetValuesReturns(&helmchart.Config{
-		Raw: string(encoded),
-	})
-	return chart
-}
-
 var _ = DescribeTable("Rewrite Actions",
 	func(input *TableInput, rules *RewriteRules, expected *TableOutput) {
 		var (
-			err           error
-			chart         = MakeFakeChart(input.Values)
+			err   error
+			chart = &chart.Chart{
+				Values: input.Values,
+			}
 			template      *ImageTemplate
 			originalImage *dockerparser.Reference
 			actions       []*RewriteAction
