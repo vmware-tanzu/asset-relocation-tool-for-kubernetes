@@ -12,6 +12,89 @@ import (
 	helmchart "k8s.io/helm/pkg/proto/hapi/chart"
 )
 
+var _ = Describe("NewFromString", func() {
+	Context("Empty string", func() {
+		It("returns an error", func() {
+			_, err := NewFromString("")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("failed to parse image template \"\": missing repo or a registry fragment"))
+		})
+	})
+	Context("Invalid template", func() {
+		It("returns an error", func() {
+			_, err := NewFromString("not a template")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("failed to parse image template \"not a template\": missing repo or a registry fragment"))
+		})
+	})
+	Context("Single template", func() {
+		It("parses successfully", func() {
+			imageTemplate, err := NewFromString("{{ .Values.image }}")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(imageTemplate.Raw).To(Equal("{{ .Values.image }}"))
+			Expect(imageTemplate.RegistryTemplate).To(Equal(""))
+			Expect(imageTemplate.RepositoryTemplate).To(Equal(""))
+			Expect(imageTemplate.RegistryAndRepositoryTemplate).To(Equal(".Values.image"))
+			Expect(imageTemplate.TagTemplate).To(Equal(""))
+			Expect(imageTemplate.DigestTemplate).To(Equal(""))
+		})
+
+	})
+	Context("Image and tag", func() {
+		imageTemplate, err := NewFromString("{{ .Values.image }}:{{ .Values.tag }}")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(imageTemplate.Raw).To(Equal("{{ .Values.image }}:{{ .Values.tag }}"))
+		Expect(imageTemplate.RegistryTemplate).To(Equal(""))
+		Expect(imageTemplate.RepositoryTemplate).To(Equal(""))
+		Expect(imageTemplate.RegistryAndRepositoryTemplate).To(Equal(".Values.image"))
+		Expect(imageTemplate.TagTemplate).To(Equal(".Values.tag"))
+		Expect(imageTemplate.DigestTemplate).To(Equal(""))
+	})
+	Context("Image and multiple tags", func() {
+		It("returns an error", func() {
+			_, err := NewFromString("{{ .Values.image }}:{{ .Values.tag1 }}:{{ .Values.tag2 }}")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("failed to parse image template \"{{ .Values.image }}:{{ .Values.tag1 }}:{{ .Values.tag2 }}\": too many tag template matches"))
+		})
+	})
+	Context("Image and digest", func() {
+		imageTemplate, err := NewFromString("{{ .Values.image }}@{{ .Values.digest }}")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(imageTemplate.Raw).To(Equal("{{ .Values.image }}@{{ .Values.digest }}"))
+		Expect(imageTemplate.RegistryTemplate).To(Equal(""))
+		Expect(imageTemplate.RepositoryTemplate).To(Equal(""))
+		Expect(imageTemplate.RegistryAndRepositoryTemplate).To(Equal(".Values.image"))
+		Expect(imageTemplate.TagTemplate).To(Equal(""))
+		Expect(imageTemplate.DigestTemplate).To(Equal(".Values.digest"))
+	})
+	Context("Image and multiple digests", func() {
+		It("returns an error", func() {
+			_, err := NewFromString("{{ .Values.image }}@{{ .Values.digest1 }}@{{ .Values.digest2 }}")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("failed to parse image template \"{{ .Values.image }}@{{ .Values.digest1 }}@{{ .Values.digest2 }}\": too many digest template matches"))
+		})
+
+	})
+	Context("registry, image, and tag", func() {
+		imageTemplate, err := NewFromString("{{ .Values.registry }}/{{ .Values.image }}:{{ .Values.tag }}")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(imageTemplate.Raw).To(Equal("{{ .Values.registry }}/{{ .Values.image }}:{{ .Values.tag }}"))
+		Expect(imageTemplate.RegistryTemplate).To(Equal(".Values.registry"))
+		Expect(imageTemplate.RepositoryTemplate).To(Equal(".Values.image"))
+		Expect(imageTemplate.RegistryAndRepositoryTemplate).To(Equal(""))
+		Expect(imageTemplate.TagTemplate).To(Equal(".Values.tag"))
+		Expect(imageTemplate.DigestTemplate).To(Equal(""))
+	})
+	Context("Too many templates", func() {
+		It("returns an error", func() {
+			_, err := NewFromString("{{ .Values.a }}/{{ .Values.b }}/{{ .Values.c }}/{{ .Values.d }}")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("failed to parse image template \"{{ .Values.a }}/{{ .Values.b }}/{{ .Values.c }}/{{ .Values.d }}\": more fragments than expected"))
+		})
+
+	})
+})
+
 type TableInput struct {
 	Values   map[string]string
 	Template string
@@ -38,8 +121,8 @@ var (
 	}
 	registryAndImage = &TableInput{
 		Values: map[string]string{
-			"registry": "docker.io",
-			"image":    "ubuntu",
+			"registry": "quay.io",
+			"image":    "proxy/nginx",
 		},
 		Template: "{{ .Values.registry }}/{{ .Values.image }}",
 	}
@@ -54,7 +137,7 @@ var (
 	imageAndDigest = &TableInput{
 		Values: map[string]string{
 			"image":  "petewall/platformio",
-			"digest": "sha256:7ca36ce7be689526e193a8fd92fb30e63f8b62764677ff21250db6339a459048",
+			"digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
 		Template: "{{ .Values.image }}@{{ .Values.digest }}",
 	}
@@ -63,11 +146,11 @@ var (
 	repositoryPrefixRule     = &RewriteRules{RepositoryPrefix: "my-company"}
 	repositoryRule           = &RewriteRules{Repository: "owner/name"}
 	tagRule                  = &RewriteRules{Tag: "explosive"}
-	digestRule               = &RewriteRules{Digest: "sha256:7ca36ce7be689526e193a8fd92fb30e63f8b62764677ff21250db6339a459048"}
+	digestRule               = &RewriteRules{Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
 	registryAndPrefixRule    = &RewriteRules{Registry: "registry.vmware.com", RepositoryPrefix: "my-company"}
 	registryAndTagRule       = &RewriteRules{Registry: "registry.vmware.com", Tag: "explosive"}
-	registryAndDigestRule    = &RewriteRules{Registry: "registry.vmware.com", Digest: "sha256:7ca36ce7be689526e193a8fd92fb30e63f8b62764677ff21250db6339a459048"}
-	registryTagAndDigestRule = &RewriteRules{Registry: "registry.vmware.com", Tag: "explosive", Digest: "sha256:7ca36ce7be689526e193a8fd92fb30e63f8b62764677ff21250db6339a459048"}
+	registryAndDigestRule    = &RewriteRules{Registry: "registry.vmware.com", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
+	registryTagAndDigestRule = &RewriteRules{Registry: "registry.vmware.com", Tag: "explosive", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
 )
 
 func MakeFakeChart(values map[string]string) *libfakes.FakeHelmChart {
@@ -160,11 +243,11 @@ var _ = DescribeTable("Rewrite Actions",
 	}),
 	Entry("image alone, digest only", imageAlone, digestRule, &TableOutput{
 		Image:          "docker.io/library/ubuntu:latest",
-		RewrittenImage: "docker.io/library/ubuntu@sha256:7ca36ce7be689526e193a8fd92fb30e63f8b62764677ff21250db6339a459048",
+		RewrittenImage: "docker.io/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 		Actions: []*RewriteAction{
 			{
 				Path:  ".Values.image",
-				Value: "docker.io/library/ubuntu@sha256:7ca36ce7be689526e193a8fd92fb30e63f8b62764677ff21250db6339a459048",
+				Value: "docker.io/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 			},
 		},
 	}),
@@ -190,21 +273,21 @@ var _ = DescribeTable("Rewrite Actions",
 	}),
 	Entry("image alone, registry and digest", imageAlone, registryAndDigestRule, &TableOutput{
 		Image:          "docker.io/library/ubuntu:latest",
-		RewrittenImage: "registry.vmware.com/library/ubuntu@sha256:7ca36ce7be689526e193a8fd92fb30e63f8b62764677ff21250db6339a459048",
+		RewrittenImage: "registry.vmware.com/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 		Actions: []*RewriteAction{
 			{
 				Path:  ".Values.image",
-				Value: "registry.vmware.com/library/ubuntu@sha256:7ca36ce7be689526e193a8fd92fb30e63f8b62764677ff21250db6339a459048",
+				Value: "registry.vmware.com/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 			},
 		},
 	}),
 	Entry("image alone, registry and tag and digest", imageAlone, registryTagAndDigestRule, &TableOutput{
 		Image:          "docker.io/library/ubuntu:latest",
-		RewrittenImage: "registry.vmware.com/library/ubuntu@sha256:7ca36ce7be689526e193a8fd92fb30e63f8b62764677ff21250db6339a459048",
+		RewrittenImage: "registry.vmware.com/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 		Actions: []*RewriteAction{
 			{
 				Path:  ".Values.image",
-				Value: "registry.vmware.com/library/ubuntu@sha256:7ca36ce7be689526e193a8fd92fb30e63f8b62764677ff21250db6339a459048",
+				Value: "registry.vmware.com/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 			},
 		},
 	}),
@@ -303,6 +386,113 @@ var _ = DescribeTable("Rewrite Actions",
 		},
 	}),
 
+	Entry("registry and image, registry only", registryAndImage, registryRule, &TableOutput{
+		Image:          "quay.io/proxy/nginx:latest",
+		RewrittenImage: "registry.vmware.com/proxy/nginx:latest",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.registry",
+				Value: "registry.vmware.com",
+			},
+		},
+	}),
+	Entry("registry and image, repository prefix only", registryAndImage, repositoryPrefixRule, &TableOutput{
+		Image:          "quay.io/proxy/nginx:latest",
+		RewrittenImage: "quay.io/my-company/proxy/nginx:latest",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.image",
+				Value: "my-company/proxy/nginx:latest",
+			},
+		},
+	}),
+	Entry("registry and image, repository only", registryAndImage, repositoryRule, &TableOutput{
+		Image:          "quay.io/proxy/nginx:latest",
+		RewrittenImage: "quay.io/owner/name:latest",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.image",
+				Value: "owner/name:latest",
+			},
+		},
+	}),
+	Entry("registry and image, tag only", registryAndImage, tagRule, &TableOutput{
+		Image:          "quay.io/proxy/nginx:latest",
+		RewrittenImage: "quay.io/proxy/nginx:explosive",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.image",
+				Value: "proxy/nginx:explosive",
+			},
+		},
+	}),
+	Entry("registry and image, digest only", registryAndImage, digestRule, &TableOutput{
+		Image:          "quay.io/proxy/nginx:latest",
+		RewrittenImage: "quay.io/proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.image",
+				Value: "proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			},
+		},
+	}),
+	Entry("registry and image, registry and prefix", registryAndImage, registryAndPrefixRule, &TableOutput{
+		Image:          "quay.io/proxy/nginx:latest",
+		RewrittenImage: "registry.vmware.com/my-company/proxy/nginx:latest",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path:  ".Values.image",
+				Value: "my-company/proxy/nginx:latest",
+			},
+		},
+	}),
+	Entry("registry and image, registry and tag", registryAndImage, registryAndTagRule, &TableOutput{
+		Image:          "quay.io/proxy/nginx:latest",
+		RewrittenImage: "registry.vmware.com/proxy/nginx:explosive",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path:  ".Values.image",
+				Value: "proxy/nginx:explosive",
+			},
+		},
+	}),
+	Entry("registry and image, registry and digest", registryAndImage, registryAndDigestRule, &TableOutput{
+		Image:          "quay.io/proxy/nginx:latest",
+		RewrittenImage: "registry.vmware.com/proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path:  ".Values.image",
+				Value: "proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			},
+		},
+	}),
+	Entry("registry and image, registry and tag and digest", registryAndImage, registryTagAndDigestRule, &TableOutput{
+		Image:          "quay.io/proxy/nginx:latest",
+		RewrittenImage: "registry.vmware.com/proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path:  ".Values.image",
+				Value: "proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			},
+		},
+	}),
+
 	Entry("registry, image, and tag, registry only", registryImageAndTag, registryRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/busycontainers/busybox:busiest",
@@ -313,7 +503,7 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("registry, image and tag, repository prefix only", registryImageAndTag, repositoryPrefixRule, &TableOutput{
+	Entry("registry, image, and tag, repository prefix only", registryImageAndTag, repositoryPrefixRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "quay.io/my-company/busycontainers/busybox:busiest",
 		Actions: []*RewriteAction{
@@ -323,7 +513,7 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("registry, image and tag, repository only", registryImageAndTag, repositoryRule, &TableOutput{
+	Entry("registry, image, and tag, repository only", registryImageAndTag, repositoryRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "quay.io/owner/name:busiest",
 		Actions: []*RewriteAction{
@@ -333,7 +523,7 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("registry, image and tag, tag only", registryImageAndTag, tagRule, &TableOutput{
+	Entry("registry, image, and tag, tag only", registryImageAndTag, tagRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "quay.io/busycontainers/busybox:explosive",
 		Actions: []*RewriteAction{
@@ -343,12 +533,12 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("registry, image and tag, digest only", registryImageAndTag, digestRule, &TableOutput{
+	Entry("registry, image, and tag, digest only", registryImageAndTag, digestRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "quay.io/busycontainers/busybox:busiest",
 		Actions:        []*RewriteAction{},
 	}),
-	Entry("registry, image and tag, registry and prefix", registryImageAndTag, registryAndPrefixRule, &TableOutput{
+	Entry("registry, image, and tag, registry and prefix", registryImageAndTag, registryAndPrefixRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/my-company/busycontainers/busybox:busiest",
 		Actions: []*RewriteAction{
@@ -362,7 +552,7 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("registry, image and tag, registry and tag", registryImageAndTag, registryAndTagRule, &TableOutput{
+	Entry("registry, image, and tag, registry and tag", registryImageAndTag, registryAndTagRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/busycontainers/busybox:explosive",
 		Actions: []*RewriteAction{
@@ -376,7 +566,7 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("registry, image and tag, registry and digest", registryImageAndTag, registryAndDigestRule, &TableOutput{
+	Entry("registry, image, and tag, registry and digest", registryImageAndTag, registryAndDigestRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/busycontainers/busybox:busiest",
 		Actions: []*RewriteAction{
@@ -386,7 +576,7 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("registry, image and tag, registry and tag and digest", registryImageAndTag, registryTagAndDigestRule, &TableOutput{
+	Entry("registry, image, and tag, registry and tag and digest", registryImageAndTag, registryTagAndDigestRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/busycontainers/busybox:explosive",
 		Actions: []*RewriteAction{
@@ -397,6 +587,100 @@ var _ = DescribeTable("Rewrite Actions",
 			{
 				Path:  ".Values.tag",
 				Value: "explosive",
+			},
+		},
+	}),
+
+	Entry("image and digest, registry only", imageAndDigest, registryRule, &TableOutput{
+		Image:          "docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.image",
+				Value: "registry.vmware.com/petewall/platformio",
+			},
+		},
+	}),
+	Entry("image and digest, repository prefix only", imageAndDigest, repositoryPrefixRule, &TableOutput{
+		Image:          "docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RewrittenImage: "docker.io/my-company/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.image",
+				Value: "docker.io/my-company/petewall/platformio",
+			},
+		},
+	}),
+	Entry("image and digest, repository only", imageAndDigest, repositoryRule, &TableOutput{
+		Image:          "docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RewrittenImage: "docker.io/owner/name@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.image",
+				Value: "docker.io/owner/name",
+			},
+		},
+	}),
+	Entry("image and digest, tag only", imageAndDigest, tagRule, &TableOutput{
+		Image:          "docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RewrittenImage: "docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Actions:        []*RewriteAction{},
+	}),
+	Entry("image and digest, digest only", imageAndDigest, digestRule, &TableOutput{
+		Image:          "docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RewrittenImage: "docker.io/petewall/platformio@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.digest",
+				Value: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			},
+		},
+	}),
+	Entry("image and digest, registry and prefix", imageAndDigest, registryAndPrefixRule, &TableOutput{
+		Image:          "docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RewrittenImage: "registry.vmware.com/my-company/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.image",
+				Value: "registry.vmware.com/my-company/petewall/platformio",
+			},
+		},
+	}),
+	Entry("image and digest, registry and tag", imageAndDigest, registryAndTagRule, &TableOutput{
+		Image:          "docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.image",
+				Value: "registry.vmware.com/petewall/platformio",
+			},
+		},
+	}),
+	Entry("image and digest, registry and digest", imageAndDigest, registryAndDigestRule, &TableOutput{
+		Image:          "docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.image",
+				Value: "registry.vmware.com/petewall/platformio",
+			},
+			{
+				Path:  ".Values.digest",
+				Value: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			},
+		},
+	}),
+	Entry("image and digest, registry and tag and digest", imageAndDigest, registryTagAndDigestRule, &TableOutput{
+		Image:          "docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".Values.image",
+				Value: "registry.vmware.com/petewall/platformio",
+			},
+			{
+				Path:  ".Values.digest",
+				Value: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 			},
 		},
 	}),

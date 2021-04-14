@@ -15,9 +15,22 @@ import (
 	"k8s.io/helm/pkg/proto/hapi/chart"
 )
 
+var (
+	TemplateRegex    = regexp.MustCompile(`{{\s*(.*?)\s*}}`)
+	TagRegex         = regexp.MustCompile(`:{{\s*(.*?)\s*}}`)
+	DigestRegex      = regexp.MustCompile(`@{{\s*(.*?)\s*}}`)
+	TagOrDigestRegex = regexp.MustCompile(`[:|@]{{.*?}}`)
+)
+
 type ImageTemplate struct {
 	Raw      string
 	Template *template.Template
+
+	RegistryTemplate              string
+	RepositoryTemplate            string
+	RegistryAndRepositoryTemplate string
+	TagTemplate                   string
+	DigestTemplate                string
 }
 
 //go:generate counterfeiter . HelmChart
@@ -31,11 +44,41 @@ func NewFromString(input string) (*ImageTemplate, error) {
 		return nil, errors.Wrapf(err, "failed to parse image template \"%s\"", input)
 	}
 
-	return &ImageTemplate{
+	imageTemplate := &ImageTemplate{
 		Raw:      input,
 		Template: temp,
-	}, nil
+	}
 
+	tagMatches := TagRegex.FindAllSubmatch([]byte(input), -1)
+	if len(tagMatches) == 1 {
+		imageTemplate.TagTemplate = string(tagMatches[0][1])
+	} else if len(tagMatches) > 1 {
+		return nil, errors.Errorf("failed to parse image template \"%s\": too many tag template matches", input)
+	}
+
+	digestMatches := DigestRegex.FindAllSubmatch([]byte(input), -1)
+	if len(digestMatches) == 1 {
+		imageTemplate.DigestTemplate = string(digestMatches[0][1])
+	} else if len(digestMatches) > 1 {
+		return nil, errors.Errorf("failed to parse image template \"%s\": too many digest template matches", input)
+	}
+
+	templateWithoutTagDigest := TagOrDigestRegex.ReplaceAll([]byte(input), []byte(""))
+	extraFragments := TemplateRegex.FindAllStringSubmatch(string(templateWithoutTagDigest), -1)
+
+	switch len(extraFragments) {
+	case 0:
+		return nil, errors.Errorf("failed to parse image template \"%s\": missing repo or a registry fragment", input)
+	case 1:
+		imageTemplate.RegistryAndRepositoryTemplate = extraFragments[0][1]
+	case 2:
+		imageTemplate.RegistryTemplate = extraFragments[0][1]
+		imageTemplate.RepositoryTemplate = extraFragments[1][1]
+	default:
+		return nil, errors.Errorf("failed to parse image template \"%s\": more fragments than expected", input)
+	}
+
+	return imageTemplate, nil
 }
 
 func (t *ImageTemplate) Render(chart HelmChart, rewriteActions []*RewriteAction) (*dockerparser.Reference, error) {
@@ -71,33 +114,24 @@ func (t *ImageTemplate) Render(chart HelmChart, rewriteActions []*RewriteAction)
 	return image, nil
 }
 
-var (
-	TemplateRegex    = regexp.MustCompile(`{{\s*(.*?)\s*}}`)
-	TagRegex         = regexp.MustCompile(`:{{\s*(.*?)\s*}}`)
-	DigestRegex      = regexp.MustCompile(`@{{\s*(.*?)\s*}}`)
-	TagOrDigestRegex = regexp.MustCompile(`[:|@]{{.*?}}`)
-)
-
 func (t *ImageTemplate) Apply(originalImage *dockerparser.Reference, rules *RewriteRules) ([]*RewriteAction, error) {
 	tagged := false
 	var rewrites []*RewriteAction
 
 	// Tag or Digest
-	tag := TagRegex.FindSubmatch([]byte(t.Raw))
-	digest := DigestRegex.FindSubmatch([]byte(t.Raw))
-	if len(tag) > 0 {
+	if t.TagTemplate != "" {
 		tagged = true
 		if rules.Tag != "" && rules.Tag != originalImage.Tag() {
 			rewrites = append(rewrites, &RewriteAction{
-				Path:  string(tag[1]),
+				Path:  t.TagTemplate,
 				Value: rules.Tag,
 			})
 		}
-	} else if len(digest) > 0 {
+	} else if t.DigestTemplate != "" {
 		tagged = true
 		if rules.Digest != "" && rules.Digest != originalImage.Tag() {
 			rewrites = append(rewrites, &RewriteAction{
-				Path:  string(digest[1]),
+				Path:  t.DigestTemplate,
 				Value: rules.Digest,
 			})
 		}
@@ -105,17 +139,6 @@ func (t *ImageTemplate) Apply(originalImage *dockerparser.Reference, rules *Rewr
 
 	// Either 1) registry + repo or 2) repo
 	// Remove tag or digest from template
-	templateWithoutTagDigest := TagOrDigestRegex.ReplaceAll([]byte(t.Raw), []byte(""))
-	extraFragments := TemplateRegex.FindAllStringSubmatch(string(templateWithoutTagDigest), -1)
-
-	if len(extraFragments) == 0 {
-		return nil, errors.Errorf("the template \"%s\" does not include a repo or a registry fragment", t.Raw)
-	}
-
-	if len(extraFragments) > 2 {
-		return nil, errors.Errorf("the template \"%s\" has more fragments than expected", t.Raw)
-	}
-
 	regModified := false
 	repoModified := false
 	registry := originalImage.Registry()
@@ -151,24 +174,24 @@ func (t *ImageTemplate) Apply(originalImage *dockerparser.Reference, rules *Rewr
 		repository = rules.RepositoryPrefix + "/" + repository
 	}
 
-	if len(extraFragments) == 1 {
+	if t.RegistryAndRepositoryTemplate != "" {
 		if regModified || repoModified {
 			rewrites = append(rewrites, &RewriteAction{
-				Path:  extraFragments[0][1],
+				Path:  t.RegistryAndRepositoryTemplate,
 				Value: fmt.Sprintf("%s/%s%s", registry, repository, tagString),
 			})
 		}
 	} else {
 		if regModified {
 			rewrites = append(rewrites, &RewriteAction{
-				Path:  extraFragments[0][1],
+				Path:  t.RegistryTemplate,
 				Value: registry,
 			})
 		}
 
 		if repoModified {
 			rewrites = append(rewrites, &RewriteAction{
-				Path:  extraFragments[1][1],
+				Path:  t.RepositoryTemplate,
 				Value: fmt.Sprintf("%s%s", repository, tagString),
 			})
 		}

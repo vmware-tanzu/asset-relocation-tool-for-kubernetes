@@ -30,7 +30,6 @@ var RewriteImagesCmd = &cobra.Command{
 			}
 
 			actions, err := imageTemplate.Apply(originalImage, Rules)
-			//cmd.PrintErrf("actions: %+v\n", actions)
 			if err != nil {
 				cmd.PrintErrln(err.Error())
 				return
@@ -41,7 +40,6 @@ var RewriteImagesCmd = &cobra.Command{
 				cmd.PrintErrln(err.Error())
 				return
 			}
-			//cmd.PrintErrf("image: %s\n", rewrittenImage.Remote())
 
 			images = append(images, rewrittenImage.Remote())
 		}

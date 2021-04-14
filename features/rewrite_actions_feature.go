@@ -11,9 +11,10 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
 )
 
-var _ = XDescribe("Rewrite Actions command", func() {
+var _ = Describe("Rewrite Actions command", func() {
 	steps := NewSteps()
 
 	Scenario("directory based helm chart", func() {
@@ -80,15 +81,30 @@ var _ = XDescribe("Rewrite Actions command", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		define.Then(`^the rewritten images are printed$`, func() {
-			var images []string
-			err := json.Unmarshal(CommandSession.Out.Contents(), &images)
+		define.Then(`^the rewrite actions are printed$`, func() {
+			actions := []lib.RewriteAction{}
+			err := json.Unmarshal(CommandSession.Out.Contents(), &actions)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(images).To(HaveLen(3))
-			Expect(images[0]).To(Equal("my-registry.example.com/library/nginx:stable"))
-			Expect(images[1]).To(Equal("my-registry.example.com/library/python:stable"))
-			Expect(images[2]).To(Equal("my-registry.example.com/library/busybox:latest"))
+			Expect(actions).To(HaveLen(4))
+			Expect(actions).To(ContainElements(
+				lib.RewriteAction{
+					Path:  ".Values.image.repository",
+					Value: "my-registry.example.com/library/nginx",
+				},
+				lib.RewriteAction{
+					Path:  ".Values.wellDefinedImage.registry",
+					Value: "my-registry.example.com",
+				},
+				lib.RewriteAction{
+					Path:  ".Values.wellDefinedImage.repository",
+					Value: "library/python",
+				},
+				lib.RewriteAction{
+					Path:  ".Values.singleTemplateImage.image",
+					Value: "my-registry.example.com/library/busybox:latest",
+				},
+			))
 		})
 
 		define.Then(`^the command exits with an error about the missing helm chart$`, func() {
