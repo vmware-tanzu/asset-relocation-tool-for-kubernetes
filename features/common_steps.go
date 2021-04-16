@@ -57,6 +57,8 @@ func DefineCommonSteps(define goerkin.Definitions) {
 		var err error
 		ChartMoverBinaryPath, err = gexec.Build(
 			"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2",
+			"-ldflags",
+			"-X gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/cmd.Version=1.2.3",
 		)
 		Expect(err).NotTo(HaveOccurred())
 	}, func() {

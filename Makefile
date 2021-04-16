@@ -47,11 +47,11 @@ deps: deps-modules deps-counterfeiter deps-ginkgo
 .PHONY: build
 
 SRC = $(shell find . -name "*.go" | grep -v "_test\." )
-#VERSION := $(or $(VERSION), dev)
-#LDFLAGS="-X gitlab.eng.vmware.com/marketplace-partner-eng/marketplace-cli/v2/cmd.Version=$(VERSION)"
+VERSION := $(or $(VERSION), dev)
+LDFLAGS="-X gitlab.eng.vmware.com/marketplace-partner-eng/marketplace-cli/v2/cmd.Version=$(VERSION)"
 
 build/chart-mover: $(SRC)
-	go build -o build/chart-mover ./main.go
+	go build -o build/chart-mover -ldflags ${LDFLAGS} ./main.go
 
 build/chart-mover-linux: $(SRC)
 	GOARCH=amd64 GOOS=linux go build -o build/chart-mover-linux -ldflags ${LDFLAGS} ./main.go
@@ -60,8 +60,8 @@ build: deps build/chart-mover
 
 build-all: build/chart-mover build/chart-mover-linux
 
-build-image: build/chart-mover-linux
-	docker build . --tag harbor-repo.vmware.com/tanzu_isv_engineering/chart-mover:$(VERSION)
+#build-image: build/chart-mover-linux
+#	docker build . --tag harbor-repo.vmware.com/tanzu_isv_engineering/chart-mover:$(VERSION)
 
 # #### TESTS ####
 .PHONY: lint test test-features test-units

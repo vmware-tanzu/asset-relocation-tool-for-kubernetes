@@ -1,0 +1,24 @@
+---
+platform: linux
+
+params:
+  GIT_SSH_KEY:
+  GOPRIVATE: gitlab.eng.vmware.com
+
+inputs:
+  - name: source
+  - name: version
+
+outputs:
+  - name: build
+
+run:
+  path: /bin/bash
+  dir: source
+  args:
+    - -exc
+    - |
+      ci/scripts/install-git-ssh-key
+      export VERSION=$(cat ../version/version)
+      make build-all
+      cp build/* ../build

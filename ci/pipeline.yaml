@@ -17,6 +17,17 @@ resources:
       username: ((harbor.username))
       password: ((harbor.token))
 
+  - name: version
+    type: semver
+    icon: gitlab
+    source:
+      driver: git
+      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/chart-mover.git
+      private_key: ((gitlab.private_key))
+      branch: master
+      file: version
+      commit_message: "[ci skip] bump version to %version%"
+
 jobs:
   - name: test
     plan:
@@ -29,3 +40,24 @@ jobs:
         file: source/ci/tasks/test.yaml
         params:
           GIT_SSH_KEY: ((gitlab.private_key))
+
+  - name: build
+    plan:
+      - in_parallel:
+        - get: golang-image
+        - get: source
+          trigger: true
+          passed:
+            - test
+        - get: version
+          params:
+            bump: patch
+      - task: build
+        image: golang-image
+        file: source/ci/tasks/build.yaml
+        params:
+          GIT_SSH_KEY: ((gitlab.private_key))
+      - put: version
+        params:
+          file: version/version
+        inputs: detect
