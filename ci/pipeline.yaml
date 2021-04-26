@@ -1,4 +1,15 @@
 ---
+resource_types:
+  - name: gl-release
+    type: registry-image
+    source:
+      # Return to the orangeopensource version when https://github.com/orange-cloudfoundry/gitlab-release-resource/pull/3 is merged
+      #      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/orangeopensource/gitlab-release-resource
+      #      tag: v1.0.3
+      repository: harbor-repo.vmware.com/tanzu_isv_engineering/gitlab-release-resource
+      username: ((harbor.username))
+      password: ((harbor.token))
+
 resources:
   - name: source
     type: git
@@ -16,6 +27,14 @@ resources:
       tag: 1.16
       username: ((harbor.username))
       password: ((harbor.token))
+
+  - name: release
+    type: gl-release
+    icon: gitlab
+    source:
+      repository: marketplace-partner-eng/chart-mover
+      access_token: ((gitlab.access_token))
+      gitlab_api_url: https://gitlab.eng.vmware.com
 
   - name: version
     type: semver
@@ -57,6 +76,13 @@ jobs:
         file: source/ci/tasks/build.yaml
         params:
           GIT_SSH_KEY: ((gitlab.private_key))
+      - put: release
+        inputs: [build, source, version]
+        params:
+          commitish: source/.git/ref
+          tag: version/version
+          globs:
+            - build/*
       - put: version
         params:
           file: version/version

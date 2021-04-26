@@ -53,12 +53,15 @@ LDFLAGS="-X gitlab.eng.vmware.com/marketplace-partner-eng/marketplace-cli/v2/cmd
 build/chart-mover: $(SRC)
 	go build -o build/chart-mover -ldflags ${LDFLAGS} ./main.go
 
+build/chart-mover-darwin: $(SRC)
+	GOARCH=amd64 GOOS=darwin go build -o build/mkpcli-darwin -ldflags ${LDFLAGS} ./main.go
+
 build/chart-mover-linux: $(SRC)
 	GOARCH=amd64 GOOS=linux go build -o build/chart-mover-linux -ldflags ${LDFLAGS} ./main.go
 
 build: deps build/chart-mover
 
-build-all: build/chart-mover build/chart-mover-linux
+build-all: build/chart-mover-darwin build/chart-mover-linux
 
 #build-image: build/chart-mover-linux
 #	docker build . --tag harbor-repo.vmware.com/tanzu_isv_engineering/chart-mover:$(VERSION)
