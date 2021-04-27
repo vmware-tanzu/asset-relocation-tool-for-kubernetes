@@ -26,6 +26,14 @@ resources:
       username: ((harbor.username))
       password: ((harbor.token))
 
+  - name: docker-image
+    type: docker-image
+    icon: docker
+    source:
+      repository: harbor-repo.vmware.com/tanzu_isv_engineering/chart-mover
+      username: ((harbor.username))
+      password: ((harbor.token))
+
   - name: release
     type: gl-release
     icon: gitlab
@@ -74,6 +82,16 @@ jobs:
         file: source/ci/tasks/build.yaml
         params:
           GIT_SSH_KEY: ((gitlab.private_key))
+      - put: docker-image
+        inputs:
+          - build
+          - source
+          - version
+        params:
+          build: .
+          dockerfile: source/Dockerfile
+          tag_file: version/version
+          tag_as_latest: true
       - put: release
         inputs: [build, source, version]
         params:
