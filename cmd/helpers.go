@@ -68,7 +68,7 @@ func LoadRewriteRules(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "failed to read rewrite rules file")
 	}
 
-	err = yaml.Unmarshal(fileContents, &Rules)
+	err = yaml.UnmarshalStrict(fileContents, &Rules)
 	if err != nil {
 		return errors.Wrap(err, "the rewrite rules file contents are not in the correct format")
 	}

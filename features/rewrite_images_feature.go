@@ -90,7 +90,7 @@ var _ = Describe("Rewrite Images command", func() {
 
 			Expect(images).To(HaveLen(3))
 			Expect(images[0]).To(Equal("my-registry.example.com/library/nginx:stable"))
-			Expect(images[1]).To(Equal("my-registry.example.com/library/python:stable"))
+			Expect(images[1]).To(Equal("my-registry.example.com/library/python:3"))
 			Expect(images[2]).To(Equal("my-registry.example.com/library/busybox:latest"))
 		})
 	})

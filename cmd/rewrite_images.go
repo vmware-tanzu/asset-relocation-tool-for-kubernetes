@@ -21,26 +21,23 @@ var RewriteImagesCmd = &cobra.Command{
 	Short:   "Lists the container images in a chart, modified by the rewrite rules",
 	Long:    "Finds, renders and lists the container images found in a Helm chart, using an image template file to detect the templates that build the image reference, and uses rewrite rules to modify the values.",
 	PreRunE: RunSerially(LoadChart, LoadImageTemplates, LoadRewriteRules),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		var images []string
 
 		for _, imageTemplate := range ImageTemplates {
 			originalImage, err := imageTemplate.Render(Chart, []*lib.RewriteAction{})
 			if err != nil {
-				cmd.PrintErrln(err.Error())
-				return
+				return err
 			}
 
 			actions, err := imageTemplate.Apply(originalImage, Rules)
 			if err != nil {
-				cmd.PrintErrln(err.Error())
-				return
+				return err
 			}
 
 			rewrittenImage, err := imageTemplate.Render(Chart, actions)
 			if err != nil {
-				cmd.PrintErrln(err.Error())
-				return
+				return err
 			}
 
 			images = append(images, rewrittenImage.Remote())
@@ -48,10 +45,10 @@ var RewriteImagesCmd = &cobra.Command{
 
 		encoded, err := json.Marshal(images)
 		if err != nil {
-			cmd.PrintErrln(err.Error())
-			return
+			return err
 		}
 
 		cmd.Println(string(encoded))
+		return nil
 	},
 }

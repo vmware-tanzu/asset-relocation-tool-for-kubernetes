@@ -11,7 +11,7 @@ image:
 wellDefinedImage:
   registry: docker.io
   repository: python
-  tag: stable
+  tag: 3
 
 singleTemplateImage:
   image: "busybox:latest"

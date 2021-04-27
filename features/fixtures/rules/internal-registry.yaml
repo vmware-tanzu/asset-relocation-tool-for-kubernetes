@@ -1,0 +1,2 @@
+registry: "harbor-repo.vmware.com"
+repositoryprefix: "tanzu_isv_engineering"

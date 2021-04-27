@@ -71,7 +71,7 @@ var _ = Describe("List Images command", func() {
 
 			Expect(images).To(HaveLen(3))
 			Expect(images[0]).To(Equal("docker.io/library/nginx:stable"))
-			Expect(images[1]).To(Equal("docker.io/library/python:stable"))
+			Expect(images[1]).To(Equal("docker.io/library/python:3"))
 			Expect(images[2]).To(Equal("docker.io/library/busybox:latest"))
 		})
 	})
