@@ -3,10 +3,8 @@ resource_types:
   - name: gl-release
     type: registry-image
     source:
-      # Return to the orangeopensource version when https://github.com/orange-cloudfoundry/gitlab-release-resource/pull/3 is merged
-      #      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/orangeopensource/gitlab-release-resource
-      #      tag: v1.0.3
-      repository: harbor-repo.vmware.com/tanzu_isv_engineering/gitlab-release-resource
+      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/orangeopensource/gitlab-release-resource
+      tag: v1.0.4
       username: ((harbor.username))
       password: ((harbor.token))
 
