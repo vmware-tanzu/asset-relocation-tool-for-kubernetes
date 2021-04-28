@@ -1,17 +1,24 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 
+	"github.com/docker/docker/client"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
 	"helm.sh/helm/v3/pkg/chart"
 )
 
+var PullImages bool
+
 func init() {
 	rootCmd.AddCommand(ListImagesCmd)
 	ListImagesCmd.SetOut(os.Stdout)
+
+	ListImagesCmd.Flags().BoolVar(&PullImages, "pull", false, "pull unedited images")
 }
 
 var ListImagesCmd = &cobra.Command{
@@ -25,6 +32,26 @@ var ListImagesCmd = &cobra.Command{
 		images, err := GetImages(Chart)
 		if err != nil {
 			return err
+		}
+
+		if PullImages {
+			cli, err := client.NewClientWithOpts(client.FromEnv)
+			if err != nil {
+				return errors.Wrap(err, "failed to initialize docker client")
+			}
+
+			img := &ImageManager{
+				Output:       cmd.ErrOrStderr(),
+				Context:      context.Background(),
+				DockerClient: cli,
+			}
+
+			for _, image := range images {
+				err = img.PullImage(image)
+				if err != nil {
+					return err
+				}
+			}
 		}
 
 		encoded, err := json.Marshal(images)
