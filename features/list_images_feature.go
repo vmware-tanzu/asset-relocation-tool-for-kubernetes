@@ -18,7 +18,6 @@ var _ = Describe("List Images command", func() {
 	Scenario("directory based helm chart", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("an image template list file")
-		steps.And("chart-mover has been built")
 		steps.When("running chart-mover list-images")
 		steps.Then("the command exits without error")
 		steps.And("the rendered images are printed")
@@ -27,7 +26,6 @@ var _ = Describe("List Images command", func() {
 	Scenario("tgz based helm chart", func() {
 		steps.Given("a tgz based helm chart")
 		steps.And("an image template list file")
-		steps.And("chart-mover has been built")
 		steps.When("running chart-mover list-images")
 		steps.Then("the command exits without error")
 		steps.And("the rendered images are printed")
@@ -35,7 +33,7 @@ var _ = Describe("List Images command", func() {
 
 	Scenario("missing helm chart", func() {
 		steps.Given("no helm chart")
-		steps.And("chart-mover has been built")
+		steps.Given("no helm chart")
 		steps.When("running chart-mover list-images")
 		steps.Then("the command exits with an error about the missing helm chart")
 		steps.And("it prints the usage")
@@ -44,7 +42,6 @@ var _ = Describe("List Images command", func() {
 	Scenario("missing images template list file", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("no image template list file")
-		steps.And("chart-mover has been built")
 		steps.When("running chart-mover list-images")
 		steps.Then("the command exits with an error about the missing images template list file")
 		steps.And("it prints the usage")

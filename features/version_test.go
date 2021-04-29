@@ -16,8 +16,7 @@ var _ = Describe("Report version", func() {
 	steps := NewSteps()
 
 	Scenario("version command reports version", func() {
-		steps.When("chart-mover has been built")
-		steps.And("running chart-mover version")
+		steps.When("running chart-mover version")
 		steps.Then("the command exits without error")
 		steps.And("the version is printed")
 	})

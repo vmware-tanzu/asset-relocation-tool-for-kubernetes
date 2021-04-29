@@ -20,7 +20,6 @@ var _ = Describe("Rewrite Actions command", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("an image template list file")
 		steps.And("a rules file that rewrites the registry")
-		steps.And("chart-mover has been built")
 		steps.When("running chart-mover rewrite-actions")
 		steps.Then("the command exits without error")
 		steps.And("the rewrite actions are printed")
@@ -30,7 +29,6 @@ var _ = Describe("Rewrite Actions command", func() {
 		steps.Given("a tgz based helm chart")
 		steps.And("an image template list file")
 		steps.And("a rules file that rewrites the registry")
-		steps.And("chart-mover has been built")
 		steps.When("running chart-mover rewrite-actions")
 		steps.Then("the command exits without error")
 		steps.And("the rewrite actions are printed")
@@ -38,7 +36,6 @@ var _ = Describe("Rewrite Actions command", func() {
 
 	Scenario("missing helm chart", func() {
 		steps.Given("no helm chart")
-		steps.And("chart-mover has been built")
 		steps.When("running chart-mover rewrite-actions")
 		steps.Then("the command exits with an error about the missing helm chart")
 		steps.And("it prints the usage")
@@ -47,7 +44,6 @@ var _ = Describe("Rewrite Actions command", func() {
 	Scenario("missing images template list file", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("no image template list file")
-		steps.And("chart-mover has been built")
 		steps.When("running chart-mover rewrite-actions")
 		steps.Then("the command exits with an error about the missing images template list file")
 		steps.And("it prints the usage")
@@ -57,7 +53,6 @@ var _ = Describe("Rewrite Actions command", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("an image template list file")
 		steps.And("no rewrite rules file")
-		steps.And("chart-mover has been built")
 		steps.When("running chart-mover rewrite-actions")
 		steps.Then("the command exits with an error about the missing rules file")
 		steps.And("it prints the usage")

@@ -7,6 +7,7 @@ import (
 	"path"
 
 	"github.com/bunniesandbeatings/goerkin"
+	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
@@ -19,6 +20,20 @@ var (
 	ImageTemplateFile    string
 	RewriteRulesFile     string
 )
+
+var _ = BeforeSuite(func() {
+	var err error
+	ChartMoverBinaryPath, err = gexec.Build(
+		"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2",
+		"-ldflags",
+		"-X gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/cmd.Version=1.2.3",
+	)
+	Expect(err).NotTo(HaveOccurred())
+})
+
+var _ = AfterSuite(func() {
+	gexec.CleanupBuildArtifacts()
+})
 
 func DefineCommonSteps(define goerkin.Definitions) {
 	define.Given(`^a directory based helm chart`, func() {
@@ -51,18 +66,6 @@ func DefineCommonSteps(define goerkin.Definitions) {
 
 		ChartPath = path.Join(wd, "fixtures", "empty-directory")
 		ImageTemplateFile = path.Join(wd, "fixtures", "sample-chart-images.yaml")
-	})
-
-	define.Given(`^chart-mover has been built$`, func() {
-		var err error
-		ChartMoverBinaryPath, err = gexec.Build(
-			"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2",
-			"-ldflags",
-			"-X gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/cmd.Version=1.2.3",
-		)
-		Expect(err).NotTo(HaveOccurred())
-	}, func() {
-		gexec.CleanupBuildArtifacts()
 	})
 
 	define.Then(`^the command exits without error$`, func() {
