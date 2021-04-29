@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "dependent-chart.fullname" . }}
+  name: {{ include "dependentchart.fullname" . }}
   labels:
-    {{- include "dependent-chart.labels" . | nindent 4 }}
+    {{- include "dependentchart.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "dependent-chart.selectorLabels" . | nindent 6 }}
+      {{- include "dependentchart.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -18,13 +18,13 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "dependent-chart.selectorLabels" . | nindent 8 }}
+        {{- include "dependentchart.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "dependent-chart.serviceAccountName" . }}
+      serviceAccountName: {{ include "dependentchart.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:

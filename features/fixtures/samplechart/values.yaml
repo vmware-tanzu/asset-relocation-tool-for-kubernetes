@@ -1,4 +1,4 @@
-# Default values for dependent-chart.
+# Default values for samplechart.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
@@ -6,9 +6,15 @@ replicaCount: 1
 
 image:
   repository: nginx
-  pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: latest
+  tag: stable
+
+wellDefinedImage:
+  registry: docker.io
+  repository: python
+  tag: 3
+
+singleTemplateImage:
+  image: "busybox:latest"
 
 imagePullSecrets: []
 nameOverride: ""

@@ -22,11 +22,11 @@ var (
 
 func DefineCommonSteps(define goerkin.Definitions) {
 	define.Given(`^a directory based helm chart`, func() {
-		ChartPath = path.Join("fixtures", "sample-chart")
+		ChartPath = path.Join("fixtures", "samplechart")
 	})
 
 	define.Given(`^a tgz based helm chart`, func() {
-		ChartPath = path.Join("fixtures", "sample-chart-0.1.0.tgz")
+		ChartPath = path.Join("fixtures", "samplechart-0.1.0.tgz")
 	})
 
 	define.Given(`^an image template list file$`, func() {

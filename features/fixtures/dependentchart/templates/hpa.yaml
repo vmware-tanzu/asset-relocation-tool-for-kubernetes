@@ -2,14 +2,14 @@
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "dependent-chart.fullname" . }}
+  name: {{ include "dependentchart.fullname" . }}
   labels:
-    {{- include "dependent-chart.labels" . | nindent 4 }}
+    {{- include "dependentchart.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "dependent-chart.fullname" . }}
+    name: {{ include "dependentchart.fullname" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:
