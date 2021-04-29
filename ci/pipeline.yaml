@@ -67,6 +67,7 @@ jobs:
           GIT_SSH_KEY: ((gitlab.private_key))
 
   - name: build
+    serial_groups: [version]
     plan:
       - in_parallel:
         - get: golang-image
@@ -103,3 +104,11 @@ jobs:
         params:
           file: version/version
         inputs: detect
+
+  - name: bump-minor-version
+    serial_groups: [version]
+    plan:
+      - put: version
+        inputs: detect
+        params:
+          bump: minor
