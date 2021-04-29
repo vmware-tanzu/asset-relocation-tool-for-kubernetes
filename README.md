@@ -101,3 +101,28 @@ Repository          | `repository: "mycompany/otherapp"`    | `docker.io/mycompa
 Repository Prefix   | `repositoryprefix: "mytenant"`        | `docker.io/mycompany/myapp:1.2.3` | `docker.io/mytenant/mycompany/myapp:1.2.3`
 Tag                 | `tag: "imported"`                     | `docker.io/mycompany/myapp:1.2.3` | `docker.io/mycompany/myapp:imported`
 Digest              | `digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"` | `docker.io/mycompany/myapp@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` | `docker.io/mycompany/myapp@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee`
+
+## Development
+
+To set up a local development environment, it's recommended to install these tools:
+
+* jq (`brew install jq`) - For parsing and formatting output
+* direnv (`brew install direnv`) - For setting environment local environment variables
+
+There are two types of tests, unit tests and feature tests. Unit tests run inside out and can be run with:
+
+```bash
+make test-units
+```
+
+Feature tests run tests by building and executing chart-mover as a CLI. They can be run with:
+
+```bash
+make test-features
+```
+
+All tests can be run with:
+
+```bash
+make test
+```
