@@ -44,8 +44,16 @@ func DefineCommonSteps(define goerkin.Definitions) {
 		ChartPath = path.Join("fixtures", "samplechart-0.1.0.tgz")
 	})
 
+	define.Given(`^a helm chart with a chart dependency$`, func() {
+		ChartPath = path.Join("fixtures", "dependentchart")
+	})
+
 	define.Given(`^an image template list file$`, func() {
 		ImageTemplateFile = path.Join("fixtures", "sample-chart-images.yaml")
+	})
+
+	define.Given(`^an image template list file for the chart with dependencies$`, func() {
+		ImageTemplateFile = path.Join("fixtures", "dependent-chart-images.yaml")
 	})
 
 	define.Given("^no image template list file$", func() {

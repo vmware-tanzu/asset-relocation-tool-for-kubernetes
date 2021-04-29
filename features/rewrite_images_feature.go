@@ -33,6 +33,15 @@ var _ = Describe("Rewrite Images command", func() {
 		steps.And("the rewritten images are printed")
 	})
 
+	Scenario("helm chart with dependencies", func() {
+		steps.Given("a helm chart with a chart dependency")
+		steps.And("an image template list file for the chart with dependencies")
+		steps.And("a rules file that rewrites the registry")
+		steps.When("running chart-mover rewrite-images")
+		steps.Then("the command exits without error")
+		steps.And("the rewritten images from the parent and dependent chart are printed")
+	})
+
 	Scenario("missing helm chart", func() {
 		steps.Given("no helm chart")
 		steps.When("running chart-mover rewrite-images")
@@ -84,9 +93,29 @@ var _ = Describe("Rewrite Images command", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(images).To(HaveLen(3))
-			Expect(images[0]).To(Equal("my-registry.example.com/library/nginx:stable"))
-			Expect(images[1]).To(Equal("my-registry.example.com/library/python:3"))
-			Expect(images[2]).To(Equal("my-registry.example.com/library/busybox:latest"))
+			Expect(images).To(ContainElements(
+				"my-registry.example.com/library/nginx:stable",
+				"my-registry.example.com/library/python:3",
+				"my-registry.example.com/library/busybox:latest",
+			))
+		})
+
+		define.Then(`^the rewritten images from the parent and dependent chart are printed$`, func() {
+			output := CommandSession.Out.Contents()
+			errOutput := CommandSession.Err.Contents()
+			Expect(string(errOutput)).To(BeEmpty())
+
+			var images []string
+			err := json.Unmarshal(output, &images)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(images).To(HaveLen(4))
+			Expect(images).To(ContainElements(
+				"my-registry.example.com/library/nginx:latest",
+				"my-registry.example.com/library/nginx:stable",
+				"my-registry.example.com/library/python:3",
+				"my-registry.example.com/library/busybox:latest",
+			))
 		})
 	})
 })

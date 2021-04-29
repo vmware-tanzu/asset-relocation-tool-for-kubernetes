@@ -17,14 +17,14 @@ type RewriteAction struct {
 	Value string `json:"value"`
 }
 
-func (a *RewriteAction) ToMap() map[string]interface{} {
+func (a *RewriteAction) ToMap() ValuesMap {
 	keys := strings.Split(strings.TrimPrefix(a.Path, "."), ".")
-	var node map[string]interface{}
+	var node ValuesMap
 	var value interface{} = a.Value
 
 	for i := len(keys) - 1; i >= 0; i -= 1 {
 		key := keys[i]
-		node = make(map[string]interface{})
+		node = make(ValuesMap)
 		node[key] = value
 		value = node
 	}

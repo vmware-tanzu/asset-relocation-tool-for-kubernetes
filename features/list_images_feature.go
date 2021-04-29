@@ -31,6 +31,14 @@ var _ = Describe("List Images command", func() {
 		steps.And("the rendered images are printed")
 	})
 
+	Scenario("helm chart with dependencies", func() {
+		steps.Given("a helm chart with a chart dependency")
+		steps.And("an image template list file for the chart with dependencies")
+		steps.When("running chart-mover list-images")
+		steps.Then("the command exits without error")
+		steps.And("the rendered images from the parent and dependent chart are printed")
+	})
+
 	Scenario("missing helm chart", func() {
 		steps.Given("no helm chart")
 		steps.Given("no helm chart")
@@ -67,9 +75,25 @@ var _ = Describe("List Images command", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(images).To(HaveLen(3))
-			Expect(images[0]).To(Equal("docker.io/library/nginx:stable"))
-			Expect(images[1]).To(Equal("docker.io/library/python:3"))
-			Expect(images[2]).To(Equal("docker.io/library/busybox:latest"))
+			Expect(images).To(ContainElements(
+				"docker.io/library/nginx:stable",
+				"docker.io/library/python:3",
+				"docker.io/library/busybox:latest",
+			))
+		})
+
+		define.Then(`^the rendered images from the parent and dependent chart are printed$`, func() {
+			var images []string
+			err := json.Unmarshal(CommandSession.Out.Contents(), &images)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(images).To(HaveLen(4))
+			Expect(images).To(ContainElements(
+				"docker.io/library/nginx:latest",
+				"docker.io/library/nginx:stable",
+				"docker.io/library/python:3",
+				"docker.io/library/busybox:latest",
+			))
 		})
 	})
 })

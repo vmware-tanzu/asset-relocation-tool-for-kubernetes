@@ -34,6 +34,15 @@ var _ = Describe("Rewrite Actions command", func() {
 		steps.And("the rewrite actions are printed")
 	})
 
+	Scenario("helm chart with dependencies", func() {
+		steps.Given("a helm chart with a chart dependency")
+		steps.And("an image template list file for the chart with dependencies")
+		steps.And("a rules file that rewrites the registry")
+		steps.When("running chart-mover rewrite-actions")
+		steps.Then("the command exits without error")
+		steps.And("the rewritten actions for the parent and dependent chart are printed")
+	})
+
 	Scenario("missing helm chart", func() {
 		steps.Given("no helm chart")
 		steps.When("running chart-mover rewrite-actions")
@@ -96,6 +105,36 @@ var _ = Describe("Rewrite Actions command", func() {
 				},
 				lib.RewriteAction{
 					Path:  ".Values.singleTemplateImage.image",
+					Value: "my-registry.example.com/library/busybox:latest",
+				},
+			))
+		})
+
+		define.Then(`^the rewritten actions for the parent and dependent chart are printed$`, func() {
+			actions := []lib.RewriteAction{}
+			err := json.Unmarshal(CommandSession.Out.Contents(), &actions)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(actions).To(HaveLen(5))
+			Expect(actions).To(ContainElements(
+				lib.RewriteAction{
+					Path: ".Values.image.repository",
+					Value: "my-registry.example.com/library/nginx",
+				},
+				lib.RewriteAction{
+					Path:  ".Values.samplechart.image.repository",
+					Value: "my-registry.example.com/library/nginx",
+				},
+				lib.RewriteAction{
+					Path:  ".Values.samplechart.wellDefinedImage.registry",
+					Value: "my-registry.example.com",
+				},
+				lib.RewriteAction{
+					Path:  ".Values.samplechart.wellDefinedImage.repository",
+					Value: "library/python",
+				},
+				lib.RewriteAction{
+					Path:  ".Values.samplechart.singleTemplateImage.image",
 					Value: "my-registry.example.com/library/busybox:latest",
 				},
 			))

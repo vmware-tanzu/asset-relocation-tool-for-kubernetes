@@ -3,7 +3,7 @@ package lib_test
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
+	. "gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
 )
 
 var _ = Describe("RewriteRules", func() {})
@@ -12,7 +12,7 @@ var _ = Describe("RewriteAction", func() {
 	Describe("ToMap", func() {
 		Context("one key", func() {
 			It("becomes a flat map", func() {
-				action := &lib.RewriteAction{
+				action := &RewriteAction{
 					Path:  ".alpha",
 					Value: "needle",
 				}
@@ -24,7 +24,7 @@ var _ = Describe("RewriteAction", func() {
 
 		Context("two keys", func() {
 			It("becomes a nested map", func() {
-				action := &lib.RewriteAction{
+				action := &RewriteAction{
 					Path:  ".alpha.bravo",
 					Value: "needle",
 				}
@@ -38,7 +38,7 @@ var _ = Describe("RewriteAction", func() {
 
 		Context("multiple keys", func() {
 			It("becomes a deeply nested map", func() {
-				action := &lib.RewriteAction{
+				action := &RewriteAction{
 					Path:  ".alpha.bravo.charlie.delta",
 					Value: "needle",
 				}
@@ -47,15 +47,15 @@ var _ = Describe("RewriteAction", func() {
 				Expect(haystack).To(HaveKey("alpha"))
 
 				var ok bool
-				haystack, ok = haystack["alpha"].(map[string]interface{})
+				haystack, ok = haystack["alpha"].(ValuesMap)
 				Expect(ok).To(BeTrue())
 				Expect(haystack).To(HaveKey("bravo"))
 
-				haystack, ok = haystack["bravo"].(map[string]interface{})
+				haystack, ok = haystack["bravo"].(ValuesMap)
 				Expect(ok).To(BeTrue())
 				Expect(haystack).To(HaveKey("charlie"))
 
-				haystack, ok = haystack["charlie"].(map[string]interface{})
+				haystack, ok = haystack["charlie"].(ValuesMap)
 				Expect(ok).To(BeTrue())
 				Expect(haystack).To(HaveKeyWithValue("delta", "needle"))
 

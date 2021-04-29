@@ -74,15 +74,30 @@ func NewFromString(input string) (*ImageTemplate, error) {
 	return imageTemplate, nil
 }
 
-func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions []*RewriteAction) (*dockerparser.Reference, error) {
-	values := map[string]interface{}{
+type ValuesMap map[string]interface{}
+func BuildValuesMap(chart *chart.Chart, rewriteActions []*RewriteAction) ValuesMap {
+	// Add values for chart dependencies
+	for _, dependency := range chart.Dependencies() {
+		chart.Values[dependency.Name()] = merge.Merge(dependency.Values, chart.Values[dependency.Name()])
+	}
+
+	// Prepend .Values to match the format inside the template files
+	values := ValuesMap{
 		"Values": chart.Values,
 	}
+
+	// Apply rewrite actions
 	for _, action := range rewriteActions {
 		actionMap := action.ToMap()
 		result := merge.Merge(values, actionMap)
-		values, _ = result.(map[string]interface{})
+		values, _ = result.(ValuesMap)
 	}
+
+	return values
+}
+
+func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions []*RewriteAction) (*dockerparser.Reference, error) {
+	values := BuildValuesMap(chart, rewriteActions)
 
 	output := bytes.Buffer{}
 	err := t.Template.Execute(&output, values)
