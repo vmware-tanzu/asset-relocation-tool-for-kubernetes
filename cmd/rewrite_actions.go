@@ -13,14 +13,20 @@ func init() {
 	rootCmd.AddCommand(RewriteActionsCmd)
 	RewriteActionsCmd.SetOut(os.Stdout)
 
-	RewriteActionsCmd.Flags().StringVar(&RewriteRulesFile, "rules-file", "", "File with rewrite rules")
+	RewriteActionsCmd.Flags().StringVarP(
+		&RewriteRulesFile,
+		"rules-file",
+		"r",
+		"",
+		"File with rewrite rules")
 	_ = RewriteActionsCmd.MarkFlagRequired("rules-file")
 }
 
 var RewriteActionsCmd = &cobra.Command{
-	Use:   "rewrite-actions <chart>",
-	Short: "Generate a list of rewrite actions, based on the rewrite rules, to modify container image references in a Helm chart",
-	//Long:  "",
+	Use:     "rewrite-actions <chart>",
+	Short:   "Preview of rewrite actions to take based on the rewrite rules.",
+	Long:    "List of rewrite actions to take based upon the rewrite rules to modify container image references in a Helm chart",
+	Example: "rewrite-actions <chart> -i <image templates> -r <rules file>",
 	PreRunE: RunSerially(LoadChart, LoadImageTemplates, LoadRewriteRules),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true

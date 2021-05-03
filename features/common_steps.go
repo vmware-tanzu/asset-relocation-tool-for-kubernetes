@@ -89,12 +89,12 @@ func DefineCommonSteps(define goerkin.Definitions) {
 
 	define.Then(`^the command exits with an error about the missing images template list file$`, func() {
 		Eventually(CommandSession).Should(gexec.Exit(1))
-		Expect(CommandSession.Err).To(Say("Error: image list file is required"))
+		Expect(CommandSession.Err).To(Say("Error: image-templates is required. Please try again with '-i <image templates>'"))
 	})
 
 	define.Then(`^the command exits with an error about the missing rules file$`, func() {
 		Eventually(CommandSession).Should(gexec.Exit(1))
-		Expect(CommandSession.Err).To(Say("Error: rewrite rules file is required"))
+		Expect(CommandSession.Err).To(Say("Error: rules-file is required. Please try again with '-r <rules file>'"))
 	})
 
 	define.Then(`^it prints the usage$`, func() {
