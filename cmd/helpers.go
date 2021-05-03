@@ -31,18 +31,18 @@ func LoadChart(cmd *cobra.Command, args []string) error {
 
 func LoadImageTemplates(cmd *cobra.Command, args []string) error {
 	if ImageListFile == "" {
-		return errors.New("image list file is required")
+		return errors.New("image-templates is required. Please try again with '-i <image templates>'")
 	}
 
 	fileContents, err := ioutil.ReadFile(ImageListFile)
 	if err != nil {
-		return errors.Wrap(err, "failed to read image list file")
+		return errors.Wrap(err, "failed to read image-templates")
 	}
 
 	var templateStrings []string
 	err = yaml.Unmarshal(fileContents, &templateStrings)
 	if err != nil {
-		return errors.Wrap(err, "the image list file contents are not in the correct format")
+		return errors.Wrap(err, "image-templates are not in the correct format")
 	}
 
 	for _, line := range templateStrings {
@@ -60,17 +60,17 @@ var Rules *lib.RewriteRules
 
 func LoadRewriteRules(cmd *cobra.Command, args []string) error {
 	if RewriteRulesFile == "" {
-		return errors.New("rewrite rules file is required")
+		return errors.New("rules-file is required. Please try again with '-r <rules file>'")
 	}
 
 	fileContents, err := ioutil.ReadFile(RewriteRulesFile)
 	if err != nil {
-		return errors.Wrap(err, "failed to read rewrite rules file")
+		return errors.Wrap(err, "failed to read rewrite rules-file")
 	}
 
 	err = yaml.UnmarshalStrict(fileContents, &Rules)
 	if err != nil {
-		return errors.Wrap(err, "the rewrite rules file contents are not in the correct format")
+		return errors.Wrap(err, "the rewrite rules-file contents are not in the correct format")
 	}
 
 	return nil

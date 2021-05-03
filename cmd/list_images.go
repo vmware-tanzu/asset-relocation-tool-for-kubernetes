@@ -25,6 +25,7 @@ var ListImagesCmd = &cobra.Command{
 	Use:     "list-images <chart>",
 	Short:   "Lists the container images in a chart",
 	Long:    "Finds, renders and lists the container images found in a Helm chart, using an image template file to detect the templates that build the image reference.",
+	Example: "list-images <chart> -i <image templates>",
 	PreRunE: RunSerially(LoadChart, LoadImageTemplates),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true

@@ -75,6 +75,7 @@ func NewFromString(input string) (*ImageTemplate, error) {
 }
 
 type ValuesMap map[string]interface{}
+
 func BuildValuesMap(chart *chart.Chart, rewriteActions []*RewriteAction) ValuesMap {
 	// Add values for chart dependencies
 	for _, dependency := range chart.Dependencies() {

@@ -118,7 +118,7 @@ var _ = Describe("Rewrite Actions command", func() {
 			Expect(actions).To(HaveLen(5))
 			Expect(actions).To(ContainElements(
 				lib.RewriteAction{
-					Path: ".Values.image.repository",
+					Path:  ".Values.image.repository",
 					Value: "my-registry.example.com/library/nginx",
 				},
 				lib.RewriteAction{
