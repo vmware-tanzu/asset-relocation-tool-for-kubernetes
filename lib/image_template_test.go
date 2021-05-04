@@ -92,9 +92,15 @@ var _ = Describe("NewFromString", func() {
 	})
 })
 
+type ChartInput struct {
+	Name   string
+	Values map[string]interface{}
+}
+
 type TableInput struct {
-	Values   map[string]interface{}
-	Template string
+	Values       map[string]interface{}
+	Dependencies []*ChartInput
+	Template     string
 }
 type TableOutput struct {
 	Image          string
@@ -139,6 +145,25 @@ var (
 		Template: "{{ .Values.image }}@{{ .Values.digest }}",
 	}
 
+	dependencyRegistryImageAndTag = &TableInput{
+		Values: map[string]interface{}{
+			"registry": "quay.io",
+			"image":    "busycontainers/busybox",
+			"tag":      "busiest",
+		},
+		Dependencies: []*ChartInput{
+			{
+				Name: "lazy",
+				Values: map[string]interface{}{
+					"registry": "docker.io",
+					"image":    "lazycontainers/lazybox",
+					"tag":      "laziest",
+				},
+			},
+		},
+		Template: "{{ .Values.lazy.registry }}/{{ .Values.lazy.image }}:{{ .Values.lazy.tag }}",
+	}
+
 	registryRule             = &RewriteRules{Registry: "registry.vmware.com"}
 	repositoryPrefixRule     = &RewriteRules{RepositoryPrefix: "my-company"}
 	repositoryRule           = &RewriteRules{Repository: "owner/name"}
@@ -150,13 +175,27 @@ var (
 	registryTagAndDigestRule = &RewriteRules{Registry: "registry.vmware.com", Tag: "explosive", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
 )
 
+func MakeChart(input *TableInput) *chart.Chart {
+	newChart := &chart.Chart{
+		Values: input.Values,
+	}
+	for _, dependency := range input.Dependencies {
+		newChart.AddDependency(&chart.Chart{
+			Metadata: &chart.Metadata{
+				Name: dependency.Name,
+			},
+			Values: dependency.Values,
+		})
+	}
+
+	return newChart
+}
+
 var _ = DescribeTable("Rewrite Actions",
 	func(input *TableInput, rules *RewriteRules, expected *TableOutput) {
 		var (
-			err   error
-			chart = &chart.Chart{
-				Values: input.Values,
-			}
+			err           error
+			chart         = MakeChart(input)
 			template      *ImageTemplate
 			originalImage *dockerparser.Reference
 			actions       []*RewriteAction
@@ -670,6 +709,104 @@ var _ = DescribeTable("Rewrite Actions",
 			{
 				Path:  ".Values.digest",
 				Value: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			},
+		},
+	}),
+
+	Entry("dependency image and digest, registry only", dependencyRegistryImageAndTag, registryRule, &TableOutput{
+		Image:          "docker.io/lazycontainers/lazybox:laziest",
+		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:laziest",
+		Actions: []*RewriteAction{
+			{
+				Path: ".Values.lazy.registry",
+				Value: "registry.vmware.com",
+			},
+		},
+	}),
+	Entry("dependency image and digest, repository prefix only", dependencyRegistryImageAndTag, repositoryPrefixRule, &TableOutput{
+		Image:          "docker.io/lazycontainers/lazybox:laziest",
+		RewrittenImage: "docker.io/my-company/lazycontainers/lazybox:laziest",
+		Actions: []*RewriteAction{
+			{
+				Path: ".Values.lazy.image",
+				Value: "my-company/lazycontainers/lazybox",
+			},
+		},
+	}),
+	Entry("dependency image and digest, repository only", dependencyRegistryImageAndTag, repositoryRule, &TableOutput{
+		Image:          "docker.io/lazycontainers/lazybox:laziest",
+		RewrittenImage: "docker.io/owner/name:laziest",
+		Actions: []*RewriteAction{
+			{
+				Path: ".Values.lazy.image",
+				Value: "owner/name",
+			},
+		},
+	}),
+	Entry("dependency image and digest, tag only", dependencyRegistryImageAndTag, tagRule, &TableOutput{
+		Image:          "docker.io/lazycontainers/lazybox:laziest",
+		RewrittenImage: "docker.io/lazycontainers/lazybox:explosive",
+		Actions:        []*RewriteAction{
+			{
+				Path: ".Values.lazy.tag",
+				Value: "explosive",
+			},
+		},
+	}),
+	Entry("dependency image and digest, digest only", dependencyRegistryImageAndTag, digestRule, &TableOutput{
+		Image:          "docker.io/lazycontainers/lazybox:laziest",
+		RewrittenImage: "docker.io/lazycontainers/lazybox:laziest",
+		Actions: []*RewriteAction{},
+	}),
+	Entry("dependency image and digest, registry and prefix", dependencyRegistryImageAndTag, registryAndPrefixRule, &TableOutput{
+		Image:          "docker.io/lazycontainers/lazybox:laziest",
+		RewrittenImage: "registry.vmware.com/my-company/lazycontainers/lazybox:laziest",
+		Actions: []*RewriteAction{
+			{
+				Path: ".Values.lazy.registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path: ".Values.lazy.image",
+				Value: "my-company/lazycontainers/lazybox",
+			},
+		},
+	}),
+	Entry("dependency image and digest, registry and tag", dependencyRegistryImageAndTag, registryAndTagRule, &TableOutput{
+		Image:          "docker.io/lazycontainers/lazybox:laziest",
+		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:explosive",
+		Actions:        []*RewriteAction{
+			{
+				Path:  ".Values.lazy.registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path:  ".Values.lazy.tag",
+				Value: "explosive",
+			},
+		},
+	}),
+	Entry("dependency image and digest, registry and digest", dependencyRegistryImageAndTag, registryAndDigestRule, &TableOutput{
+		Image:          "docker.io/lazycontainers/lazybox:laziest",
+		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:laziest",
+		Actions: []*RewriteAction{
+			{
+				Path: ".Values.lazy.registry",
+				Value: "registry.vmware.com",
+			},
+		},
+	}),
+	Entry("dependency image and digest, registry and tag and digest", dependencyRegistryImageAndTag, registryTagAndDigestRule, &TableOutput{
+		Image:          "docker.io/lazycontainers/lazybox:laziest",
+		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:explosive",
+		Actions: []*RewriteAction{
+			{
+				Path: ".Values.lazy.registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path: ".Values.lazy.tag",
+				Value: "explosive",
 			},
 		},
 	}),
