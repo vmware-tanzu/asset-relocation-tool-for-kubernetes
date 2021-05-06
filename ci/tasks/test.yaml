@@ -15,5 +15,8 @@ run:
   args:
     - -exc
     - |
+      source /docker-lib.sh
+      start_docker
+
       ci/scripts/install-git-ssh-key
       make test

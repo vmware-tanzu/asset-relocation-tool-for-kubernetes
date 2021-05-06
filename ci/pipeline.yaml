@@ -16,13 +16,25 @@ resources:
       uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/chart-mover.git
       private_key: ((gitlab.private_key))
       branch: master
+      ignore_paths:
+        - ci/Dockerfile
+        - ci/pipeline.yaml
 
-  - name: golang-image
-    type: registry-image
+  - name: test-image-source
+    type: git
+    icon: gitlab
+    source:
+      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/chart-mover.git
+      private_key: ((gitlab.private_key))
+      branch: master
+      paths:
+        - ci/Dockerfile
+
+  - name: test-image
+    type: docker-image
     icon: docker
     source:
-      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/library/golang
-      tag: 1.16
+      repository: harbor-repo.vmware.com/tanzu_isv_engineering/chart-mover-test-image
       username: ((harbor.username))
       password: ((harbor.token))
 
@@ -54,14 +66,24 @@ resources:
       commit_message: "[ci skip] bump version to %version%"
 
 jobs:
+  - name: build-test-image
+    plan:
+      - get: test-image-source
+      - put: test-image
+        build: .
+        dockerfile: test-image-source/ci/Dockerfile
+        tag_as_latest: true
+
   - name: test
     plan:
       - in_parallel:
-          - get: golang-image
+          - get: test-image
+            passed:
+              - build-test-image
           - get: source
             trigger: true
       - task: run-tests
-        image: golang-image
+        image: test-image
         file: source/ci/tasks/test.yaml
         params:
           GIT_SSH_KEY: ((gitlab.private_key))
