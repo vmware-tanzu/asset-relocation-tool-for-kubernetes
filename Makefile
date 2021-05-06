@@ -75,7 +75,10 @@ test-units: deps
 test-features: deps
 	ginkgo -r -tags=feature features
 
-test: deps lint test-units test-features
+test-enemies: deps
+	ginkgo -r -tags=enemies features
+
+test: deps lint test-units test-features test-enemies
 
 lint: deps-goimports
 	git ls-files | grep '.go$$' | xargs goimports -l -w

@@ -42,22 +42,22 @@ func NewFromString(input string) (*ImageTemplate, error) {
 		Template: temp,
 	}
 
-	tagMatches := TagRegex.FindAllSubmatch([]byte(input), -1)
+	tagMatches := TagRegex.FindAllStringSubmatch(input, -1)
 	if len(tagMatches) == 1 {
-		imageTemplate.TagTemplate = string(tagMatches[0][1])
+		imageTemplate.TagTemplate = tagMatches[0][1]
 	} else if len(tagMatches) > 1 {
 		return nil, errors.Errorf("failed to parse image template \"%s\": too many tag template matches", input)
 	}
 
-	digestMatches := DigestRegex.FindAllSubmatch([]byte(input), -1)
+	digestMatches := DigestRegex.FindAllStringSubmatch(input, -1)
 	if len(digestMatches) == 1 {
-		imageTemplate.DigestTemplate = string(digestMatches[0][1])
+		imageTemplate.DigestTemplate = digestMatches[0][1]
 	} else if len(digestMatches) > 1 {
 		return nil, errors.Errorf("failed to parse image template \"%s\": too many digest template matches", input)
 	}
 
-	templateWithoutTagDigest := TagOrDigestRegex.ReplaceAll([]byte(input), []byte(""))
-	extraFragments := TemplateRegex.FindAllStringSubmatch(string(templateWithoutTagDigest), -1)
+	templateWithoutTagDigest := TagOrDigestRegex.ReplaceAllString(input, "")
+	extraFragments := TemplateRegex.FindAllStringSubmatch(templateWithoutTagDigest, -1)
 
 	switch len(extraFragments) {
 	case 0:

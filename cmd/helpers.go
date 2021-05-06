@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"io/ioutil"
+	"regexp"
 
+	"github.com/docker/docker/api/types"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
@@ -14,6 +18,9 @@ import (
 var (
 	Chart          *chart.Chart
 	ImageTemplates []*lib.ImageTemplate
+
+	// TODO: limit this to valid registry and username characters
+	registryAuthRegex = regexp.MustCompile(`(.*?)=([a-zA-Z0-9$]*):(.*)`)
 )
 
 func LoadChart(cmd *cobra.Command, args []string) error {
@@ -73,6 +80,22 @@ func LoadRewriteRules(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "the rewrite rules-file contents are not in the correct format")
 	}
 
+	return nil
+}
+
+func ParseRegistryAuth(cmd *cobra.Command, args []string) error {
+	for _, authString := range RegistryAuthList {
+		parts := registryAuthRegex.FindStringSubmatch(authString)
+		if len(parts) > 0 {
+			authBytes, _ := json.Marshal(types.AuthConfig{
+				Username: parts[2],
+				Password: parts[3],
+			})
+			RegistryAuth[parts[1]] = base64.URLEncoding.EncodeToString(authBytes)
+		} else {
+			return errors.Errorf("registry auth is in an invalid format: \"%s\". Should be <registry.url>=<username>:<password>", authString)
+		}
+	}
 	return nil
 }
 

@@ -9,16 +9,17 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
-	"helm.sh/helm/v3/pkg/chart"
 )
 
-var PullImages bool
+var pullImages bool
 
 func init() {
 	rootCmd.AddCommand(ListImagesCmd)
 	ListImagesCmd.SetOut(os.Stdout)
 
-	ListImagesCmd.Flags().BoolVar(&PullImages, "pull", false, "pull unedited images")
+	ListImagesCmd.Flags().BoolVar(&pullImages, "pull", false, "pull unedited images")
+
+	ListImagesCmd.Flags().StringArrayVar(&RegistryAuthList, "registry-auth", []string{}, "Supply credentials for connecting to a registry. In the format <registry.url>=<username>:<password>. Can be called multiple times.")
 }
 
 var ListImagesCmd = &cobra.Command{
@@ -26,33 +27,37 @@ var ListImagesCmd = &cobra.Command{
 	Short:   "Lists the container images in a chart",
 	Long:    "Finds, renders and lists the container images found in a Helm chart, using an image template file to detect the templates that build the image reference.",
 	Example: "list-images <chart> -i <image templates>",
-	PreRunE: RunSerially(LoadChart, LoadImageTemplates),
+	PreRunE: RunSerially(LoadChart, LoadImageTemplates, ParseRegistryAuth),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
+		var images []string
 
-		images, err := GetImages(Chart)
-		if err != nil {
-			return err
-		}
-
-		if PullImages {
-			cli, err := client.NewClientWithOpts(client.FromEnv)
+		for _, imageTemplate := range ImageTemplates {
+			image, err := imageTemplate.Render(Chart, []*lib.RewriteAction{})
 			if err != nil {
-				return errors.Wrap(err, "failed to initialize docker client")
+				return err
 			}
 
-			img := &ImageManager{
-				Output:       cmd.ErrOrStderr(),
-				Context:      context.Background(),
-				DockerClient: cli,
-			}
+			if pullImages {
+				cli, err := client.NewClientWithOpts(client.FromEnv)
+				if err != nil {
+					return errors.Wrap(err, "failed to initialize docker client")
+				}
 
-			for _, image := range images {
+				img := &ImageManager{
+					Output:       cmd.ErrOrStderr(),
+					Context:      context.Background(),
+					DockerClient: cli,
+					Auth:         RegistryAuth,
+				}
+
 				err = img.PullImage(image)
 				if err != nil {
 					return err
 				}
 			}
+
+			images = append(images, image.Remote())
 		}
 
 		encoded, err := json.Marshal(images)
@@ -63,19 +68,4 @@ var ListImagesCmd = &cobra.Command{
 		cmd.Println(string(encoded))
 		return nil
 	},
-}
-
-func GetImages(chart *chart.Chart) ([]string, error) {
-	var images []string
-
-	for _, imageTemplate := range ImageTemplates {
-		image, err := imageTemplate.Render(chart, []*lib.RewriteAction{})
-		if err != nil {
-			return nil, err
-		}
-
-		images = append(images, image.Remote())
-	}
-
-	return images, nil
 }

@@ -12,6 +12,9 @@ const AppName = "chart-mover"
 var (
 	ImageListFile    string
 	RewriteRulesFile string
+
+	RegistryAuthList []string
+	RegistryAuth     = map[string]string{}
 )
 
 func init() {

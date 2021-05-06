@@ -1,5 +1,3 @@
-// +build feature
-
 package features
 
 import (

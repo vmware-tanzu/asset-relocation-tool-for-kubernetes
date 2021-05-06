@@ -4,6 +4,7 @@ platform: linux
 params:
   GIT_SSH_KEY:
   GOPRIVATE: gitlab.eng.vmware.com
+  REGISTRY_AUTH: harbor-repo.vmware.com=((private-harbor.username)):((private-harbor.token))
 
 inputs:
   - name: source

@@ -718,7 +718,7 @@ var _ = DescribeTable("Rewrite Actions",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:laziest",
 		Actions: []*RewriteAction{
 			{
-				Path: ".Values.lazy.registry",
+				Path:  ".Values.lazy.registry",
 				Value: "registry.vmware.com",
 			},
 		},
@@ -728,7 +728,7 @@ var _ = DescribeTable("Rewrite Actions",
 		RewrittenImage: "docker.io/my-company/lazycontainers/lazybox:laziest",
 		Actions: []*RewriteAction{
 			{
-				Path: ".Values.lazy.image",
+				Path:  ".Values.lazy.image",
 				Value: "my-company/lazycontainers/lazybox",
 			},
 		},
@@ -738,7 +738,7 @@ var _ = DescribeTable("Rewrite Actions",
 		RewrittenImage: "docker.io/owner/name:laziest",
 		Actions: []*RewriteAction{
 			{
-				Path: ".Values.lazy.image",
+				Path:  ".Values.lazy.image",
 				Value: "owner/name",
 			},
 		},
@@ -746,9 +746,9 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("dependency image and digest, tag only", dependencyRegistryImageAndTag, tagRule, &TableOutput{
 		Image:          "docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "docker.io/lazycontainers/lazybox:explosive",
-		Actions:        []*RewriteAction{
+		Actions: []*RewriteAction{
 			{
-				Path: ".Values.lazy.tag",
+				Path:  ".Values.lazy.tag",
 				Value: "explosive",
 			},
 		},
@@ -756,18 +756,18 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("dependency image and digest, digest only", dependencyRegistryImageAndTag, digestRule, &TableOutput{
 		Image:          "docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "docker.io/lazycontainers/lazybox:laziest",
-		Actions: []*RewriteAction{},
+		Actions:        []*RewriteAction{},
 	}),
 	Entry("dependency image and digest, registry and prefix", dependencyRegistryImageAndTag, registryAndPrefixRule, &TableOutput{
 		Image:          "docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "registry.vmware.com/my-company/lazycontainers/lazybox:laziest",
 		Actions: []*RewriteAction{
 			{
-				Path: ".Values.lazy.registry",
+				Path:  ".Values.lazy.registry",
 				Value: "registry.vmware.com",
 			},
 			{
-				Path: ".Values.lazy.image",
+				Path:  ".Values.lazy.image",
 				Value: "my-company/lazycontainers/lazybox",
 			},
 		},
@@ -775,7 +775,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("dependency image and digest, registry and tag", dependencyRegistryImageAndTag, registryAndTagRule, &TableOutput{
 		Image:          "docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:explosive",
-		Actions:        []*RewriteAction{
+		Actions: []*RewriteAction{
 			{
 				Path:  ".Values.lazy.registry",
 				Value: "registry.vmware.com",
@@ -791,7 +791,7 @@ var _ = DescribeTable("Rewrite Actions",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:laziest",
 		Actions: []*RewriteAction{
 			{
-				Path: ".Values.lazy.registry",
+				Path:  ".Values.lazy.registry",
 				Value: "registry.vmware.com",
 			},
 		},
@@ -801,11 +801,11 @@ var _ = DescribeTable("Rewrite Actions",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:explosive",
 		Actions: []*RewriteAction{
 			{
-				Path: ".Values.lazy.registry",
+				Path:  ".Values.lazy.registry",
 				Value: "registry.vmware.com",
 			},
 			{
-				Path: ".Values.lazy.tag",
+				Path:  ".Values.lazy.tag",
 				Value: "explosive",
 			},
 		},
