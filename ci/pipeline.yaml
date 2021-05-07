@@ -20,23 +20,31 @@ resources:
         - ci/Dockerfile
         - ci/pipeline.yaml
 
-  - name: test-image-source
-    type: git
-    icon: gitlab
+  - name: golang-image
+    type: registry-image
     source:
-      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/chart-mover.git
-      private_key: ((gitlab.private_key))
-      branch: master
-      paths:
-        - ci/Dockerfile
-
-  - name: test-image
-    type: docker-image
-    icon: docker
-    source:
-      repository: harbor-repo.vmware.com/tanzu_isv_engineering/chart-mover-test-image
+      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/library/golang
+      tag: 1.16
       username: ((harbor.username))
       password: ((harbor.token))
+
+#  - name: test-image-source
+#    type: git
+#    icon: gitlab
+#    source:
+#      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/chart-mover.git
+#      private_key: ((gitlab.private_key))
+#      branch: master
+#      paths:
+#        - ci/Dockerfile
+#
+#  - name: test-image
+#    type: docker-image
+#    icon: docker
+#    source:
+#      repository: harbor-repo.vmware.com/tanzu_isv_engineering/chart-mover-test-image
+#      username: ((harbor.username))
+#      password: ((harbor.token))
 
   - name: docker-image
     type: docker-image
@@ -66,33 +74,42 @@ resources:
       commit_message: "[ci skip] bump version to %version%"
 
 jobs:
-  - name: build-test-image
-    plan:
-      - get: test-image-source
-      - put: test-image
-        build: .
-        dockerfile: test-image-source/ci/Dockerfile
-        tag_as_latest: true
+#  - name: build-test-image
+#    plan:
+#      - get: test-image-source
+#        trigger: true
+#      - put: test-image
+#        params:
+#          build: .
+#          dockerfile: test-image-source/ci/Dockerfile
+#          tag_as_latest: true
 
   - name: test
     plan:
       - in_parallel:
-          - get: test-image
-            passed:
-              - build-test-image
+          - get: golang-image
           - get: source
             trigger: true
-      - task: run-tests
-        image: test-image
+      - task: run-unit-tests
+        image: golang-image
         file: source/ci/tasks/test.yaml
         params:
           GIT_SSH_KEY: ((gitlab.private_key))
+          MAKE_TARGET: test-units
+      - task: run-feature-tests
+        image: golang-image
+        file: source/ci/tasks/test.yaml
+        params:
+          GIT_SSH_KEY: ((gitlab.private_key))
+          MAKE_TARGET: test-features
 
   - name: build
     serial_groups: [version]
     plan:
       - in_parallel:
         - get: golang-image
+          passed:
+            - test
         - get: source
           trigger: true
           passed:

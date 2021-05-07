@@ -4,7 +4,7 @@ platform: linux
 params:
   GIT_SSH_KEY:
   GOPRIVATE: gitlab.eng.vmware.com
-  REGISTRY_AUTH: harbor-repo.vmware.com=((private-harbor.username)):((private-harbor.token))
+  MAKE_TARGET: test
 
 inputs:
   - name: source
@@ -15,8 +15,5 @@ run:
   args:
     - -exc
     - |
-      source /docker-lib.sh
-      start_docker
-
       ci/scripts/install-git-ssh-key
-      make test
+      make "${MAKE_TARGET}"
