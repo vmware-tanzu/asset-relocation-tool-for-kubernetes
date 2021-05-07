@@ -15,5 +15,10 @@ run:
   args:
     - -exc
     - |
+      if [ "${MAKE_TARGET}" == "test-enemies" ] ; then
+        source /docker-lib.sh
+        start_docker
+      fi
+
       ci/scripts/install-git-ssh-key
       make "${MAKE_TARGET}"

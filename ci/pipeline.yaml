@@ -88,6 +88,9 @@ jobs:
     plan:
       - in_parallel:
           - get: golang-image
+          - get: test-image
+            passed:
+              - build-test-image
           - get: source
             trigger: true
       - task: run-unit-tests
@@ -102,6 +105,13 @@ jobs:
         params:
           GIT_SSH_KEY: ((gitlab.private_key))
           MAKE_TARGET: test-features
+      - task: run-feature-tests
+        image: test-image
+        file: source/ci/tasks/test.yaml
+        params:
+          GIT_SSH_KEY: ((gitlab.private_key))
+          MAKE_TARGET: test-enemies
+          REGISTRY_AUTH: harbor-repo.vmware.com=((private-harbor.username)):((private-harbor.token))
 
   - name: build
     serial_groups: [version]
