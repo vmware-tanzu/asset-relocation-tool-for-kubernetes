@@ -16,6 +16,7 @@ run:
     - -exc
     - |
       if [ "${MAKE_TARGET}" == "test-enemies" ] ; then
+        export DOCKER_API_VERSION=1.39
         source /docker-lib.sh
         start_docker
       fi

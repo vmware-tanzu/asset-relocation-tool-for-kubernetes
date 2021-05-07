@@ -76,11 +76,11 @@ func DefineCommonSteps(define goerkin.Definitions) {
 	})
 
 	define.Then(`^the command exits without error$`, func() {
-		Eventually(CommandSession, 5*time.Second).Should(gexec.Exit(0))
+		Eventually(CommandSession, time.Minute).Should(gexec.Exit(0))
 	})
 
 	define.Then(`^the command exits with an error$`, func() {
-		Eventually(CommandSession, 5*time.Second).ShouldNot(gexec.Exit(0))
+		Eventually(CommandSession, time.Minute).ShouldNot(gexec.Exit(0))
 	})
 
 	define.Then(`^the command exits with an error about the missing helm chart$`, func() {

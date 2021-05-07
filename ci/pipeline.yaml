@@ -107,6 +107,7 @@ jobs:
           MAKE_TARGET: test-features
       - task: run-feature-tests
         image: test-image
+        privileged: true
         file: source/ci/tasks/test.yaml
         params:
           GIT_SSH_KEY: ((gitlab.private_key))
