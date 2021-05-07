@@ -1,5 +1,38 @@
-FROM harbor-repo.vmware.com/dockerhub-proxy-cache/amidos/dcind:2.1.0
+FROM harbor-repo.vmware.com/dockerhub-proxy-cache/amidos/dcind:2.1.0 AS dcind
+FROM harbor-repo.vmware.com/dockerhub-proxy-cache/library/golang:1.16-alpine
 
-RUN apk add go git && \
-    go get github.com/onsi/ginkgo/ginkgo github.com/onsi/gomega
-ENV PATH="/root/go/bin:${PATH}"
+WORKDIR /
+
+ENV DOCKER_VERSION=18.09.9 \
+    DOCKER_COMPOSE_VERSION=1.29.1
+
+ARG CRYPTOGRAPHY_DONT_BUILD_RUST=1
+
+# Install Docker and Docker Compose
+RUN apk --no-cache add \
+        bash \
+        curl \
+        device-mapper \
+        gcc \
+        iptables \
+        libc-dev \
+        libffi-dev \
+        make \
+        openssl-dev \
+        py-pip \
+        python3-dev \
+        rust \
+        util-linux \
+        && \
+    curl https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz | tar zx && \
+    mv /docker/* /bin/ && \
+    chmod +x /bin/docker* && \
+    pip install docker-compose==${DOCKER_COMPOSE_VERSION} && \
+    rm -rf /root/.cache
+
+# Copy functions to start/stop docker daemon
+COPY --from=dcind /docker-lib.sh /docker-lib.sh
+COPY --from=dcind /entrypoint.sh /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/bin/bash"]
