@@ -54,7 +54,7 @@ build/relok8s: $(SRC)
 	go build -o build/relok8s -ldflags ${LDFLAGS} ./main.go
 
 build/relok8s-darwin: $(SRC)
-	GOARCH=amd64 GOOS=darwin go build -o build/mkpcli-darwin -ldflags ${LDFLAGS} ./main.go
+	GOARCH=amd64 GOOS=darwin go build -o build/relok8s-darwin -ldflags ${LDFLAGS} ./main.go
 
 build/relok8s-linux: $(SRC)
 	GOARCH=amd64 GOOS=linux go build -o build/relok8s-linux -ldflags ${LDFLAGS} ./main.go
