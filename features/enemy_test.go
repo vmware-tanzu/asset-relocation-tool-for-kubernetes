@@ -23,7 +23,7 @@ var _ = Describe("Enemy tests", func() {
 		Scenario("Listing and pulling images", func() {
 			steps.Given("a helm chart referencing a image in a private registry")
 			steps.And("an image template list file for the remote registry helm chart")
-			steps.When("running chart-mover list-images --pull")
+			steps.When("running relok8s list-images --pull")
 			steps.Then("the command exits with an error")
 			steps.And("the error message says it failed to pull because it was not authorized")
 		})
@@ -33,7 +33,7 @@ var _ = Describe("Enemy tests", func() {
 		steps.Given("a helm chart referencing a image in a private registry")
 		steps.And("an image template list file for the remote registry helm chart")
 		steps.And("credentials to the private registry")
-		steps.When("running chart-mover list-images --pull")
+		steps.When("running relok8s list-images --pull")
 		steps.Then("the command exits without error")
 		steps.And("the remote image is pulled")
 		steps.And("the remote image is printed")
@@ -44,7 +44,7 @@ var _ = Describe("Enemy tests", func() {
 		steps.And("an image template list file for the remote registry helm chart")
 		steps.And("a rewrite rules file for overwriting the tag")
 		steps.And("credentials to the private registry")
-		steps.When("running chart-mover rewrite-images --push")
+		steps.When("running relok8s rewrite-images --push")
 		steps.Then("the command exits without error")
 		steps.And("the remote image is pulled")
 		steps.And("the image is tagged")
@@ -74,7 +74,7 @@ var _ = Describe("Enemy tests", func() {
 			registryAuth = ""
 		})
 
-		define.When(`^running chart-mover list-images --pull$`, func() {
+		define.When(`^running relok8s list-images --pull$`, func() {
 			args := []string{"list-images", "--pull", ChartPath}
 			if ImageTemplateFile != "" {
 				args = append(args, "--image-templates", ImageTemplateFile)
@@ -88,7 +88,7 @@ var _ = Describe("Enemy tests", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		define.When(`^running chart-mover rewrite-images --push$`, func() {
+		define.When(`^running relok8s rewrite-images --push$`, func() {
 			args := []string{"rewrite-images", "--push", ChartPath}
 			if ImageTemplateFile != "" {
 				args = append(args, "--image-templates", ImageTemplateFile)

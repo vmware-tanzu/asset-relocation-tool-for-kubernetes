@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const AppName = "chart-mover"
+const AppName = "relok8s"
 
 var (
 	ImageListFile    string

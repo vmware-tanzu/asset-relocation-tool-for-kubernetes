@@ -19,7 +19,7 @@ var _ = Describe("Rewrite Images command", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("an image template list file")
 		steps.And("a rules file that rewrites the registry")
-		steps.When("running chart-mover rewrite-images")
+		steps.When("running relok8s rewrite-images")
 		steps.Then("the command exits without error")
 		steps.And("the rewritten images are printed")
 	})
@@ -28,7 +28,7 @@ var _ = Describe("Rewrite Images command", func() {
 		steps.Given("a tgz based helm chart")
 		steps.And("an image template list file")
 		steps.And("a rules file that rewrites the registry")
-		steps.When("running chart-mover rewrite-images")
+		steps.When("running relok8s rewrite-images")
 		steps.Then("the command exits without error")
 		steps.And("the rewritten images are printed")
 	})
@@ -37,14 +37,14 @@ var _ = Describe("Rewrite Images command", func() {
 		steps.Given("a helm chart with a chart dependency")
 		steps.And("an image template list file for the chart with dependencies")
 		steps.And("a rules file that rewrites the registry")
-		steps.When("running chart-mover rewrite-images")
+		steps.When("running relok8s rewrite-images")
 		steps.Then("the command exits without error")
 		steps.And("the rewritten images from the parent and dependent chart are printed")
 	})
 
 	Scenario("missing helm chart", func() {
 		steps.Given("no helm chart")
-		steps.When("running chart-mover rewrite-images")
+		steps.When("running relok8s rewrite-images")
 		steps.Then("the command exits with an error about the missing helm chart")
 		steps.And("it prints the usage")
 	})
@@ -52,7 +52,7 @@ var _ = Describe("Rewrite Images command", func() {
 	Scenario("missing images template list file", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("no image template list file")
-		steps.When("running chart-mover rewrite-images")
+		steps.When("running relok8s rewrite-images")
 		steps.Then("the command exits with an error about the missing images template list file")
 		steps.And("it prints the usage")
 	})
@@ -61,7 +61,7 @@ var _ = Describe("Rewrite Images command", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("an image template list file")
 		steps.And("no rewrite rules file")
-		steps.When("running chart-mover rewrite-images")
+		steps.When("running relok8s rewrite-images")
 		steps.Then("the command exits with an error about the missing rules file")
 		steps.And("it prints the usage")
 	})
@@ -69,7 +69,7 @@ var _ = Describe("Rewrite Images command", func() {
 	steps.Define(func(define Definitions) {
 		DefineCommonSteps(define)
 
-		define.When(`^running chart-mover rewrite-images$`, func() {
+		define.When(`^running relok8s rewrite-images$`, func() {
 			args := []string{"rewrite-images", ChartPath}
 			if ImageTemplateFile != "" {
 				args = append(args, "--image-templates", ImageTemplateFile)

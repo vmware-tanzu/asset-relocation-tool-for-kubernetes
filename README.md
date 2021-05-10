@@ -1,18 +1,18 @@
-# Chart Mover
+# Relok8s
 
-Chart Mover is for rewriting Helm Charts with rewritten image references.
+Relok8s is for relocating Helm Charts with rewritten image references.
 It can relocate the images as well as modifying the charts.
 
-Chart Mover can work with charts in directory format, or TGZ format. It can handle charts with dependent charts.
+Relok8s can work with charts in directory format, or TGZ format. It can handle charts with dependent charts.
 
 ```bash
-$ chart-mover --rules-file rules.yaml --image-templates my-image-list.yaml /path/to/mychart
+$ relok8s --rules-file rules.yaml --image-templates my-image-list.yaml /path/to/mychart
 ```
 
-## Running chart-mover
+## Running relok8s
 
 ```bash
-$ chart-mover --image-templates my-image-list.yaml  --rules-file private-registry.yaml /path/to/mychart | jq .
+$ relok8s --image-templates my-image-list.yaml  --rules-file private-registry.yaml /path/to/mychart | jq .
 TBD
 ```
 
@@ -23,7 +23,7 @@ TBD
 This command lists the images embedded in the chart using the image template file
 
 ```bash
-$ chart-mover list-images --image-templates my-image-list.yaml /path/to/mychart | jq .
+$ relok8s list-images --image-templates my-image-list.yaml /path/to/mychart | jq .
 [
   "docker.io/library/ubuntu:latest"
   "docker.io/library/nginx:1.19"
@@ -33,7 +33,7 @@ $ chart-mover list-images --image-templates my-image-list.yaml /path/to/mychart 
 Adding the `--pull` flag will attempt to pull those images from the remote repository.
 
 ```bash
-$ chart-mover list-images --image-templates my-image-list.yaml /path/to/mychart --pull | jq .
+$ relok8s list-images --image-templates my-image-list.yaml /path/to/mychart --pull | jq .
 Pulling docker.io/library/ubuntu:latest... Done
 Pulling docker.io/library/nginx:1.19... Done
 [
@@ -47,7 +47,7 @@ Pulling docker.io/library/nginx:1.19... Done
 This command lists the images after applpying the rules in the given rewrite rules file.
 
 ```bash
-$ chart-mover rewrite-images --image-templates my-image-list.yaml  --rules-file private-registry.yaml /path/to/mychart | jq .
+$ relok8s rewrite-images --image-templates my-image-list.yaml  --rules-file private-registry.yaml /path/to/mychart | jq .
 [
   "my-registry.example.com/library/ubuntu:latest"
   "my-registry.example.com/library/nginx:1.19"
@@ -62,7 +62,7 @@ TBD
 
 ## Inputs
 
-Chart mover requires a few inputs for the various commands.
+Relok8s requires a few inputs for the various commands.
 
 ### Chart
 
@@ -72,7 +72,7 @@ It can contain dependent charts.
 
 ### Image Template File
 
-Chart Mover requires an image list file. This file is used to determine the list of images encoded in the helm chart.
+Relok8s requires an image list file. This file is used to determine the list of images encoded in the helm chart.
 
 ```yaml
 ---
@@ -84,7 +84,7 @@ This file is a list of strings, which can be evaluated like a helm template to r
 
 ### Rules
 
-Chart Mover uses a rules file to determine how to rewrite the image.
+Relok8s uses a rules file to determine how to rewrite the image.
 
 ```yaml
 ---
@@ -134,7 +134,7 @@ Unit tests exercise the internals of the code. They can be run with:
 make test-units
 ```
 
-Feature tests exercise Chart Mover from outside in by building and executing it as CLI. They can be run with:
+Feature tests exercise Relok8s from outside in by building and executing it as CLI. They can be run with:
 
 ```bash
 make test-features
@@ -142,7 +142,7 @@ make test-features
 
 "Enemy" tests are similar to feature tests except that they execute tests directly against external resources.
 They can report false negatives if that resource is offline or if access to that resource is limited in some way.
-However, they can also assure that chart-mover is correctly integrating with that resource.
+However, they can also assure that Relok8s is correctly integrating with that resource.
 
 They can be run with:
 

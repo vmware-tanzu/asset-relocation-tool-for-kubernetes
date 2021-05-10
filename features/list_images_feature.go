@@ -18,7 +18,7 @@ var _ = Describe("List Images command", func() {
 	Scenario("directory based helm chart", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("an image template list file")
-		steps.When("running chart-mover list-images")
+		steps.When("running relok8s list-images")
 		steps.Then("the command exits without error")
 		steps.And("the rendered images are printed")
 	})
@@ -26,7 +26,7 @@ var _ = Describe("List Images command", func() {
 	Scenario("tgz based helm chart", func() {
 		steps.Given("a tgz based helm chart")
 		steps.And("an image template list file")
-		steps.When("running chart-mover list-images")
+		steps.When("running relok8s list-images")
 		steps.Then("the command exits without error")
 		steps.And("the rendered images are printed")
 	})
@@ -34,7 +34,7 @@ var _ = Describe("List Images command", func() {
 	Scenario("helm chart with dependencies", func() {
 		steps.Given("a helm chart with a chart dependency")
 		steps.And("an image template list file for the chart with dependencies")
-		steps.When("running chart-mover list-images")
+		steps.When("running relok8s list-images")
 		steps.Then("the command exits without error")
 		steps.And("the rendered images from the parent and dependent chart are printed")
 	})
@@ -42,7 +42,7 @@ var _ = Describe("List Images command", func() {
 	Scenario("missing helm chart", func() {
 		steps.Given("no helm chart")
 		steps.Given("no helm chart")
-		steps.When("running chart-mover list-images")
+		steps.When("running relok8s list-images")
 		steps.Then("the command exits with an error about the missing helm chart")
 		steps.And("it prints the usage")
 	})
@@ -50,7 +50,7 @@ var _ = Describe("List Images command", func() {
 	Scenario("missing images template list file", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("no image template list file")
-		steps.When("running chart-mover list-images")
+		steps.When("running relok8s list-images")
 		steps.Then("the command exits with an error about the missing images template list file")
 		steps.And("it prints the usage")
 	})
@@ -58,7 +58,7 @@ var _ = Describe("List Images command", func() {
 	steps.Define(func(define Definitions) {
 		DefineCommonSteps(define)
 
-		define.When(`^running chart-mover list-images$`, func() {
+		define.When(`^running relok8s list-images$`, func() {
 			args := []string{"list-images", ChartPath}
 			if ImageTemplateFile != "" {
 				args = append(args, "--image-templates", ImageTemplateFile)

@@ -1,4 +1,4 @@
-module gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2
+module gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2
 
 go 1.16
 

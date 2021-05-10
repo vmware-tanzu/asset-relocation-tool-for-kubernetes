@@ -13,7 +13,7 @@ resources:
     type: git
     icon: gitlab
     source:
-      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/chart-mover.git
+      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/relok8s.git
       private_key: ((gitlab.private_key))
       branch: master
       ignore_paths:
@@ -32,7 +32,7 @@ resources:
     type: git
     icon: gitlab
     source:
-      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/chart-mover.git
+      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/relok8s.git
       private_key: ((gitlab.private_key))
       branch: master
       paths:
@@ -42,7 +42,7 @@ resources:
     type: docker-image
     icon: docker
     source:
-      repository: harbor-repo.vmware.com/tanzu_isv_engineering/chart-mover-test-image
+      repository: harbor-repo.vmware.com/tanzu_isv_engineering/relok8s-test-image
       username: ((harbor.username))
       password: ((harbor.token))
 
@@ -50,7 +50,7 @@ resources:
     type: docker-image
     icon: docker
     source:
-      repository: harbor-repo.vmware.com/tanzu_isv_engineering/chart-mover
+      repository: harbor-repo.vmware.com/tanzu_isv_engineering/relok8s
       username: ((harbor.username))
       password: ((harbor.token))
 
@@ -58,7 +58,7 @@ resources:
     type: gl-release
     icon: gitlab
     source:
-      repository: marketplace-partner-eng/chart-mover
+      repository: marketplace-partner-eng/relok8s
       access_token: ((gitlab.access_token))
       gitlab_api_url: https://gitlab.eng.vmware.com
 
@@ -67,7 +67,7 @@ resources:
     icon: gitlab
     source:
       driver: git
-      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/chart-mover.git
+      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/relok8s.git
       private_key: ((gitlab.private_key))
       branch: master
       file: version

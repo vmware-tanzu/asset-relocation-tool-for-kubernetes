@@ -16,7 +16,7 @@ var _ = Describe("Report version", func() {
 	steps := NewSteps()
 
 	Scenario("version command reports version", func() {
-		steps.When("running chart-mover version")
+		steps.When("running relok8s version")
 		steps.Then("the command exits without error")
 		steps.And("the version is printed")
 	})
@@ -24,7 +24,7 @@ var _ = Describe("Report version", func() {
 	steps.Define(func(define Definitions) {
 		DefineCommonSteps(define)
 
-		define.When(`^running chart-mover version$`, func() {
+		define.When(`^running relok8s version$`, func() {
 			command := exec.Command(ChartMoverBinaryPath, "version")
 			var err error
 			CommandSession, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -32,7 +32,7 @@ var _ = Describe("Report version", func() {
 		})
 
 		define.Then(`^the version is printed$`, func() {
-			Eventually(CommandSession.Out).Should(Say("chart-mover version: 1.2.3"))
+			Eventually(CommandSession.Out).Should(Say("relok8s version: 1.2.3"))
 		})
 	})
 })

@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
-	. "gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/cmd"
+	. "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/cmd"
 )
 
 var _ = Describe("Version", func() {
@@ -28,7 +28,7 @@ var _ = Describe("Version", func() {
 
 		It("prints the version", func() {
 			VersionCmd.Run(VersionCmd, []string{})
-			Expect(stdout).To(Say("chart-mover version: 9.9.9"))
+			Expect(stdout).To(Say("relok8s version: 9.9.9"))
 		})
 	})
 })

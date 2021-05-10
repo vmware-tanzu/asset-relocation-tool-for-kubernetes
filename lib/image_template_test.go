@@ -5,7 +5,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	. "gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
+	. "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
 	"helm.sh/helm/v3/pkg/chart"
 )
 

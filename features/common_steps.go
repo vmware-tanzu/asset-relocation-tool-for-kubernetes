@@ -23,9 +23,9 @@ var (
 var _ = BeforeSuite(func() {
 	var err error
 	ChartMoverBinaryPath, err = gexec.Build(
-		"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2",
+		"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2",
 		"-ldflags",
-		"-X gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/cmd.Version=1.2.3",
+		"-X gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/cmd.Version=1.2.3",
 	)
 	Expect(err).NotTo(HaveOccurred())
 })
@@ -102,6 +102,6 @@ func DefineCommonSteps(define goerkin.Definitions) {
 
 	define.Then(`^it prints the usage$`, func() {
 		Expect(CommandSession.Out).To(Say("Usage:"))
-		Expect(CommandSession.Out).To(Say("chart-mover.*? <chart> \\[flags\\]"))
+		Expect(CommandSession.Out).To(Say("relok8s.*? <chart> \\[flags\\]"))
 	})
 }

@@ -50,21 +50,18 @@ SRC = $(shell find . -name "*.go" | grep -v "_test\." )
 VERSION := $(or $(VERSION), dev)
 LDFLAGS="-X gitlab.eng.vmware.com/marketplace-partner-eng/marketplace-cli/v2/cmd.Version=$(VERSION)"
 
-build/chart-mover: $(SRC)
-	go build -o build/chart-mover -ldflags ${LDFLAGS} ./main.go
+build/relok8s: $(SRC)
+	go build -o build/relok8s -ldflags ${LDFLAGS} ./main.go
 
-build/chart-mover-darwin: $(SRC)
+build/relok8s-darwin: $(SRC)
 	GOARCH=amd64 GOOS=darwin go build -o build/mkpcli-darwin -ldflags ${LDFLAGS} ./main.go
 
-build/chart-mover-linux: $(SRC)
-	GOARCH=amd64 GOOS=linux go build -o build/chart-mover-linux -ldflags ${LDFLAGS} ./main.go
+build/relok8s-linux: $(SRC)
+	GOARCH=amd64 GOOS=linux go build -o build/relok8s-linux -ldflags ${LDFLAGS} ./main.go
 
-build: deps build/chart-mover
+build: deps build/relok8s
 
-build-all: build/chart-mover-darwin build/chart-mover-linux
-
-#build-image: build/chart-mover-linux
-#	docker build . --tag harbor-repo.vmware.com/tanzu_isv_engineering/chart-mover:$(VERSION)
+build-all: build/relok8s-darwin build/relok8s-linux
 
 # #### TESTS ####
 .PHONY: lint test test-features test-units
@@ -87,4 +84,4 @@ lint: deps-goimports
 # #### DEVOPS ####
 .PHONY: set-pipeline
 set-pipeline: ci/pipeline.yaml
-	fly -t tie set-pipeline --config ci/pipeline.yaml --pipeline chart-mover
+	fly -t tie set-pipeline --config ci/pipeline.yaml --pipeline relok8s

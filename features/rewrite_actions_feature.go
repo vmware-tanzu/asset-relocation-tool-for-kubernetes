@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/chart-mover/v2/lib"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
 )
 
 var _ = Describe("Rewrite Actions command", func() {
@@ -20,7 +20,7 @@ var _ = Describe("Rewrite Actions command", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("an image template list file")
 		steps.And("a rules file that rewrites the registry")
-		steps.When("running chart-mover rewrite-actions")
+		steps.When("running relok8s rewrite-actions")
 		steps.Then("the command exits without error")
 		steps.And("the rewrite actions are printed")
 	})
@@ -29,7 +29,7 @@ var _ = Describe("Rewrite Actions command", func() {
 		steps.Given("a tgz based helm chart")
 		steps.And("an image template list file")
 		steps.And("a rules file that rewrites the registry")
-		steps.When("running chart-mover rewrite-actions")
+		steps.When("running relok8s rewrite-actions")
 		steps.Then("the command exits without error")
 		steps.And("the rewrite actions are printed")
 	})
@@ -38,14 +38,14 @@ var _ = Describe("Rewrite Actions command", func() {
 		steps.Given("a helm chart with a chart dependency")
 		steps.And("an image template list file for the chart with dependencies")
 		steps.And("a rules file that rewrites the registry")
-		steps.When("running chart-mover rewrite-actions")
+		steps.When("running relok8s rewrite-actions")
 		steps.Then("the command exits without error")
 		steps.And("the rewritten actions for the parent and dependent chart are printed")
 	})
 
 	Scenario("missing helm chart", func() {
 		steps.Given("no helm chart")
-		steps.When("running chart-mover rewrite-actions")
+		steps.When("running relok8s rewrite-actions")
 		steps.Then("the command exits with an error about the missing helm chart")
 		steps.And("it prints the usage")
 	})
@@ -53,7 +53,7 @@ var _ = Describe("Rewrite Actions command", func() {
 	Scenario("missing images template list file", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("no image template list file")
-		steps.When("running chart-mover rewrite-actions")
+		steps.When("running relok8s rewrite-actions")
 		steps.Then("the command exits with an error about the missing images template list file")
 		steps.And("it prints the usage")
 	})
@@ -62,7 +62,7 @@ var _ = Describe("Rewrite Actions command", func() {
 		steps.Given("a directory based helm chart")
 		steps.And("an image template list file")
 		steps.And("no rewrite rules file")
-		steps.When("running chart-mover rewrite-actions")
+		steps.When("running relok8s rewrite-actions")
 		steps.Then("the command exits with an error about the missing rules file")
 		steps.And("it prints the usage")
 	})
@@ -70,7 +70,7 @@ var _ = Describe("Rewrite Actions command", func() {
 	steps.Define(func(define Definitions) {
 		DefineCommonSteps(define)
 
-		define.When(`^running chart-mover rewrite-actions$`, func() {
+		define.When(`^running relok8s rewrite-actions$`, func() {
 			args := []string{"rewrite-actions", ChartPath}
 			if ImageTemplateFile != "" {
 				args = append(args, "--image-templates", ImageTemplateFile)
