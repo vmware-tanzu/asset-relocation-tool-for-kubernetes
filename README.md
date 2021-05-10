@@ -108,18 +108,49 @@ To set up a local development environment, it's recommended to install these too
 
 * jq (`brew install jq`) - For parsing and formatting output
 * direnv (`brew install direnv`) - For setting environment local environment variables
+* vault (`brew install vault`) - Used to fetch credentials for external resources, required when running the enemy tests
 
-There are two types of tests, unit tests and feature tests. Unit tests run inside out and can be run with:
+### Configuring Vault
+
+To get the credentials from vault:
+Export the `VAULT_ADDR` environment variable:
+
+```bash
+export VAULT_ADDR=https://runway-vault.svc.eng.vmware.com
+```
+
+Log into vault:
+```bash
+vault login -method=ldap username=<username>
+```
+
+### Running tests
+
+There are three types of tests, unit tests, feature tests and enemy tests.
+
+Unit tests exercise the internals of the code. They can be run with:
 
 ```bash
 make test-units
 ```
 
-Feature tests run tests by building and executing chart-mover as a CLI. They can be run with:
+Feature tests exercise Chart Mover from outside in by building and executing it as CLI. They can be run with:
 
 ```bash
 make test-features
 ```
+
+"Enemy" tests are similar to feature tests except that they execute tests directly against external resources.
+They can report false negatives if that resource is offline or if access to that resource is limited in some way.
+However, they can also assure that chart-mover is correctly integrating with that resource.
+
+They can be run with:
+
+```bash
+make test-enemies
+```
+
+Enemy tests require credentials to talk to the internal harbor registry, which we attempt to automatically fetch using `vault`.
 
 All tests can be run with:
 
