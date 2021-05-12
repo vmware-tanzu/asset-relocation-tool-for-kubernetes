@@ -3,17 +3,17 @@
 package features
 
 import (
-	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"os"
-	"os/exec"
-	"path"
 	"time"
 
 	. "github.com/bunniesandbeatings/goerkin"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
-	"github.com/onsi/gomega/gexec"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
+	"gopkg.in/yaml.v2"
 )
 
 var _ = Describe("Enemy tests", func() {
@@ -21,122 +21,86 @@ var _ = Describe("Enemy tests", func() {
 
 	Context("Unauthorized", func() {
 		Scenario("Listing and pulling images", func() {
-			steps.Given("a helm chart referencing a image in a private registry")
-			steps.And("an image template list file for the remote registry helm chart")
-			steps.When("running relok8s list-images --pull")
+			steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --rules fixtures/tag-rule.yaml")
 			steps.Then("the command exits with an error")
 			steps.And("the error message says it failed to pull because it was not authorized")
 		})
 	})
 
-	Scenario("Listing and pulling images", func() {
-		steps.Given("a helm chart referencing a image in a private registry")
-		steps.And("an image template list file for the remote registry helm chart")
-		steps.And("credentials to the private registry")
-		steps.When("running relok8s list-images --pull")
-		steps.Then("the command exits without error")
-		steps.And("the remote image is pulled")
-		steps.And("the remote image is printed")
-	})
+	Scenario("relocating a chart", func() {
+		steps.Given("credentials to the private registry")
+		steps.And("a rules file with a custom tag")
+		steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering")
 
-	Scenario("Rewritting and pushing images", func() {
-		steps.Given("a helm chart referencing a image in a private registry")
-		steps.And("an image template list file for the remote registry helm chart")
-		steps.And("a rewrite rules file for overwriting the tag")
-		steps.And("credentials to the private registry")
-		steps.When("running relok8s rewrite-images --push")
-		steps.Then("the command exits without error")
-		steps.And("the remote image is pulled")
-		steps.And("the image is tagged")
+		steps.And("the image is pulled")
+		steps.Then("the command says that the rewritten image will be pushed")
+		steps.And("the command says that the rewritten image will be written to the chart")
 		steps.And("the rewritten image is pushed")
-		steps.And("the rewritten image is printed")
+		steps.And("the modified chart is written")
+		steps.And("the command exits without error")
 	})
 
 	steps.Define(func(define Definitions) {
-		var registryAuth string
 		DefineCommonSteps(define)
 
-		define.Given(`^a helm chart referencing a image in a private registry$`, func() {
-			ChartPath = path.Join("fixtures", "remotechart")
-		})
+		var customTag string
 
-		define.Given(`^an image template list file for the remote registry helm chart$`, func() {
-			ImageTemplateFile = path.Join("fixtures", "remotechart.yaml")
-		})
+		define.Given(`^a rules file with a custom tag$`, func() {
+			var err error
+			RulesFile, err = ioutil.TempFile("", "rulesfile-*.yaml")
+			Expect(err).ToNot(HaveOccurred())
 
-		define.Given(`^a rewrite rules file for overwriting the tag$`, func() {
-			RewriteRulesFile = path.Join("fixtures", "rules", "new-tag.yaml")
+			customTag = fmt.Sprintf("%d", time.Now().Unix())
+			bytes, err := yaml.Marshal(&lib.RewriteRules{
+				Tag: customTag,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = RulesFile.Write(bytes)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = RulesFile.Close()
+			Expect(err).ToNot(HaveOccurred())
+		}, func() {
+			if RulesFile != nil {
+				os.Remove(RulesFile.Name())
+				RulesFile = nil
+			}
 		})
 
 		define.Given(`^credentials to the private registry$`, func() {
-			registryAuth = os.Getenv("REGISTRY_AUTH")
+			RegistryAuth = os.Getenv("REGISTRY_AUTH")
+			Expect(RegistryAuth).ToNot(BeEmpty())
 		}, func() {
-			registryAuth = ""
-		})
-
-		define.When(`^running relok8s list-images --pull$`, func() {
-			args := []string{"list-images", "--pull", ChartPath}
-			if ImageTemplateFile != "" {
-				args = append(args, "--image-templates", ImageTemplateFile)
-			}
-			if registryAuth != "" {
-				args = append(args, "--registry-auth", registryAuth)
-			}
-			command := exec.Command(ChartMoverBinaryPath, args...)
-			var err error
-			CommandSession, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
-			Expect(err).NotTo(HaveOccurred())
-		})
-
-		define.When(`^running relok8s rewrite-images --push$`, func() {
-			args := []string{"rewrite-images", "--push", ChartPath}
-			if ImageTemplateFile != "" {
-				args = append(args, "--image-templates", ImageTemplateFile)
-			}
-			if RewriteRulesFile != "" {
-				args = append(args, "--rules-file", RewriteRulesFile)
-			}
-			if registryAuth != "" {
-				args = append(args, "--registry-auth", registryAuth)
-			}
-			command := exec.Command(ChartMoverBinaryPath, args...)
-			var err error
-			CommandSession, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
-			Expect(err).NotTo(HaveOccurred())
+			RegistryAuth = ""
 		})
 
 		define.Then(`^the error message says it failed to pull because it was not authorized$`, func() {
-			Eventually(CommandSession.Err, 5*time.Second).Should(Say("Error response from daemon: unauthorized: unauthorized to access repository"))
+			Eventually(CommandSession.Err, time.Minute).Should(Say("Error response from daemon: unauthorized: unauthorized to access repository"))
 		})
 
-		define.Then(`^the remote image is pulled$`, func() {
-			Eventually(CommandSession.Err).Should(Say("Pulling harbor-repo.vmware.com/pwall/tiny:tiniest... Done"))
+		define.Then(`^the image is pulled$`, func() {
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Pulling harbor-repo.vmware.com/pwall/tiny:tiniest... Done"))
 		})
 
-		define.Then(`^the image is tagged$`, func() {
-			Eventually(CommandSession.Err).Should(Say("Tagging harbor-repo.vmware.com/pwall/tiny:rewritten... Done"))
+		define.Then(`^the command says that the rewritten image will be pushed$`, func() {
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Images to be pushed:"))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  harbor-repo.vmware.com/tanzu_isv_engineering/tiny:%s \\(sha256:[a-z0-9]*\\)", customTag)))
 		})
 
-		define.Then(`^the remote image is printed$`, func() {
-			var images []string
-			err := json.Unmarshal(CommandSession.Out.Contents(), &images)
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(images).To(HaveLen(1))
-			Expect(images).To(ContainElement("harbor-repo.vmware.com/pwall/tiny:tiniest"))
+		define.Then(`^the command says that the rewritten image will be written to the chart$`, func() {
+			Eventually(CommandSession.Out).Should(Say("Changes written to testchart/values.yaml:"))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .image.tag: %s", customTag)))
+			Eventually(CommandSession.Out).Should(Say("  .image.repository: harbor-repo.vmware.com/tanzu_isv_engineering/tiny"))
 		})
 
 		define.Then(`^the rewritten image is pushed$`, func() {
-			Eventually(CommandSession.Err).Should(Say("Pushing harbor-repo.vmware.com/pwall/tiny:rewritten... Done"))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/tanzu_isv_engineering/tiny:%s... Done", customTag)))
 		})
 
-		define.Then(`^the rewritten image is printed$`, func() {
-			var images []string
-			err := json.Unmarshal(CommandSession.Out.Contents(), &images)
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(images).To(HaveLen(1))
-			Expect(images).To(ContainElement("harbor-repo.vmware.com/pwall/tiny:rewritten"))
+		define.Then(`^the modified chart is written$`, func() {
+			// TODO: Not yet written
+			Expect(1).To(Equal(1))
 		})
 	})
 })

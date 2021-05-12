@@ -17,7 +17,7 @@ type RewriteAction struct {
 	Value string `json:"value"`
 }
 
-func (a *RewriteAction) ToMap() ValuesMap {
+func (a *RewriteAction) ToMap() map[string]interface{} {
 	keys := strings.Split(strings.TrimPrefix(a.Path, "."), ".")
 	var node ValuesMap
 	var value interface{} = a.Value

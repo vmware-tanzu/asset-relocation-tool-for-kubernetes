@@ -2,7 +2,8 @@ package features
 
 import (
 	"os"
-	"path"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/bunniesandbeatings/goerkin"
@@ -13,11 +14,10 @@ import (
 )
 
 var (
-	ChartPath            string
 	ChartMoverBinaryPath string
 	CommandSession       *gexec.Session
-	ImageTemplateFile    string
-	RewriteRulesFile     string
+	RegistryAuth         string
+	RulesFile            *os.File
 )
 
 var _ = BeforeSuite(func() {
@@ -35,44 +35,18 @@ var _ = AfterSuite(func() {
 })
 
 func DefineCommonSteps(define goerkin.Definitions) {
-	define.Given(`^a directory based helm chart`, func() {
-		ChartPath = path.Join("fixtures", "samplechart")
-	})
-
-	define.Given(`^a tgz based helm chart`, func() {
-		ChartPath = path.Join("fixtures", "samplechart-0.1.0.tgz")
-	})
-
-	define.Given(`^a helm chart with a chart dependency$`, func() {
-		ChartPath = path.Join("fixtures", "dependentchart")
-	})
-
-	define.Given(`^an image template list file$`, func() {
-		ImageTemplateFile = path.Join("fixtures", "sample-chart-images.yaml")
-	})
-
-	define.Given(`^an image template list file for the chart with dependencies$`, func() {
-		ImageTemplateFile = path.Join("fixtures", "dependent-chart-images.yaml")
-	})
-
-	define.Given("^no image template list file$", func() {
-		ImageTemplateFile = ""
-	})
-
-	define.Given(`^a rules file that rewrites the registry$`, func() {
-		RewriteRulesFile = path.Join("fixtures", "rules", "replace-registry.yaml")
-	})
-
-	define.Given("^no rewrite rules file$", func() {
-		RewriteRulesFile = ""
-	})
-
-	define.Given(`^no helm chart`, func() {
-		wd, err := os.Getwd()
-		Expect(err).ToNot(HaveOccurred())
-
-		ChartPath = path.Join(wd, "fixtures", "empty-directory")
-		ImageTemplateFile = path.Join(wd, "fixtures", "sample-chart-images.yaml")
+	define.When(`^running relok8s (.*)$`, func(argString string) {
+		args := strings.Split(argString, " ")
+		if RegistryAuth != "" {
+			args = append(args, "--registry-auth", RegistryAuth)
+		}
+		if RulesFile != nil {
+			args = append(args, "--rules", RulesFile.Name())
+		}
+		command := exec.Command(ChartMoverBinaryPath, args...)
+		var err error
+		CommandSession, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	define.Then(`^the command exits without error$`, func() {
@@ -80,28 +54,11 @@ func DefineCommonSteps(define goerkin.Definitions) {
 	})
 
 	define.Then(`^the command exits with an error$`, func() {
-		Eventually(CommandSession, time.Minute).ShouldNot(gexec.Exit(0))
-	})
-
-	define.Then(`^the command exits with an error about the missing helm chart$`, func() {
-		Eventually(CommandSession).Should(gexec.Exit(1))
-		Expect(CommandSession.Err).To(Say("Error: failed to load helm chart at \""))
-		// Skipping the first part of the path which would be host-specific
-		Expect(CommandSession.Err).To(Say("fixtures/empty-directory\": Chart.yaml file is missing"))
-	})
-
-	define.Then(`^the command exits with an error about the missing images template list file$`, func() {
-		Eventually(CommandSession).Should(gexec.Exit(1))
-		Expect(CommandSession.Err).To(Say("Error: image-templates is required. Please try again with '-i <image templates>'"))
-	})
-
-	define.Then(`^the command exits with an error about the missing rules file$`, func() {
-		Eventually(CommandSession).Should(gexec.Exit(1))
-		Expect(CommandSession.Err).To(Say("Error: rules-file is required. Please try again with '-r <rules file>'"))
+		Eventually(CommandSession, time.Minute).Should(gexec.Exit(1))
 	})
 
 	define.Then(`^it prints the usage$`, func() {
-		Expect(CommandSession.Out).To(Say("Usage:"))
-		Expect(CommandSession.Out).To(Say("relok8s.*? <chart> \\[flags\\]"))
+		Expect(CommandSession.Err).To(Say("Usage:"))
+		Expect(CommandSession.Err).To(Say("relok8s chart move <chart> \\[flags\\]"))
 	})
 }

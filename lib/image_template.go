@@ -76,22 +76,22 @@ func NewFromString(input string) (*ImageTemplate, error) {
 
 type ValuesMap map[string]interface{}
 
-func BuildValuesMap(chart *chart.Chart, rewriteActions []*RewriteAction) ValuesMap {
+func BuildValuesMap(chart *chart.Chart, rewriteActions []*RewriteAction) map[string]interface{} {
 	// Add values for chart dependencies
 	for _, dependency := range chart.Dependencies() {
 		chart.Values[dependency.Name()] = merge.Merge(dependency.Values, chart.Values[dependency.Name()])
 	}
 
-	// Prepend .Values to match the format inside the template files
-	values := ValuesMap{
-		"Values": chart.Values,
-	}
-
 	// Apply rewrite actions
+	values := chart.Values
 	for _, action := range rewriteActions {
 		actionMap := action.ToMap()
 		result := merge.Merge(values, actionMap)
-		values, _ = result.(ValuesMap)
+		var ok bool
+		values, ok = result.(map[string]interface{})
+		if !ok {
+			return nil
+		}
 	}
 
 	return values
@@ -171,7 +171,8 @@ func (t *ImageTemplate) Apply(originalImage *dockerparser.Reference, rules *Rewr
 
 	if rules.RepositoryPrefix != "" {
 		repoModified = true
-		repository = rules.RepositoryPrefix + "/" + repository
+		repoParts := strings.Split(repository, "/")
+		repository = rules.RepositoryPrefix + "/" + repoParts[len(repoParts)-1]
 	}
 
 	if t.RegistryAndRepositoryTemplate != "" {

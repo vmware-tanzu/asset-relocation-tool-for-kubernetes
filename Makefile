@@ -69,10 +69,13 @@ build-all: build/relok8s-darwin build/relok8s-linux
 test-units: deps
 	ginkgo -r -skipPackage features .
 
-test-features: deps
+test-fixtures:
+	make --directory features/fixtures
+
+test-features: deps test-fixtures
 	ginkgo -r -tags=feature features
 
-test-enemies: deps
+test-enemies: deps test-fixtures
 	ginkgo -r -tags=enemies features
 
 test: deps lint test-units test-features test-enemies

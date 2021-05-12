@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"io"
+	"io/ioutil"
+	"regexp"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -12,49 +13,72 @@ import (
 )
 
 type ImageManager struct {
-	Output       io.Writer
 	Context      context.Context
 	DockerClient *client.Client
 	Auth         map[string]string
 }
 
-func (img *ImageManager) PullImage(image *dockerparser.Reference) error {
-	_, _ = fmt.Fprintf(img.Output, "Pulling %s... ", image.Remote())
+var digestRegex = regexp.MustCompile(`{"status":"Digest: (sha256:[a-f0-9]*)"}`)
 
-	_, err := img.DockerClient.ImagePull(img.Context, image.Remote(), types.ImagePullOptions{
+func GetDigestFromOutput(output io.ReadCloser) string {
+	bytes, _ := ioutil.ReadAll(output)
+	_ = output.Close()
+
+	matches := digestRegex.FindAllStringSubmatch(string(bytes), -1)
+	if len(matches) > 0 {
+		return matches[0][1]
+	}
+	return ""
+}
+
+func (img *ImageManager) PullImage(image *dockerparser.Reference) (string, error) {
+	output, err := img.DockerClient.ImagePull(img.Context, image.Remote(), types.ImagePullOptions{
 		RegistryAuth: img.Auth[image.Registry()],
 	})
 	if err != nil {
-		_, _ = fmt.Fprintln(img.Output, "")
-		return errors.Wrapf(err, "failed to pull image %s", image.Remote())
+		return "", errors.Wrapf(err, "failed to pull image %s", image.Remote())
 	}
-	_, _ = fmt.Fprintln(img.Output, "Done")
-	return nil
+
+	return GetDigestFromOutput(output), nil
+}
+
+func (img *ImageManager) CheckImage(digest string, image *dockerparser.Reference) (bool, error) {
+	output, err := img.DockerClient.ImagePull(img.Context, image.Remote(), types.ImagePullOptions{
+		RegistryAuth: img.Auth[image.Registry()],
+	})
+
+	if err != nil {
+		// Return true if failed to pull the image.
+		// We see different errors if the image does not exist, or if the specific tag does not exist
+		// It is simpler to attempt to push, which will catch legitimate issues (lack of authorization),
+		// than it is to try and handle every error case here.
+		return true, nil
+	}
+
+	remoteDigest := GetDigestFromOutput(output)
+	if remoteDigest != digest {
+		return false, errors.Errorf("remote image \"%s\" exists with a different digest: %s. Will not overwrite", image.Remote(), remoteDigest)
+	} else {
+		return false, nil
+	}
 }
 
 func (img *ImageManager) PushImage(source, dest *dockerparser.Reference) error {
-	err := img.PullImage(source)
-	if err != nil {
-		return err
+	if img.Auth[dest.Registry()] == "" {
+		return errors.Errorf("not authorized to push to %s. Please retry with --registry-auth <url=username:password>", dest.Registry())
 	}
 
-	_, _ = fmt.Fprintf(img.Output, "Tagging %s... ", dest.Remote())
-	err = img.DockerClient.ImageTag(img.Context, source.Remote(), dest.Remote())
+	err := img.DockerClient.ImageTag(img.Context, source.Remote(), dest.Remote())
 	if err != nil {
-		_, _ = fmt.Fprintln(img.Output, "")
 		return errors.Wrapf(err, "failed to tag image %s", dest.Remote())
 	}
-	_, _ = fmt.Fprintln(img.Output, "Done")
 
-	_, _ = fmt.Fprintf(img.Output, "Pushing %s... ", dest.Remote())
 	_, err = img.DockerClient.ImagePush(img.Context, dest.Remote(), types.ImagePushOptions{
 		RegistryAuth: img.Auth[dest.Registry()],
 	})
 	if err != nil {
-		_, _ = fmt.Fprintln(img.Output, "")
 		return errors.Wrapf(err, "failed to push image %s", dest.Remote())
 	}
-	_, _ = fmt.Fprintln(img.Output, "Done")
 
 	return nil
 }

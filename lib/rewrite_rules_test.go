@@ -6,8 +6,6 @@ import (
 	. "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
 )
 
-var _ = Describe("RewriteRules", func() {})
-
 var _ = Describe("RewriteAction", func() {
 	Describe("ToMap", func() {
 		Context("one key", func() {
@@ -58,7 +56,6 @@ var _ = Describe("RewriteAction", func() {
 				haystack, ok = haystack["charlie"].(ValuesMap)
 				Expect(ok).To(BeTrue())
 				Expect(haystack).To(HaveKeyWithValue("delta", "needle"))
-
 			})
 		})
 	})

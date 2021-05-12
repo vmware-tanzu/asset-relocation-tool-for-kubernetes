@@ -1,15 +1,14 @@
-CHART_FILES=$(shell find samplechart -type f)
-
-samplechart-0.1.0.tgz: $(CHART_FILES)
-	helm package samplechart
-
-dependentchart/charts/samplechart-0.1.0.tgz:
-	cd dependentchart && helm dependency update
-
 .PHONY: build clean rebuild
-build: samplechart-0.1.0.tgz dependentchart/charts/samplechart-0.1.0.tgz
+build: wordpress/.unarchived
 rebuild: clean build
 clean:
-	rm -f samplechart-0.1.0.tgz dependentchart/charts/samplechart-0.1.0.tgz
+	rm -rf wordpress-11.0.4.tgz wordpress
 
-default: build
+wordpress-11.0.4.tgz:
+	helm repo add bitnami https://charts.bitnami.com/bitnami
+	helm pull bitnami/wordpress --version 11.0.4
+
+wordpress/.unarchived: wordpress-11.0.4.tgz
+	tar zxvf wordpress-11.0.4.tgz
+	touch wordpress/.unarchived
+

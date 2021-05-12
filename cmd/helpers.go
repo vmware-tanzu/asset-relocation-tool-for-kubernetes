@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"bufio"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"io/ioutil"
+	"os"
 	"regexp"
+	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/pkg/errors"
@@ -13,11 +17,12 @@ import (
 	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
 )
 
 var (
-	Chart          *chart.Chart
-	ImageTemplates []*lib.ImageTemplate
+	Chart         *chart.Chart
+	ImagePatterns []*lib.ImageTemplate
 
 	// TODO: limit this to valid registry and username characters
 	registryAuthRegex = regexp.MustCompile(`(.*?)=([a-zA-Z0-9$]*):(.*)`)
@@ -36,20 +41,20 @@ func LoadChart(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func LoadImageTemplates(cmd *cobra.Command, args []string) error {
-	if ImageListFile == "" {
-		return errors.New("image-templates is required. Please try again with '-i <image templates>'")
+func LoadImagePatterns(cmd *cobra.Command, args []string) error {
+	if ImagePatternsFile == "" {
+		return errors.New("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
 	}
 
-	fileContents, err := ioutil.ReadFile(ImageListFile)
+	fileContents, err := ioutil.ReadFile(ImagePatternsFile)
 	if err != nil {
-		return errors.Wrap(err, "failed to read image-templates")
+		return errors.Wrap(err, "failed to read image pattern file")
 	}
 
 	var templateStrings []string
 	err = yaml.Unmarshal(fileContents, &templateStrings)
 	if err != nil {
-		return errors.Wrap(err, "image-templates are not in the correct format")
+		return errors.Wrap(err, "image pattern file is not in the correct format")
 	}
 
 	for _, line := range templateStrings {
@@ -57,27 +62,35 @@ func LoadImageTemplates(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		ImageTemplates = append(ImageTemplates, temp)
+		ImagePatterns = append(ImagePatterns, temp)
 	}
 
 	return nil
 }
 
-var Rules *lib.RewriteRules
+func ParseRules(cmd *cobra.Command, args []string) error {
+	Rules = &lib.RewriteRules{}
+	if RulesFile != "" {
+		fileContents, err := ioutil.ReadFile(RulesFile)
+		if err != nil {
+			return errors.Wrap(err, "failed to read rewrite the rules file")
+		}
 
-func LoadRewriteRules(cmd *cobra.Command, args []string) error {
-	if RewriteRulesFile == "" {
-		return errors.New("rules-file is required. Please try again with '-r <rules file>'")
+		err = yaml.UnmarshalStrict(fileContents, &Rules)
+		if err != nil {
+			return errors.Wrap(err, "the rewrite rules file is not in the correct format")
+		}
 	}
 
-	fileContents, err := ioutil.ReadFile(RewriteRulesFile)
-	if err != nil {
-		return errors.Wrap(err, "failed to read rewrite rules-file")
+	if RegistryRule != "" {
+		Rules.Registry = RegistryRule
+	}
+	if RepositoryPrefixRule != "" {
+		Rules.RepositoryPrefix = RepositoryPrefixRule
 	}
 
-	err = yaml.UnmarshalStrict(fileContents, &Rules)
-	if err != nil {
-		return errors.Wrap(err, "the rewrite rules-file contents are not in the correct format")
+	if *Rules == (lib.RewriteRules{}) {
+		return errors.New("Error: at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
 	}
 
 	return nil
@@ -109,4 +122,26 @@ func RunSerially(funcs ...func(cmd *cobra.Command, args []string) error) func(cm
 		}
 		return nil
 	}
+}
+
+func GetConfirmation(input io.Reader) (bool, error) {
+	reader := bufio.NewReader(input)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false, err
+	}
+	response = strings.ToLower(strings.TrimSpace(response))
+
+	if response == "y" || response == "yes" {
+		return true, nil
+
+	}
+	return false, nil
+}
+
+func ModifyChart(chart *chart.Chart, actions []*lib.RewriteAction) error {
+	dir, _ := os.Getwd()
+	_, err := chartutil.Save(chart, dir)
+
+	return err
 }

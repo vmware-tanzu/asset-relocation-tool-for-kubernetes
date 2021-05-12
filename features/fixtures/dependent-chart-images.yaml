@@ -1,4 +1,0 @@
-- "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-- "{{ .Values.samplechart.image.repository }}:{{ .Values.samplechart.image.tag }}"
-- "{{ .Values.samplechart.wellDefinedImage.registry }}/{{ .Values.samplechart.wellDefinedImage.repository }}:{{ .Values.samplechart.wellDefinedImage.tag }}"
-- "{{ .Values.samplechart.singleTemplateImage.image }}"

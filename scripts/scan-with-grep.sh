@@ -1,4 +1,4 @@
 #!/bin/bash
 
 echo "---"
-grep --color=never --no-filename "image:" "${1}"/templates/* | sed -e "s/^[ \t]*image: /- /"  | uniq | sort
+find "${1}/templates" -type f -exec grep --color=never --no-filename "image:" {} \; | sed -e "s/^[ \t]*image: /- /" | sort | uniq
