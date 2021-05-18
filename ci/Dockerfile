@@ -15,11 +15,11 @@ RUN apk --no-cache add \
         device-mapper \
         gcc \
         git \
-        helm \
         iptables \
         libc-dev \
         libffi-dev \
         make \
+        openssl \
         openssl-dev \
         py-pip \
         python3-dev \
@@ -31,6 +31,9 @@ RUN apk --no-cache add \
     chmod +x /bin/docker* && \
     pip install docker-compose==${DOCKER_COMPOSE_VERSION} && \
     rm -rf /root/.cache
+
+# Install Helm
+RUN curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
 
 # Copy functions to start/stop docker daemon
 COPY --from=dcind /docker-lib.sh /docker-lib.sh
