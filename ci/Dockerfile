@@ -15,6 +15,7 @@ RUN apk --no-cache add \
         device-mapper \
         gcc \
         git \
+        helm \
         iptables \
         libc-dev \
         libffi-dev \
