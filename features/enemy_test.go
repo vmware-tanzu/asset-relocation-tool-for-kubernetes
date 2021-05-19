@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"time"
+
+	"helm.sh/helm/v3/pkg/chart/loader"
 
 	. "github.com/bunniesandbeatings/goerkin"
 	. "github.com/onsi/ginkgo"
@@ -35,9 +38,9 @@ var _ = Describe("Enemy tests", func() {
 		steps.And("the image is pulled")
 		steps.Then("the command says that the rewritten image will be pushed")
 		steps.And("the command says that the rewritten image will be written to the chart")
+		steps.And("the command exits without error")
 		steps.And("the rewritten image is pushed")
 		steps.And("the modified chart is written")
-		steps.And("the command exits without error")
 	})
 
 	steps.Define(func(define Definitions) {
@@ -98,9 +101,22 @@ var _ = Describe("Enemy tests", func() {
 			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/tanzu_isv_engineering/tiny:%s... Done", customTag)))
 		})
 
+		var modifiedChartPath string
 		define.Then(`^the modified chart is written$`, func() {
-			// TODO: Not yet written
-			Expect(1).To(Equal(1))
+			cwd, err := os.Getwd()
+			Expect(err).ToNot(HaveOccurred())
+
+			modifiedChartPath = filepath.Join(cwd, "testchart-0.1.0.relocated.tgz")
+			modifiedChart, err := loader.Load(modifiedChartPath)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(modifiedChart.Values["image"]).To(HaveKeyWithValue("repository", "harbor-repo.vmware.com/tanzu_isv_engineering/tiny"))
+			Expect(modifiedChart.Values["image"]).To(HaveKeyWithValue("tag", customTag))
+		}, func() {
+			if modifiedChartPath != "" {
+				os.Remove(modifiedChartPath)
+				modifiedChartPath = ""
+			}
 		})
 	})
 })

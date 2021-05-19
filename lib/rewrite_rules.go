@@ -2,6 +2,8 @@ package lib
 
 import (
 	"strings"
+
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib/yamlops"
 )
 
 type RewriteRules struct {
@@ -30,4 +32,13 @@ func (a *RewriteAction) ToMap() map[string]interface{} {
 	}
 
 	return node
+}
+
+func (a *RewriteAction) Apply(input []byte) ([]byte, error) {
+	pathParts := strings.Split(a.Path, ".")
+	actionPath := strings.Join(pathParts[:len(pathParts)-1], ".")
+	value := map[string]string{
+		pathParts[len(pathParts)-1]: a.Value,
+	}
+	return yamlops.UpdateMap(input, actionPath, "", nil, value)
 }

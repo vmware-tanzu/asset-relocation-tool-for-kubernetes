@@ -100,7 +100,7 @@ jobs:
           GIT_SSH_KEY: ((gitlab.private_key))
           MAKE_TARGET: test-units
       - task: run-feature-tests
-        image: golang-image
+        image: test-image
         file: source/ci/tasks/test.yaml
         params:
           GIT_SSH_KEY: ((gitlab.private_key))

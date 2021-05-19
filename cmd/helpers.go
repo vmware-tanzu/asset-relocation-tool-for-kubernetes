@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -140,8 +142,39 @@ func GetConfirmation(input io.Reader) (bool, error) {
 }
 
 func ModifyChart(chart *chart.Chart, actions []*lib.RewriteAction) error {
-	dir, _ := os.Getwd()
-	_, err := chartutil.Save(chart, dir)
+	var err error
+	for fileIndex, file := range chart.Raw {
+		if file.Name == chartutil.ValuesfileName {
+			data := file.Data
+			for _, action := range actions {
+				data, err = action.Apply(data)
+				if err != nil {
+					return err
+				}
+			}
+			chart.Raw[fileIndex].Data = data
+		}
+	}
+
+	cwd, _ := os.Getwd()
+
+	tempDir, err := ioutil.TempDir("", "relok8s-*")
+	if err != nil {
+		return err
+	}
+
+	filename, err := chartutil.Save(chart, tempDir)
+	if err != nil {
+		return err
+	}
+
+	err = os.Rename(
+		filename,
+		filepath.Join(cwd, fmt.Sprintf("%s-%s.relocated.tgz", chart.Name(), chart.Metadata.Version)),
+	)
+	if err != nil {
+		return err
+	}
 
 	return err
 }
