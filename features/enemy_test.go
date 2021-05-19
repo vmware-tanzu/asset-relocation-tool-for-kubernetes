@@ -24,7 +24,7 @@ var _ = Describe("Enemy tests", func() {
 
 	Context("Unauthorized", func() {
 		Scenario("Listing and pulling images", func() {
-			steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --rules fixtures/tag-rule.yaml")
+			steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering")
 			steps.Then("the command exits with an error")
 			steps.And("the error message says it failed to pull because it was not authorized")
 		})
