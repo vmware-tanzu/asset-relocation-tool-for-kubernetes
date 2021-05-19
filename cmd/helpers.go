@@ -157,8 +157,7 @@ func ModifyChart(chart *chart.Chart, actions []*lib.RewriteAction) error {
 	}
 
 	cwd, _ := os.Getwd()
-
-	tempDir, err := ioutil.TempDir("", "relok8s-*")
+	tempDir, err := ioutil.TempDir(cwd, "relok8s-*")
 	if err != nil {
 		return err
 	}
@@ -176,5 +175,5 @@ func ModifyChart(chart *chart.Chart, actions []*lib.RewriteAction) error {
 		return err
 	}
 
-	return err
+	return os.Remove(tempDir)
 }
