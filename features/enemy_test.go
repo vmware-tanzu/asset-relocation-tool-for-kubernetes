@@ -23,16 +23,16 @@ var _ = Describe("Enemy tests", func() {
 	steps := NewSteps()
 
 	Context("Unauthorized", func() {
-		Scenario("Listing and pulling images", func() {
+		Scenario("running chart move", func() {
+			steps.Given("no authorization to the remote registry")
 			steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering")
 			steps.Then("the command exits with an error")
 			steps.And("the error message says it failed to pull because it was not authorized")
 		})
 	})
 
-	Scenario("relocating a chart", func() {
-		steps.Given("credentials to the private registry")
-		steps.And("a rules file with a custom tag")
+	Scenario("running chart move", func() {
+		steps.Given("a rules file with a custom tag") // This is used for forcing a new tag, ensuring the target is new
 		steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering")
 
 		steps.And("the image is pulled")
@@ -71,15 +71,33 @@ var _ = Describe("Enemy tests", func() {
 			}
 		})
 
-		define.Given(`^credentials to the private registry$`, func() {
-			RegistryAuth = os.Getenv("REGISTRY_AUTH")
-			Expect(RegistryAuth).ToNot(BeEmpty())
+		define.Given(`^no authorization to the remote registry$`, func() {
+			homeDir, err := os.UserHomeDir()
+			Expect(err).ToNot(HaveOccurred())
+
+			err = os.Rename(
+				filepath.Join(homeDir, ".docker", "config.json"),
+				filepath.Join(homeDir, ".docker", "totally-not-the-config.json.backup"),
+			)
+			Expect(err).ToNot(HaveOccurred())
 		}, func() {
-			RegistryAuth = ""
+			homeDir, err := os.UserHomeDir()
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = os.Stat(filepath.Join(homeDir, ".docker", "totally-not-the-config.json.backup"))
+			if !os.IsNotExist(err) {
+				Expect(err).ToNot(HaveOccurred())
+
+				err = os.Rename(
+					filepath.Join(homeDir, ".docker", "totally-not-the-config.json.backup"),
+					filepath.Join(homeDir, ".docker", "config.json"),
+				)
+				Expect(err).ToNot(HaveOccurred())
+			}
 		})
 
 		define.Then(`^the error message says it failed to pull because it was not authorized$`, func() {
-			Eventually(CommandSession.Err, time.Minute).Should(Say("Error response from daemon: unauthorized: unauthorized to access repository"))
+			Eventually(CommandSession.Err, time.Minute).Should(Say("unauthorized to access repository"))
 		})
 
 		define.Then(`^the image is pulled$`, func() {

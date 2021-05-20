@@ -5,6 +5,9 @@ params:
   GIT_SSH_KEY:
   GOPRIVATE: gitlab.eng.vmware.com
   MAKE_TARGET: test
+  REGISTRY_SERVER:
+  REGISTRY_USERNAME:
+  REGISTRY_PASSWORD:
 
 inputs:
   - name: source
@@ -19,6 +22,10 @@ run:
         export DOCKER_API_VERSION=1.39
         source /docker-lib.sh
         start_docker
+
+        set +x
+        docker login "${REGISTRY_SERVER}" --username "${REGISTRY_USERNAME}" --password "${REGISTRY_PASSWORD}"
+        set -x
       fi
 
       ci/scripts/install-git-ssh-key

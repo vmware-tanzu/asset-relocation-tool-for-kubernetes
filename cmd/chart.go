@@ -1,13 +1,12 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
 
-	"github.com/docker/docker/client"
-	dockerparser "github.com/novln/docker-parser"
+	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
@@ -22,9 +21,6 @@ var (
 	RegistryRule         string
 	RepositoryPrefixRule string
 	Rules                *lib.RewriteRules
-
-	RegistryAuthList []string
-	RegistryAuth     = map[string]string{}
 )
 
 func init() {
@@ -44,8 +40,6 @@ func init() {
 	ChartMoveCmd.Flags().StringVar(&RulesFile, "rules", "", "File containing rewrite rules")
 	ChartMoveCmd.Flags().StringVar(&RegistryRule, "registry", "", "Image registry rewrite rule")
 	ChartMoveCmd.Flags().StringVar(&RepositoryPrefixRule, "repo-prefix", "", "Image repository prefix rule")
-
-	ChartMoveCmd.Flags().StringArrayVar(&RegistryAuthList, "registry-auth", []string{}, "Supply credentials for connecting to a registry. In the format <registry.url>=<username>:<password>. Can be called multiple times.")
 }
 
 var ChartCmd = &cobra.Command{
@@ -55,10 +49,14 @@ var ChartCmd = &cobra.Command{
 }
 
 type ImageChange struct {
-	Digest   string
-	Template string
-	Source   *dockerparser.Reference
-	Dest     *dockerparser.Reference
+	Image       v1.Image
+	OriginalTag name.Reference
+	NewTag      name.Reference
+	Digest      string
+}
+
+func (change *ImageChange) ShouldPush() bool {
+	return change.OriginalTag.Name() != change.NewTag.Name()
 }
 
 var ChartSave = &cobra.Command{ // TODO: Please remove eventually
@@ -80,7 +78,7 @@ var ChartMoveCmd = &cobra.Command{
 	Short:   "Lists the container images in a chart",
 	Long:    "Finds, renders and lists the container images found in a Helm chart, using an image template file to detect the templates that build the image reference.",
 	Example: "images <chart> -i <image templates>",
-	PreRunE: RunSerially(LoadChart, LoadImagePatterns, ParseRules, ParseRegistryAuth),
+	PreRunE: RunSerially(LoadChart, LoadImagePatterns, ParseRules),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 		var (
@@ -89,32 +87,26 @@ var ChartMoveCmd = &cobra.Command{
 			imagesToPush []*ImageChange
 		)
 
-		cli, err := client.NewClientWithOpts(client.FromEnv)
-		if err != nil {
-			return errors.Wrap(err, "failed to initialize docker client")
-		}
-
-		img := &ImageManager{
-			Context:      context.Background(),
-			DockerClient: cli,
-			Auth:         RegistryAuth,
-		}
-
 		for _, imageTemplate := range ImagePatterns {
 			originalImage, err := imageTemplate.Render(Chart, []*lib.RewriteAction{})
 			if err != nil {
 				return err
 			}
 
-			if imageDigests[originalImage.Remote()] == "" {
-				cmd.Printf("Pulling %s... ", originalImage.Remote())
-				digest, err := img.PullImage(originalImage)
+			change := &ImageChange{
+				OriginalTag: originalImage,
+			}
+			if imageDigests[originalImage.Name()] == "" {
+				cmd.Printf("Pulling %s... ", originalImage.Name())
+				image, digest, err := PullImage(originalImage)
 				if err != nil {
 					cmd.Println("")
 					return err
 				}
 				cmd.Println("Done")
-				imageDigests[originalImage.Remote()] = digest
+				imageDigests[originalImage.Name()] = digest
+				change.Image = image
+				change.Digest = digest
 			}
 
 			newActions, err := imageTemplate.Apply(originalImage, Rules)
@@ -129,23 +121,22 @@ var ChartMoveCmd = &cobra.Command{
 				return err
 			}
 
-			if originalImage.Remote() != rewrittenImage.Remote() {
-				digest := imageDigests[originalImage.Remote()]
-				needToPush, err := img.CheckImage(digest, rewrittenImage)
+			change.NewTag = rewrittenImage
+
+			if change.ShouldPush() {
+				cmd.Printf("Checking %s... ", rewrittenImage.Name())
+				needToPush, err := CheckImage(change.Digest, rewrittenImage)
 				if err != nil {
+					cmd.Println("")
 					return err
 				}
 
 				if needToPush {
-					imagesToPush = append(imagesToPush, &ImageChange{
-						Digest:   digest,
-						Template: imageTemplate.Raw,
-						Source:   originalImage,
-						Dest:     rewrittenImage,
-					})
+					imagesToPush = append(imagesToPush, change)
 				} else {
-					cmd.Printf("%s already exists with digest %s\n", rewrittenImage.Remote(), digest)
+					cmd.Printf("%s already exists with digest %s\n", rewrittenImage.Name(), change.Digest)
 				}
+				cmd.Println("Done")
 			}
 		}
 
@@ -165,8 +156,8 @@ var ChartMoveCmd = &cobra.Command{
 		}
 
 		for _, imageToPush := range imagesToPush {
-			cmd.Printf("Pushing %s... ", imageToPush.Dest.Remote())
-			err = img.PushImage(imageToPush.Source, imageToPush.Dest)
+			cmd.Printf("Pushing %s... ", imageToPush.NewTag.Name())
+			err := PushImage(imageToPush.Image, imageToPush.NewTag)
 			if err != nil {
 				cmd.Println("")
 				return err
@@ -181,7 +172,7 @@ var ChartMoveCmd = &cobra.Command{
 func PrintChanges(output io.Writer, imagesToPush []*ImageChange, actions []*lib.RewriteAction) {
 	_, _ = fmt.Fprintln(output, "\nImages to be pushed:")
 	for _, image := range imagesToPush {
-		_, _ = fmt.Fprintf(output, "  %s (%s)\n", image.Dest.Remote(), image.Digest)
+		_, _ = fmt.Fprintf(output, "  %s (%s)\n", image.NewTag.Name(), image.Digest)
 	}
 
 	_, _ = fmt.Fprintf(output, "\n Changes written to %s/values.yaml:\n", Chart.ChartPath())

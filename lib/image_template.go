@@ -8,7 +8,7 @@ import (
 	"text/template"
 
 	"github.com/divideandconquer/go-merge/merge"
-	dockerparser "github.com/novln/docker-parser"
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/chart"
 )
@@ -97,7 +97,7 @@ func BuildValuesMap(chart *chart.Chart, rewriteActions []*RewriteAction) map[str
 	return values
 }
 
-func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions []*RewriteAction) (*dockerparser.Reference, error) {
+func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions []*RewriteAction) (name.Reference, error) {
 	values := BuildValuesMap(chart, rewriteActions)
 
 	output := bytes.Buffer{}
@@ -106,7 +106,7 @@ func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions []*RewriteActi
 		return nil, errors.Wrap(err, "failed to render image")
 	}
 
-	image, err := dockerparser.Parse(output.String())
+	image, err := name.ParseReference(output.String())
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse image reference")
 	}
@@ -114,14 +114,14 @@ func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions []*RewriteActi
 	return image, nil
 }
 
-func (t *ImageTemplate) Apply(originalImage *dockerparser.Reference, rules *RewriteRules) ([]*RewriteAction, error) {
+func (t *ImageTemplate) Apply(originalImage name.Reference, rules *RewriteRules) ([]*RewriteAction, error) {
 	tagged := false
 	var rewrites []*RewriteAction
 
 	// Tag or Digest
 	if t.TagTemplate != "" {
 		tagged = true
-		if rules.Tag != "" && rules.Tag != originalImage.Tag() {
+		if rules.Tag != "" && rules.Tag != originalImage.Identifier() {
 			rewrites = append(rewrites, &RewriteAction{
 				Path:  t.TagTemplate,
 				Value: rules.Tag,
@@ -129,7 +129,7 @@ func (t *ImageTemplate) Apply(originalImage *dockerparser.Reference, rules *Rewr
 		}
 	} else if t.DigestTemplate != "" {
 		tagged = true
-		if rules.Digest != "" && rules.Digest != originalImage.Tag() {
+		if rules.Digest != "" && rules.Digest != originalImage.Identifier() {
 			rewrites = append(rewrites, &RewriteAction{
 				Path:  t.DigestTemplate,
 				Value: rules.Digest,
@@ -141,13 +141,13 @@ func (t *ImageTemplate) Apply(originalImage *dockerparser.Reference, rules *Rewr
 	// Remove tag or digest from template
 	regModified := false
 	repoModified := false
-	registry := originalImage.Registry()
+	registry := originalImage.Context().Registry.Name()
 	if rules.Registry != "" {
 		regModified = true
 		registry = rules.Registry
 	}
 
-	tagString := strings.ReplaceAll(originalImage.Name(), originalImage.ShortName(), "")
+	tagString := strings.ReplaceAll(originalImage.Name(), originalImage.Context().Name(), "")
 	if tagged {
 		tagString = ""
 	} else {
@@ -161,7 +161,7 @@ func (t *ImageTemplate) Apply(originalImage *dockerparser.Reference, rules *Rewr
 		}
 	}
 
-	repository := originalImage.ShortName()
+	repository := originalImage.Context().RepositoryStr()
 	if rules.Repository != "" {
 		repoModified = true
 		repository = rules.Repository

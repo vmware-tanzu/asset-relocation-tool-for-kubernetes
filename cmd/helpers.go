@@ -2,17 +2,13 @@ package cmd
 
 import (
 	"bufio"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
-	"github.com/docker/docker/api/types"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
@@ -25,9 +21,6 @@ import (
 var (
 	Chart         *chart.Chart
 	ImagePatterns []*lib.ImageTemplate
-
-	// TODO: limit this to valid registry and username characters
-	registryAuthRegex = regexp.MustCompile(`(.*?)=([a-zA-Z0-9$]*):(.*)`)
 )
 
 func LoadChart(cmd *cobra.Command, args []string) error {
@@ -95,22 +88,6 @@ func ParseRules(cmd *cobra.Command, args []string) error {
 		return errors.New("Error: at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
 	}
 
-	return nil
-}
-
-func ParseRegistryAuth(cmd *cobra.Command, args []string) error {
-	for _, authString := range RegistryAuthList {
-		parts := registryAuthRegex.FindStringSubmatch(authString)
-		if len(parts) > 0 {
-			authBytes, _ := json.Marshal(types.AuthConfig{
-				Username: parts[2],
-				Password: parts[3],
-			})
-			RegistryAuth[parts[1]] = base64.URLEncoding.EncodeToString(authBytes)
-		} else {
-			return errors.Errorf("registry auth is in an invalid format: \"%s\". Should be <registry.url>=<username>:<password>", authString)
-		}
-	}
 	return nil
 }
 

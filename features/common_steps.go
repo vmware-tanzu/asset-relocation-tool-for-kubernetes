@@ -16,7 +16,6 @@ import (
 var (
 	ChartMoverBinaryPath string
 	CommandSession       *gexec.Session
-	RegistryAuth         string
 	RulesFile            *os.File
 )
 
@@ -37,9 +36,6 @@ var _ = AfterSuite(func() {
 func DefineCommonSteps(define goerkin.Definitions) {
 	define.When(`^running relok8s (.*)$`, func(argString string) {
 		args := strings.Split(argString, " ")
-		if RegistryAuth != "" {
-			args = append(args, "--registry-auth", RegistryAuth)
-		}
 		if RulesFile != nil {
 			args = append(args, "--rules", RulesFile.Name())
 		}

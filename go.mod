@@ -5,9 +5,8 @@ go 1.16
 require (
 	github.com/bunniesandbeatings/goerkin v0.1.4-beta
 	github.com/divideandconquer/go-merge v0.0.0-20160829212531-bc6b3a394b4e
-	github.com/docker/docker v1.4.2-0.20200203170920-46ec8731fbce
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/novln/docker-parser v1.0.0
+	github.com/google/go-containerregistry v0.5.1
 	github.com/onsi/ginkgo v1.15.0
 	github.com/onsi/gomega v1.10.5
 	github.com/pkg/errors v0.9.1
