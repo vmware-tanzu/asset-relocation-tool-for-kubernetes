@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: harbor-repo.vmware.com/pwall/tiny
+  repository: harbor-repo.vmware.com/tanzu_isv_engineering/tiny
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: tiniest

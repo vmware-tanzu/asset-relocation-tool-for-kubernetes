@@ -25,7 +25,7 @@ var _ = Describe("Enemy tests", func() {
 	Context("Unauthorized", func() {
 		Scenario("running chart move", func() {
 			steps.Given("no authorization to the remote registry")
-			steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering")
+			steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering_private")
 			steps.Then("the command exits with an error")
 			steps.And("the error message says it failed to pull because it was not authorized")
 		})
@@ -33,7 +33,7 @@ var _ = Describe("Enemy tests", func() {
 
 	Scenario("running chart move", func() {
 		steps.Given("a rules file with a custom tag") // This is used for forcing a new tag, ensuring the target is new
-		steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering")
+		steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering_private")
 
 		steps.And("the image is pulled")
 		steps.Then("the command says that the rewritten image will be pushed")
@@ -97,26 +97,26 @@ var _ = Describe("Enemy tests", func() {
 		})
 
 		define.Then(`^the error message says it failed to pull because it was not authorized$`, func() {
-			Eventually(CommandSession.Err, time.Minute).Should(Say("unauthorized to access repository"))
+			Eventually(CommandSession.Err, time.Minute).Should(Say("[uU]nauthorized"))
 		})
 
 		define.Then(`^the image is pulled$`, func() {
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Pulling harbor-repo.vmware.com/pwall/tiny:tiniest... Done"))
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Pulling harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest... Done"))
 		})
 
 		define.Then(`^the command says that the rewritten image will be pushed$`, func() {
 			Eventually(CommandSession.Out, time.Minute).Should(Say("Images to be pushed:"))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  harbor-repo.vmware.com/tanzu_isv_engineering/tiny:%s \\(sha256:[a-z0-9]*\\)", customTag)))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s \\(sha256:[a-z0-9]*\\)", customTag)))
 		})
 
 		define.Then(`^the command says that the rewritten image will be written to the chart$`, func() {
 			Eventually(CommandSession.Out).Should(Say("Changes written to testchart/values.yaml:"))
 			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .image.tag: %s", customTag)))
-			Eventually(CommandSession.Out).Should(Say("  .image.repository: harbor-repo.vmware.com/tanzu_isv_engineering/tiny"))
+			Eventually(CommandSession.Out).Should(Say("  .image.repository: harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny"))
 		})
 
 		define.Then(`^the rewritten image is pushed$`, func() {
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/tanzu_isv_engineering/tiny:%s... Done", customTag)))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s... Done", customTag)))
 		})
 
 		var modifiedChartPath string
@@ -128,7 +128,7 @@ var _ = Describe("Enemy tests", func() {
 			modifiedChart, err := loader.Load(modifiedChartPath)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(modifiedChart.Values["image"]).To(HaveKeyWithValue("repository", "harbor-repo.vmware.com/tanzu_isv_engineering/tiny"))
+			Expect(modifiedChart.Values["image"]).To(HaveKeyWithValue("repository", "harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny"))
 			Expect(modifiedChart.Values["image"]).To(HaveKeyWithValue("tag", customTag))
 		}, func() {
 			if modifiedChartPath != "" {

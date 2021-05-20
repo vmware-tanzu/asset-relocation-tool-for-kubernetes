@@ -113,8 +113,8 @@ jobs:
           GIT_SSH_KEY: ((gitlab.private_key))
           MAKE_TARGET: test-enemies
           REGISTRY_SERVER: harbor-repo.vmware.com
-          REGISTRY_USERNAME: ((private-harbor.username))
-          REGISTRY_PASSWORD: ((private-harbor.token))
+          REGISTRY_USERNAME: ((harbor-private.username))
+          REGISTRY_PASSWORD: ((harbor-private.token))
 
   - name: build
     serial_groups: [version]
