@@ -24,7 +24,7 @@ run:
         start_docker
 
         set +x
-        docker login "${REGISTRY_SERVER}" --username "${REGISTRY_USERNAME}" --password "${REGISTRY_PASSWORD}"
+        echo "${REGISTRY_PASSWORD}" | docker login "${REGISTRY_SERVER}" --username "${REGISTRY_USERNAME}" --password-stdin
         set -x
       fi
 
