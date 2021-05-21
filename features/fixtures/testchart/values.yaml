@@ -10,6 +10,12 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: tiniest
 
+sameImageButNoTagRequirement:
+  image: harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest
+
+singleImageReference:
+  image: harbor-repo.vmware.com/dockerhub-proxy-cache/library/busybox:1.33.1
+
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""

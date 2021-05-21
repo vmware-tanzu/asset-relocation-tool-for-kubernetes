@@ -35,9 +35,10 @@ var _ = Describe("Enemy tests", func() {
 		steps.Given("a rules file with a custom tag") // This is used for forcing a new tag, ensuring the target is new
 		steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering_private")
 
-		steps.And("the image is pulled")
+		steps.And("the images are pulled")
+		steps.And("the rewritten images are checked to see if they need to be pushed")
 		steps.Then("the command says that the rewritten image will be pushed")
-		steps.And("the command says that the rewritten image will be written to the chart")
+		steps.And("the command says that the rewritten images will be written to the chart")
 		steps.And("the command exits without error")
 		steps.And("the rewritten image is pushed")
 		steps.And("the modified chart is written")
@@ -100,8 +101,15 @@ var _ = Describe("Enemy tests", func() {
 			Eventually(CommandSession.Err, time.Minute).Should(Say("[uU]nauthorized"))
 		})
 
-		define.Then(`^the image is pulled$`, func() {
+		define.Then(`^the images are pulled$`, func() {
 			Eventually(CommandSession.Out, time.Minute).Should(Say("Pulling harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest... Done"))
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Pulling harbor-repo.vmware.com/dockerhub-proxy-cache/library/busybox:1.33.1... Done"))
+		})
+
+		define.Then(`^the rewritten images are checked to see if they need to be pushed$`, func() {
+			Eventually(CommandSession.Out, time.Minute).Should(Say(fmt.Sprintf("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s \\(sha256:[a-z0-9]*\\)... Push required", customTag)))
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)... Already exists"))
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/busybox@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)... Already exists"))
 		})
 
 		define.Then(`^the command says that the rewritten image will be pushed$`, func() {
@@ -109,10 +117,12 @@ var _ = Describe("Enemy tests", func() {
 			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s \\(sha256:[a-z0-9]*\\)", customTag)))
 		})
 
-		define.Then(`^the command says that the rewritten image will be written to the chart$`, func() {
+		define.Then(`^the command says that the rewritten images will be written to the chart$`, func() {
 			Eventually(CommandSession.Out).Should(Say("Changes written to testchart/values.yaml:"))
 			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .image.tag: %s", customTag)))
-			Eventually(CommandSession.Out).Should(Say("  .image.repository: harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny"))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .image.repository: harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny")))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .sameImageButNoTagRequirement.image: harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny@sha256:[a-z0-9]*")))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .singleImageReference.image: harbor-repo.vmware.com/tanzu_isv_engineering_private/busybox@sha256:[a-z0-9]*")))
 		})
 
 		define.Then(`^the rewritten image is pushed$`, func() {
@@ -129,7 +139,18 @@ var _ = Describe("Enemy tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(modifiedChart.Values["image"]).To(HaveKeyWithValue("repository", "harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny"))
+
 			Expect(modifiedChart.Values["image"]).To(HaveKeyWithValue("tag", customTag))
+
+			imageMap, ok := modifiedChart.Values["sameImageButNoTagRequirement"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(imageMap).To(HaveKey("image"))
+			Expect(imageMap["image"]).To(ContainSubstring("harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny@sha256:"))
+
+			imageMap, ok = modifiedChart.Values["singleImageReference"].(map[string]interface{})
+			Expect(ok).To(BeTrue())
+			Expect(imageMap).To(HaveKey("image"))
+			Expect(imageMap["image"]).To(ContainSubstring("harbor-repo.vmware.com/tanzu_isv_engineering_private/busybox@sha256:"))
 		}, func() {
 			if modifiedChartPath != "" {
 				os.Remove(modifiedChartPath)

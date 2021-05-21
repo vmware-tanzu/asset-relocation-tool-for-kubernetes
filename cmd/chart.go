@@ -25,11 +25,6 @@ var (
 
 func init() {
 	rootCmd.AddCommand(ChartCmd)
-	ChartCmd.SetOut(os.Stdout)
-
-	ChartCmd.AddCommand(ChartSave)
-	ChartSave.SetOut(os.Stdout)
-
 	ChartCmd.AddCommand(ChartMoveCmd)
 	ChartMoveCmd.SetOut(os.Stdout)
 
@@ -44,33 +39,19 @@ func init() {
 
 var ChartCmd = &cobra.Command{
 	Use: "chart",
-	//Short:             "Relocates a Helm chart",
-	//Long:              "Relocates a Helm chart by applying rewrite rules to the list of images and modifying the chart to refer to the new image references",
 }
 
 type ImageChange struct {
-	Image       v1.Image
-	OriginalTag name.Reference
-	NewTag      name.Reference
-	Digest      string
+	Pattern            *lib.ImageTemplate
+	ImageReference     name.Reference
+	RewrittenReference name.Reference
+	Image              v1.Image
+	Digest             string
+	AlreadyPushed      bool
 }
 
 func (change *ImageChange) ShouldPush() bool {
-	return change.OriginalTag.Name() != change.NewTag.Name()
-}
-
-var ChartSave = &cobra.Command{ // TODO: Please remove eventually
-	Use:     "save <chart>",
-	Short:   "For testing",
-	PreRunE: RunSerially(LoadChart),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		actions := []*lib.RewriteAction{{
-			Path:  ".image.tag",
-			Value: "oldest",
-		}}
-
-		return ModifyChart(Chart, actions)
-	},
+	return !change.AlreadyPushed && change.ImageReference.Name() != change.RewrittenReference.Name()
 }
 
 var ChartMoveCmd = &cobra.Command{
@@ -83,20 +64,22 @@ var ChartMoveCmd = &cobra.Command{
 		cmd.SilenceUsage = true
 		var (
 			actions      []*lib.RewriteAction
-			imageDigests = map[string]string{}
-			imagesToPush []*ImageChange
+			imageDigests = map[string]*ImageChange{}
+			changes      []*ImageChange
 		)
 
-		for _, imageTemplate := range ImagePatterns {
-			originalImage, err := imageTemplate.Render(Chart, []*lib.RewriteAction{})
+		for _, imagePattern := range ImagePatterns {
+			originalImage, err := imagePattern.Render(Chart, []*lib.RewriteAction{})
 			if err != nil {
 				return err
 			}
 
 			change := &ImageChange{
-				OriginalTag: originalImage,
+				Pattern:        imagePattern,
+				ImageReference: originalImage,
 			}
-			if imageDigests[originalImage.Name()] == "" {
+
+			if imageDigests[originalImage.Name()] == nil {
 				cmd.Printf("Pulling %s... ", originalImage.Name())
 				image, digest, err := PullImage(originalImage)
 				if err != nil {
@@ -104,27 +87,34 @@ var ChartMoveCmd = &cobra.Command{
 					return err
 				}
 				cmd.Println("Done")
-				imageDigests[originalImage.Name()] = digest
 				change.Image = image
 				change.Digest = digest
+				imageDigests[originalImage.Name()] = change
+			} else {
+				change.Image = imageDigests[originalImage.Name()].Image
+				change.Digest = imageDigests[originalImage.Name()].Digest
 			}
+			changes = append(changes, change)
+		}
 
-			newActions, err := imageTemplate.Apply(originalImage, Rules)
+		for _, change := range changes {
+			Rules.Digest = change.Digest
+			newActions, err := change.Pattern.Apply(change.ImageReference, Rules)
 			if err != nil {
 				return err
 			}
 
 			actions = append(actions, newActions...)
 
-			rewrittenImage, err := imageTemplate.Render(Chart, newActions)
+			rewrittenImage, err := change.Pattern.Render(Chart, newActions)
 			if err != nil {
 				return err
 			}
 
-			change.NewTag = rewrittenImage
+			change.RewrittenReference = rewrittenImage
 
 			if change.ShouldPush() {
-				cmd.Printf("Checking %s... ", rewrittenImage.Name())
+				cmd.Printf("Checking %s (%s)... ", rewrittenImage.Name(), change.Digest)
 				needToPush, err := CheckImage(change.Digest, rewrittenImage)
 				if err != nil {
 					cmd.Println("")
@@ -132,15 +122,15 @@ var ChartMoveCmd = &cobra.Command{
 				}
 
 				if needToPush {
-					imagesToPush = append(imagesToPush, change)
+					cmd.Println("Push required")
 				} else {
-					cmd.Printf("%s already exists with digest %s\n", rewrittenImage.Name(), change.Digest)
+					cmd.Println("Already exists")
+					change.AlreadyPushed = true
 				}
-				cmd.Println("Done")
 			}
 		}
 
-		PrintChanges(cmd.OutOrStdout(), imagesToPush, actions)
+		PrintChanges(cmd.OutOrStdout(), changes, actions)
 
 		if !skipConfirmation {
 			cmd.Println("Would you like to proceed? (y/N)")
@@ -155,24 +145,28 @@ var ChartMoveCmd = &cobra.Command{
 			}
 		}
 
-		for _, imageToPush := range imagesToPush {
-			cmd.Printf("Pushing %s... ", imageToPush.NewTag.Name())
-			err := PushImage(imageToPush.Image, imageToPush.NewTag)
-			if err != nil {
-				cmd.Println("")
-				return err
+		for _, change := range changes {
+			if change.ShouldPush() {
+				cmd.Printf("Pushing %s... ", change.RewrittenReference.Name())
+				err := PushImage(change.Image, change.RewrittenReference)
+				if err != nil {
+					cmd.Println("")
+					return err
+				}
+				cmd.Println("Done")
 			}
-			cmd.Println("Done")
 		}
 
 		return ModifyChart(Chart, actions)
 	},
 }
 
-func PrintChanges(output io.Writer, imagesToPush []*ImageChange, actions []*lib.RewriteAction) {
+func PrintChanges(output io.Writer, changes []*ImageChange, actions []*lib.RewriteAction) {
 	_, _ = fmt.Fprintln(output, "\nImages to be pushed:")
-	for _, image := range imagesToPush {
-		_, _ = fmt.Fprintf(output, "  %s (%s)\n", image.NewTag.Name(), image.Digest)
+	for _, change := range changes {
+		if change.ShouldPush() {
+			_, _ = fmt.Fprintf(output, "  %s (%s)\n", change.RewrittenReference.Name(), change.Digest)
+		}
 	}
 
 	_, _ = fmt.Fprintf(output, "\n Changes written to %s/values.yaml:\n", Chart.ChartPath())

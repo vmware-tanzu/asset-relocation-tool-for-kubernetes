@@ -31,6 +31,10 @@ type ImageTemplate struct {
 	DigestTemplate                string
 }
 
+func (t *ImageTemplate) String() string {
+	return t.Raw
+}
+
 func NewFromString(input string) (*ImageTemplate, error) {
 	temp, err := template.New(input).Parse(input)
 	if err != nil {

@@ -33,7 +33,7 @@ func CheckImage(digest string, imageReference name.Reference) (bool, error) {
 	}
 
 	if remoteDigest != digest {
-		return false, errors.Errorf("remote image \"%s\" exists with a different digest: %s. Will not overwrite", imageReference.Name(), remoteDigest)
+		return false, errors.Errorf("remote image \"%s\" already exists with a different digest: %s. Will not overwrite", imageReference.Name(), remoteDigest)
 	} else {
 		return false, nil
 	}
