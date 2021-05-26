@@ -191,7 +191,7 @@ func PrintChanges(output io.Writer, imageChanges []*ImageChange, chartChanges []
 		destination := change.FindChartDestination(Chart)
 		if chartToModify != destination {
 			chartToModify = destination
-			_, _ = fmt.Fprintf(output, "\n Changes written to %s/values.yaml:\n", chartToModify.ChartPath())
+			_, _ = fmt.Fprintf(output, "\n Changes written to %s/values.yaml:\n", chartToModify.ChartFullPath())
 		}
 		_, _ = fmt.Fprintf(output, "  %s: %s\n", change.Path, change.Value)
 	}
