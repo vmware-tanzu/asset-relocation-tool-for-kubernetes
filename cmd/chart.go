@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
+	"helm.sh/helm/v3/pkg/chart"
 )
 
 var (
@@ -169,8 +170,13 @@ func PrintChanges(output io.Writer, changes []*ImageChange, actions []*lib.Rewri
 		}
 	}
 
-	_, _ = fmt.Fprintf(output, "\n Changes written to %s/values.yaml:\n", Chart.ChartPath())
+	var chartToModify *chart.Chart
 	for _, action := range actions {
+		destination := action.FindChartDestination(Chart)
+		if chartToModify != destination {
+			chartToModify = destination
+			_, _ = fmt.Fprintf(output, "\n Changes written to %s/values.yaml:\n", chartToModify.ChartPath())
+		}
 		_, _ = fmt.Fprintf(output, "  %s: %s\n", action.Path, action.Value)
 	}
 }

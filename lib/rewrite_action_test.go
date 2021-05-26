@@ -7,6 +7,46 @@ import (
 )
 
 var _ = Describe("RewriteAction", func() {
+	Describe("TopLevelKey", func() {
+		It("returns the first part of the path", func() {
+			action := &RewriteAction{
+				Path:  ".alpha.bravo.charlie.delta",
+				Value: "needle",
+			}
+			Expect(action.TopLevelKey()).To(Equal("alpha"))
+		})
+	})
+
+	Describe("GetPathToMap", func() {
+		It("returns the path without the final key", func() {
+			action := &RewriteAction{
+				Path:  ".alpha.bravo.charlie.delta",
+				Value: "needle",
+			}
+			Expect(action.GetPathToMap()).To(Equal(".alpha.bravo.charlie"))
+		})
+	})
+
+	Describe("GetSubPathToMap", func() {
+		It("returns the path without the final key and the top-level key", func() {
+			action := &RewriteAction{
+				Path:  ".alpha.bravo.charlie.delta",
+				Value: "needle",
+			}
+			Expect(action.GetSubPathToMap()).To(Equal(".bravo.charlie"))
+		})
+	})
+
+	Describe("GetKey", func() {
+		It("returns the last part of the path", func() {
+			action := &RewriteAction{
+				Path:  ".alpha.bravo.charlie.delta",
+				Value: "needle",
+			}
+			Expect(action.GetKey()).To(Equal("delta"))
+		})
+	})
+
 	Describe("ToMap", func() {
 		Context("one key", func() {
 			It("becomes a flat map", func() {
@@ -59,4 +99,15 @@ var _ = Describe("RewriteAction", func() {
 			})
 		})
 	})
+
+	Describe("Apply", func() {
+
+	})
+
+	//Describe("FindChartDestination", func() {
+	//	Context("action refers to a chart dependency", func() {
+	//		It("returns the dependent chart", func() {
+	//		})
+	//	})
+	//})
 })

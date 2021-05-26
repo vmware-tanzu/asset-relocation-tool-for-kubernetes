@@ -118,21 +118,20 @@ func GetConfirmation(input io.Reader) (bool, error) {
 	return false, nil
 }
 
-func ModifyChart(chart *chart.Chart, actions []*lib.RewriteAction) error {
+func ModifyChart(originalChart *chart.Chart, actions []*lib.RewriteAction) error {
 	var err error
-	for fileIndex, file := range chart.Raw {
-		if file.Name == chartutil.ValuesfileName {
-			data := file.Data
-			for _, action := range actions {
-				data, err = action.Apply(data)
-				if err != nil {
-					return err
-				}
-			}
-			chart.Raw[fileIndex].Data = data
+	modifiedChart := originalChart
+	for _, action := range actions {
+		modifiedChart, err = action.Apply(modifiedChart)
+		if err != nil {
+			return err
 		}
 	}
 
+	return SaveChart(modifiedChart)
+}
+
+func SaveChart(chart *chart.Chart) error {
 	cwd, _ := os.Getwd()
 	tempDir, err := ioutil.TempDir(cwd, "relok8s-*")
 	if err != nil {
@@ -144,10 +143,8 @@ func ModifyChart(chart *chart.Chart, actions []*lib.RewriteAction) error {
 		return err
 	}
 
-	err = os.Rename(
-		filename,
-		filepath.Join(cwd, fmt.Sprintf("%s-%s.relocated.tgz", chart.Name(), chart.Metadata.Version)),
-	)
+	destinationFile := filepath.Join(cwd, fmt.Sprintf("%s-%s.relocated.tgz", chart.Name(), chart.Metadata.Version))
+	err = os.Rename(filename, destinationFile)
 	if err != nil {
 		return err
 	}
