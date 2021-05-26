@@ -63,75 +63,18 @@ var ChartMoveCmd = &cobra.Command{
 	PreRunE: RunSerially(LoadChart, LoadImagePatterns, ParseRules),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		var (
-			actions      []*lib.RewriteAction
-			imageDigests = map[string]*ImageChange{}
-			changes      []*ImageChange
-		)
 
-		for _, imagePattern := range ImagePatterns {
-			originalImage, err := imagePattern.Render(Chart, []*lib.RewriteAction{})
-			if err != nil {
-				return err
-			}
-
-			change := &ImageChange{
-				Pattern:        imagePattern,
-				ImageReference: originalImage,
-			}
-
-			if imageDigests[originalImage.Name()] == nil {
-				cmd.Printf("Pulling %s... ", originalImage.Name())
-				image, digest, err := PullImage(originalImage)
-				if err != nil {
-					cmd.Println("")
-					return err
-				}
-				cmd.Println("Done")
-				change.Image = image
-				change.Digest = digest
-				imageDigests[originalImage.Name()] = change
-			} else {
-				change.Image = imageDigests[originalImage.Name()].Image
-				change.Digest = imageDigests[originalImage.Name()].Digest
-			}
-			changes = append(changes, change)
+		imageChanges, err := PullOriginalImages(cmd.OutOrStdout())
+		if err != nil {
+			return err
 		}
 
-		for _, change := range changes {
-			Rules.Digest = change.Digest
-			newActions, err := change.Pattern.Apply(change.ImageReference, Rules)
-			if err != nil {
-				return err
-			}
-
-			actions = append(actions, newActions...)
-
-			rewrittenImage, err := change.Pattern.Render(Chart, newActions)
-			if err != nil {
-				return err
-			}
-
-			change.RewrittenReference = rewrittenImage
-
-			if change.ShouldPush() {
-				cmd.Printf("Checking %s (%s)... ", rewrittenImage.Name(), change.Digest)
-				needToPush, err := CheckImage(change.Digest, rewrittenImage)
-				if err != nil {
-					cmd.Println("")
-					return err
-				}
-
-				if needToPush {
-					cmd.Println("Push required")
-				} else {
-					cmd.Println("Already exists")
-					change.AlreadyPushed = true
-				}
-			}
+		imageChanges, chartChanges, err := CheckNewImages(imageChanges, cmd.OutOrStdout())
+		if err != nil {
+			return err
 		}
 
-		PrintChanges(cmd.OutOrStdout(), changes, actions)
+		PrintChanges(cmd.OutOrStdout(), imageChanges, chartChanges)
 
 		if !skipConfirmation {
 			cmd.Println("Would you like to proceed? (y/N)")
@@ -146,7 +89,7 @@ var ChartMoveCmd = &cobra.Command{
 			}
 		}
 
-		for _, change := range changes {
+		for _, change := range imageChanges {
 			if change.ShouldPush() {
 				cmd.Printf("Pushing %s... ", change.RewrittenReference.Name())
 				err := PushImage(change.Image, change.RewrittenReference)
@@ -158,25 +101,98 @@ var ChartMoveCmd = &cobra.Command{
 			}
 		}
 
-		return ModifyChart(Chart, actions)
+		return ModifyChart(Chart, chartChanges)
 	},
 }
 
-func PrintChanges(output io.Writer, changes []*ImageChange, actions []*lib.RewriteAction) {
+func PullOriginalImages(output io.Writer) ([]*ImageChange, error) {
+	var changes []*ImageChange
+	imageCache := map[string]*ImageChange{}
+
+	for _, imagePattern := range ImagePatterns {
+		originalImage, err := imagePattern.Render(Chart, []*lib.RewriteAction{})
+		if err != nil {
+			return nil, err
+		}
+
+		change := &ImageChange{
+			Pattern:        imagePattern,
+			ImageReference: originalImage,
+		}
+
+		if imageCache[originalImage.Name()] == nil {
+			_, _ = fmt.Fprintf(output, "Pulling %s... ", originalImage.Name())
+			image, digest, err := PullImage(originalImage)
+			if err != nil {
+				_, _ = fmt.Fprintln(output, "")
+				return nil, err
+			}
+			_, _ = fmt.Fprintln(output, "Done")
+			change.Image = image
+			change.Digest = digest
+			imageCache[originalImage.Name()] = change
+		} else {
+			change.Image = imageCache[originalImage.Name()].Image
+			change.Digest = imageCache[originalImage.Name()].Digest
+		}
+		changes = append(changes, change)
+	}
+	return changes, nil
+}
+
+func CheckNewImages(imageChanges []*ImageChange, output io.Writer) ([]*ImageChange, []*lib.RewriteAction, error) {
+	var chartChanges []*lib.RewriteAction
+
+	for _, change := range imageChanges {
+		Rules.Digest = change.Digest
+		newActions, err := change.Pattern.Apply(change.ImageReference, Rules)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		chartChanges = append(chartChanges, newActions...)
+
+		rewrittenImage, err := change.Pattern.Render(Chart, newActions)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		change.RewrittenReference = rewrittenImage
+
+		if change.ShouldPush() {
+			_, _ = fmt.Fprintf(output, "Checking %s (%s)... ", rewrittenImage.Name(), change.Digest)
+			needToPush, err := CheckImage(change.Digest, rewrittenImage)
+			if err != nil {
+				_, _ = fmt.Fprintln(output, "")
+				return nil, nil, err
+			}
+
+			if needToPush {
+				_, _ = fmt.Fprintln(output, "Push required")
+			} else {
+				_, _ = fmt.Fprintln(output, "Already exists")
+				change.AlreadyPushed = true
+			}
+		}
+	}
+	return imageChanges, chartChanges, nil
+}
+
+func PrintChanges(output io.Writer, imageChanges []*ImageChange, chartChanges []*lib.RewriteAction) {
 	_, _ = fmt.Fprintln(output, "\nImages to be pushed:")
-	for _, change := range changes {
+	for _, change := range imageChanges {
 		if change.ShouldPush() {
 			_, _ = fmt.Fprintf(output, "  %s (%s)\n", change.RewrittenReference.Name(), change.Digest)
 		}
 	}
 
 	var chartToModify *chart.Chart
-	for _, action := range actions {
-		destination := action.FindChartDestination(Chart)
+	for _, change := range chartChanges {
+		destination := change.FindChartDestination(Chart)
 		if chartToModify != destination {
 			chartToModify = destination
 			_, _ = fmt.Fprintf(output, "\n Changes written to %s/values.yaml:\n", chartToModify.ChartPath())
 		}
-		_, _ = fmt.Fprintf(output, "  %s: %s\n", action.Path, action.Value)
+		_, _ = fmt.Fprintf(output, "  %s: %s\n", change.Path, change.Value)
 	}
 }
