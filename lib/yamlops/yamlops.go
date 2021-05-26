@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"sort"
 
 	"gopkg.in/yaml.v3"
@@ -137,7 +136,8 @@ func UpdateMap(doc []byte, pathSpec, selectorFilter string, selectors, values ma
 		end := lines[node.LineEnd-1] + node.ColumnEnd - 1
 
 		// Replace value's content in the doc with the new value.
-		log.Printf("replacing value %q from l%d:%d to l%d:%d with %q\n", node.Value, node.Line, node.Column, node.LineEnd, node.ColumnEnd, value)
+		// Silencing logging until we have better handling for log levels
+		//log.Printf("replacing value %q from l%d:%d to l%d:%d with %q\n", node.Value, node.Line, node.Column, node.LineEnd, node.ColumnEnd, value)
 		doc = append(doc[:start], append(value, doc[end:]...)...)
 	}
 
