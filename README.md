@@ -79,21 +79,6 @@ To set up a local development environment, it's recommended to install these too
 
 * jq (`brew install jq`) - For parsing and formatting output
 * direnv (`brew install direnv`) - For setting environment local environment variables
-* vault (`brew install vault`) - Used to fetch credentials for external resources, required when running the enemy tests
-
-### Configuring Vault
-
-To get the credentials from vault:
-Export the `VAULT_ADDR` environment variable:
-
-```bash
-export VAULT_ADDR=https://runway-vault.svc.eng.vmware.com
-```
-
-Log into vault:
-```bash
-vault login -method=ldap username=<username>
-```
 
 ### Running tests
 
@@ -121,7 +106,7 @@ They can be run with:
 make test-enemies
 ```
 
-Enemy tests require credentials to talk to the internal harbor registry, which we attempt to automatically fetch using `vault`.
+Enemy tests require credentials to talk to the internal harbor registry, ask Pete if you need access to a certain project.
 
 All tests can be run with:
 
