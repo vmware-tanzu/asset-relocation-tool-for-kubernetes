@@ -102,7 +102,14 @@ var ChartMoveCmd = &cobra.Command{
 			}
 		}
 
-		return ModifyChart(Chart, chartChanges)
+		cmd.Print("Writing chart files... ")
+		err = ModifyChart(Chart, chartChanges)
+		if err != nil {
+			cmd.Println("")
+			return err
+		}
+		cmd.Println("Done")
+		return nil
 	},
 }
 
