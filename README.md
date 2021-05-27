@@ -14,7 +14,7 @@ Pulling docker.io/bitnami/mysql:8.0.25-debian-10-r0... Done
 Images to be pushed:
   harbor-repo.vmware.com/bitnami/mysql:8.0.25-debian-10-r0 (sha256:ae8c4c719352a58abc99c866986ee11578bc43e90d794c6705f7b1eb12c7289e)
 
- Changes written to mysql/values.yaml:
+Changes written to mysql/values.yaml:
   .image.registry: harbor-repo.vmware.com
 Would you like to proceed? (y/N)
 y
@@ -60,13 +60,7 @@ This overwrites the image registry
 ```bash
 --repo-prefix <string>
 ```
-This modifies the image repository name for all parts except for the final word
-
-```yaml
----
-  registry: "harbor-repo.vmware.com"
-  repositoryPrefix: "mycompany"
-```
+This modifies the image repository name for all parts except for the final word.
 
 Rule                | Example                   | Input                             | Output
 ------------------- | ------------------------- | --------------------------------- | -----------------------------------------------
