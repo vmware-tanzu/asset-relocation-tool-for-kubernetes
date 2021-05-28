@@ -1,0 +1,21 @@
+image: golang:1.16
+
+stages:
+  - test
+  - build
+
+unit_tests:
+  stage: test
+  script:
+    - make unit-test
+    - make test-features
+
+lint_code:
+  stage: test
+  script:
+    - make lint
+
+build:
+  stage: build
+  script:
+    - make
