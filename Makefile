@@ -78,7 +78,9 @@ test-features: deps test-fixtures
 test-enemies: deps test-fixtures
 	ginkgo -r -tags=enemies features
 
-test: deps lint test-units test-features test-enemies
+test: deps lint test-units test-features
+
+test-all: test test-enemies
 
 lint: deps-goimports
 	git ls-files | grep '.go$$' | xargs goimports -l -w
