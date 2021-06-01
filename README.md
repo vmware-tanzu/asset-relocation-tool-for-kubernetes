@@ -102,8 +102,14 @@ make test-enemies
 
 Enemy tests require credentials to talk to the internal harbor registry, ask Pete if you need access to a certain project.
 
-All tests can be run with:
+All local tests can be run with:
 
 ```bash
 make test
+```
+Those are safe to run always, even without credentials setup.
+
+To run all tests, including `test-enemies` do:
+```bash
+make test-all
 ```
