@@ -31,10 +31,10 @@ func init() {
 
 	ChartMoveCmd.Flags().StringVarP(&ImagePatternsFile, "image-patterns", "i", "", "File with image patterns")
 	_ = ChartMoveCmd.MarkFlagRequired("images")
-	ChartMoveCmd.Flags().BoolVarP(&skipConfirmation, "yes", "y", false, "Do not prompt for confirmation")
+	ChartMoveCmd.Flags().BoolVarP(&skipConfirmation, "yes", "y", false, "Proceed without prompting for confirmation")
 
 	ChartMoveCmd.Flags().StringVar(&RulesFile, "rules", "", "File containing rewrite rules")
-	_ = ChartMoveCmd.Flags().MarkHidden("Rules")
+	_ = ChartMoveCmd.Flags().MarkHidden("rules")
 	ChartMoveCmd.Flags().StringVar(&RegistryRule, "registry", "", "Image registry rewrite rule")
 	ChartMoveCmd.Flags().StringVar(&RepositoryPrefixRule, "repo-prefix", "", "Image repository prefix rule")
 }
