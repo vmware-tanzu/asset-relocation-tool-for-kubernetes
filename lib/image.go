@@ -1,4 +1,4 @@
-package cmd
+package lib
 
 import (
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -8,7 +8,17 @@ import (
 	"github.com/pkg/errors"
 )
 
-func PullImage(imageReference name.Reference) (v1.Image, string, error) {
+//go:generate counterfeiter . ImageInterface
+type ImageInterface interface {
+	Check(digest string, imageReference name.Reference) (bool, error)
+	Pull(imageReference name.Reference) (v1.Image, string, error)
+	Push(image v1.Image, dest name.Reference) error
+}
+
+type ImageImpl struct {}
+var Image ImageInterface = &ImageImpl{}
+
+func (i *ImageImpl) Pull(imageReference name.Reference) (v1.Image, string, error) {
 	image, err := remote.Image(imageReference, remote.WithAuthFromKeychain(authn.DefaultKeychain))
 	if err != nil {
 		return nil, "", errors.Wrapf(err, "failed to pull image %s", imageReference.Name())
@@ -22,8 +32,8 @@ func PullImage(imageReference name.Reference) (v1.Image, string, error) {
 	return image, digest.String(), nil
 }
 
-func CheckImage(digest string, imageReference name.Reference) (bool, error) {
-	_, remoteDigest, err := PullImage(imageReference)
+func (i *ImageImpl) Check(digest string, imageReference name.Reference) (bool, error) {
+	_, remoteDigest, err := i.Pull(imageReference)
 	if err != nil {
 		// Return true if failed to pull the image.
 		// We see different errors if the image does not exist, or if the specific tag does not exist
@@ -39,7 +49,7 @@ func CheckImage(digest string, imageReference name.Reference) (bool, error) {
 	}
 }
 
-func PushImage(image v1.Image, dest name.Reference) error {
+func (i *ImageImpl) Push(image v1.Image, dest name.Reference) error {
 	err := remote.Write(dest, image, remote.WithAuthFromKeychain(authn.DefaultKeychain))
 	if err != nil {
 		return errors.Wrapf(err, "failed to push image %s", dest.Name())

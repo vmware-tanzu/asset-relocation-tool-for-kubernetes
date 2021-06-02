@@ -65,12 +65,12 @@ var ChartMoveCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
 
-		imageChanges, err := PullOriginalImages(cmd.OutOrStdout())
+		imageChanges, err := PullOriginalImages(Chart, ImagePatterns, cmd.OutOrStdout())
 		if err != nil {
 			return err
 		}
 
-		imageChanges, chartChanges, err := CheckNewImages(imageChanges, cmd.OutOrStdout())
+		imageChanges, chartChanges, err := CheckNewImages(Chart, imageChanges, Rules, cmd.OutOrStdout())
 		if err != nil {
 			return err
 		}
@@ -93,7 +93,7 @@ var ChartMoveCmd = &cobra.Command{
 		for _, change := range imageChanges {
 			if change.ShouldPush() {
 				cmd.Printf("Pushing %s... ", change.RewrittenReference.Name())
-				err := PushImage(change.Image, change.RewrittenReference)
+				err := lib.Image.Push(change.Image, change.RewrittenReference)
 				if err != nil {
 					cmd.Println("")
 					return err
@@ -113,24 +113,24 @@ var ChartMoveCmd = &cobra.Command{
 	},
 }
 
-func PullOriginalImages(output io.Writer) ([]*ImageChange, error) {
+func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, output io.Writer) ([]*ImageChange, error) {
 	var changes []*ImageChange
 	imageCache := map[string]*ImageChange{}
 
-	for _, imagePattern := range ImagePatterns {
-		originalImage, err := imagePattern.Render(Chart, []*lib.RewriteAction{})
+	for _, pattern := range pattens {
+		originalImage, err := pattern.Render(chart, []*lib.RewriteAction{})
 		if err != nil {
 			return nil, err
 		}
 
 		change := &ImageChange{
-			Pattern:        imagePattern,
+			Pattern:        pattern,
 			ImageReference: originalImage,
 		}
 
 		if imageCache[originalImage.Name()] == nil {
 			_, _ = fmt.Fprintf(output, "Pulling %s... ", originalImage.Name())
-			image, digest, err := PullImage(originalImage)
+			image, digest, err := lib.Image.Pull(originalImage)
 			if err != nil {
 				_, _ = fmt.Fprintln(output, "")
 				return nil, err
@@ -148,19 +148,20 @@ func PullOriginalImages(output io.Writer) ([]*ImageChange, error) {
 	return changes, nil
 }
 
-func CheckNewImages(imageChanges []*ImageChange, output io.Writer) ([]*ImageChange, []*lib.RewriteAction, error) {
+func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *lib.RewriteRules, output io.Writer) ([]*ImageChange, []*lib.RewriteAction, error) {
 	var chartChanges []*lib.RewriteAction
+	imageCache := map[string]bool{}
 
 	for _, change := range imageChanges {
-		Rules.Digest = change.Digest
-		newActions, err := change.Pattern.Apply(change.ImageReference, Rules)
+		rules.Digest = change.Digest
+		newActions, err := change.Pattern.Apply(change.ImageReference, rules)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		chartChanges = append(chartChanges, newActions...)
 
-		rewrittenImage, err := change.Pattern.Render(Chart, newActions)
+		rewrittenImage, err := change.Pattern.Render(chart, newActions)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -168,18 +169,24 @@ func CheckNewImages(imageChanges []*ImageChange, output io.Writer) ([]*ImageChan
 		change.RewrittenReference = rewrittenImage
 
 		if change.ShouldPush() {
-			_, _ = fmt.Fprintf(output, "Checking %s (%s)... ", rewrittenImage.Name(), change.Digest)
-			needToPush, err := CheckImage(change.Digest, rewrittenImage)
-			if err != nil {
-				_, _ = fmt.Fprintln(output, "")
-				return nil, nil, err
-			}
-
-			if needToPush {
-				_, _ = fmt.Fprintln(output, "Push required")
-			} else {
-				_, _ = fmt.Fprintln(output, "Already exists")
+			if imageCache[rewrittenImage.Name()] {
+				// This image has already been checked previously, so just force this one to be skipped
 				change.AlreadyPushed = true
+			} else {
+				_, _ = fmt.Fprintf(output, "Checking %s (%s)... ", rewrittenImage.Name(), change.Digest)
+				needToPush, err := lib.Image.Check(change.Digest, rewrittenImage)
+				if err != nil {
+					_, _ = fmt.Fprintln(output, "")
+					return nil, nil, err
+				}
+
+				if needToPush {
+					_, _ = fmt.Fprintln(output, "Push required")
+				} else {
+					_, _ = fmt.Fprintln(output, "Already exists")
+					change.AlreadyPushed = true
+				}
+				imageCache[rewrittenImage.Name()] = true
 			}
 		}
 	}

@@ -6,7 +6,6 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	. "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
-	"helm.sh/helm/v3/pkg/chart"
 )
 
 var _ = Describe("NewFromString", func() {
@@ -92,15 +91,9 @@ var _ = Describe("NewFromString", func() {
 	})
 })
 
-type ChartInput struct {
-	Name   string
-	Values map[string]interface{}
-}
-
 type TableInput struct {
-	Values       map[string]interface{}
-	Dependencies []*ChartInput
-	Template     string
+	ParentChart *ChartSeed
+	Template    string
 }
 type TableOutput struct {
 	Image          string
@@ -110,54 +103,79 @@ type TableOutput struct {
 
 var (
 	imageAlone = &TableInput{
-		Values: map[string]interface{}{
-			"image": "ubuntu:latest",
+		ParentChart: &ChartSeed{
+			Values: map[string]interface{}{
+				"image": "ubuntu:latest",
+			},
 		},
 		Template: "{{ .image }}",
 	}
 	imageAndTag = &TableInput{
-		Values: map[string]interface{}{
-			"image": "petewall/amazingapp",
-			"tag":   "latest",
+		ParentChart: &ChartSeed{
+			Values: map[string]interface{}{
+				"image": "petewall/amazingapp",
+				"tag":   "latest",
+			},
 		},
 		Template: "{{ .image }}:{{ .tag }}",
 	}
 	registryAndImage = &TableInput{
-		Values: map[string]interface{}{
-			"registry": "quay.io",
-			"image":    "proxy/nginx",
+		ParentChart: &ChartSeed{
+			Values: map[string]interface{}{
+				"registry": "quay.io",
+				"image":    "proxy/nginx",
+			},
 		},
 		Template: "{{ .registry }}/{{ .image }}",
 	}
 	registryImageAndTag = &TableInput{
-		Values: map[string]interface{}{
-			"registry": "quay.io",
-			"image":    "busycontainers/busybox",
-			"tag":      "busiest",
+		ParentChart: &ChartSeed{
+			Values: map[string]interface{}{
+				"registry": "quay.io",
+				"image":    "busycontainers/busybox",
+				"tag":      "busiest",
+			},
 		},
 		Template: "{{ .registry }}/{{ .image }}:{{ .tag }}",
 	}
 	imageAndDigest = &TableInput{
-		Values: map[string]interface{}{
-			"image":  "petewall/platformio",
-			"digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		ParentChart: &ChartSeed{
+			Values: map[string]interface{}{
+				"image":  "petewall/platformio",
+				"digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			},
 		},
 		Template: "{{ .image }}@{{ .digest }}",
 	}
 
-	dependencyRegistryImageAndTag = &TableInput{
-		Values: map[string]interface{}{
-			"registry": "quay.io",
-			"image":    "busycontainers/busybox",
-			"tag":      "busiest",
+	nestedValues = &TableInput{
+		ParentChart: &ChartSeed{
+			Values: map[string]interface{}{
+				"image": map[string]interface{}{
+					"registry":   "docker.io",
+					"repository": "bitnami/wordpress",
+					"tag":        "1.2.3",
+				},
+			},
 		},
-		Dependencies: []*ChartInput{
-			{
-				Name: "lazy",
-				Values: map[string]interface{}{
-					"registry": "index.docker.io",
-					"image":    "lazycontainers/lazybox",
-					"tag":      "laziest",
+		Template: "{{ .image.registry }}/{{ .image.repository }}:{{ .image.tag }}",
+	}
+
+	dependencyRegistryImageAndTag = &TableInput{
+		ParentChart: &ChartSeed{
+			Values: map[string]interface{}{
+				"registry": "quay.io",
+				"image":    "busycontainers/busybox",
+				"tag":      "busiest",
+			},
+			Dependencies: []*ChartSeed{
+				{
+					Name: "lazy",
+					Values: map[string]interface{}{
+						"registry": "index.docker.io",
+						"image":    "lazycontainers/lazybox",
+						"tag":      "laziest",
+					},
 				},
 			},
 		},
@@ -175,27 +193,11 @@ var (
 	registryTagAndDigestRule = &RewriteRules{Registry: "registry.vmware.com", Tag: "explosive", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
 )
 
-func MakeChart(input *TableInput) *chart.Chart {
-	newChart := &chart.Chart{
-		Values: input.Values,
-	}
-	for _, dependency := range input.Dependencies {
-		newChart.AddDependency(&chart.Chart{
-			Metadata: &chart.Metadata{
-				Name: dependency.Name,
-			},
-			Values: dependency.Values,
-		})
-	}
-
-	return newChart
-}
-
 var _ = DescribeTable("Rewrite Actions",
 	func(input *TableInput, rules *RewriteRules, expected *TableOutput) {
 		var (
 			err           error
-			chart         = MakeChart(input)
+			chart         = MakeChart(input.ParentChart)
 			template      *ImageTemplate
 			originalImage name.Reference
 			actions       []*RewriteAction
@@ -709,6 +711,104 @@ var _ = DescribeTable("Rewrite Actions",
 			{
 				Path:  ".digest",
 				Value: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			},
+		},
+	}),
+
+	Entry("nested values, registry only", nestedValues, registryRule, &TableOutput{
+		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
+		RewrittenImage: "registry.vmware.com/bitnami/wordpress:1.2.3",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".image.registry",
+				Value: "registry.vmware.com",
+			},
+		},
+	}),
+	Entry("nested values, repository prefix only", nestedValues, repositoryPrefixRule, &TableOutput{
+		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
+		RewrittenImage: "index.docker.io/my-company/wordpress:1.2.3",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".image.repository",
+				Value: "my-company/wordpress",
+			},
+		},
+	}),
+	Entry("nested values, repository only", nestedValues, repositoryRule, &TableOutput{
+		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
+		RewrittenImage: "index.docker.io/owner/name:1.2.3",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".image.repository",
+				Value: "owner/name",
+			},
+		},
+	}),
+	Entry("nested values, tag only", nestedValues, tagRule, &TableOutput{
+		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
+		RewrittenImage: "index.docker.io/bitnami/wordpress:explosive",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".image.tag",
+				Value: "explosive",
+			},
+		},
+	}),
+	Entry("nested values, digest only", nestedValues, digestRule, &TableOutput{
+		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
+		RewrittenImage: "index.docker.io/bitnami/wordpress:1.2.3",
+		Actions:        []*RewriteAction{},
+	}),
+	Entry("nested values, registry and prefix", nestedValues, registryAndPrefixRule, &TableOutput{
+		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
+		RewrittenImage: "registry.vmware.com/my-company/wordpress:1.2.3",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".image.registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path:  ".image.repository",
+				Value: "my-company/wordpress",
+			},
+		},
+	}),
+	Entry("nested values, registry and tag", nestedValues, registryAndTagRule, &TableOutput{
+		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
+		RewrittenImage: "registry.vmware.com/bitnami/wordpress:explosive",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".image.registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path:  ".image.tag",
+				Value: "explosive",
+			},
+		},
+	}),
+	Entry("nested values, registry and digest", nestedValues, registryAndDigestRule, &TableOutput{
+		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
+		RewrittenImage: "registry.vmware.com/bitnami/wordpress:1.2.3",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".image.registry",
+				Value: "registry.vmware.com",
+			},
+		},
+	}),
+	Entry("nested values, registry and tag and digest", nestedValues, registryTagAndDigestRule, &TableOutput{
+		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
+		RewrittenImage: "registry.vmware.com/bitnami/wordpress:explosive",
+		Actions: []*RewriteAction{
+			{
+				Path:  ".image.registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path:  ".image.tag",
+				Value: "explosive",
 			},
 		},
 	}),
