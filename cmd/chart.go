@@ -62,55 +62,57 @@ var ChartMoveCmd = &cobra.Command{
 	Long:    "Finds, renders and lists the container images found in a Helm chart, using an image template file to detect the templates that build the image reference.",
 	Example: "images <chart> -i <image templates>",
 	PreRunE: RunSerially(LoadChart, LoadImagePatterns, ParseRules),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cmd.SilenceUsage = true
+	RunE:    ChartMoveRunE,
+}
 
-		imageChanges, err := PullOriginalImages(Chart, ImagePatterns, cmd.OutOrStdout())
+func ChartMoveRunE(cmd *cobra.Command, args []string) error {
+	cmd.SilenceUsage = true
+
+	imageChanges, err := PullOriginalImages(Chart, ImagePatterns, cmd.OutOrStdout())
+	if err != nil {
+		return err
+	}
+
+	imageChanges, chartChanges, err := CheckNewImages(Chart, imageChanges, Rules, cmd.OutOrStdout())
+	if err != nil {
+		return err
+	}
+
+	PrintChanges(cmd.OutOrStdout(), imageChanges, chartChanges)
+
+	if !skipConfirmation {
+		cmd.Println("Would you like to proceed? (y/N)")
+		proceed, err := GetConfirmation(cmd.InOrStdin())
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to prompt for confirmation")
 		}
 
-		imageChanges, chartChanges, err := CheckNewImages(Chart, imageChanges, Rules, cmd.OutOrStdout())
-		if err != nil {
-			return err
+		if !proceed {
+			cmd.Println("Aborting")
+			return nil
 		}
+	}
 
-		PrintChanges(cmd.OutOrStdout(), imageChanges, chartChanges)
-
-		if !skipConfirmation {
-			cmd.Println("Would you like to proceed? (y/N)")
-			proceed, err := GetConfirmation(cmd.InOrStdin())
+	for _, change := range imageChanges {
+		if change.ShouldPush() {
+			cmd.Printf("Pushing %s... ", change.RewrittenReference.Name())
+			err := lib.Image.Push(change.Image, change.RewrittenReference)
 			if err != nil {
-				return errors.Wrap(err, "failed to prompt for confirmation")
+				cmd.Println("")
+				return err
 			}
-
-			if !proceed {
-				cmd.Println("Aborting")
-				return nil
-			}
+			cmd.Println("Done")
 		}
+	}
 
-		for _, change := range imageChanges {
-			if change.ShouldPush() {
-				cmd.Printf("Pushing %s... ", change.RewrittenReference.Name())
-				err := lib.Image.Push(change.Image, change.RewrittenReference)
-				if err != nil {
-					cmd.Println("")
-					return err
-				}
-				cmd.Println("Done")
-			}
-		}
-
-		cmd.Print("Writing chart files... ")
-		err = ModifyChart(Chart, chartChanges)
-		if err != nil {
-			cmd.Println("")
-			return err
-		}
-		cmd.Println("Done")
-		return nil
-	},
+	cmd.Print("Writing chart files... ")
+	err = ModifyChart(Chart, chartChanges)
+	if err != nil {
+		cmd.Println("")
+		return err
+	}
+	cmd.Println("Done")
+	return nil
 }
 
 func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, output io.Writer) ([]*ImageChange, error) {
@@ -118,7 +120,7 @@ func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, output
 	imageCache := map[string]*ImageChange{}
 
 	for _, pattern := range pattens {
-		originalImage, err := pattern.Render(chart, []*lib.RewriteAction{})
+		originalImage, err := pattern.Render(chart)
 		if err != nil {
 			return nil, err
 		}
@@ -161,7 +163,7 @@ func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *lib.
 
 		chartChanges = append(chartChanges, newActions...)
 
-		rewrittenImage, err := change.Pattern.Render(chart, newActions)
+		rewrittenImage, err := change.Pattern.Render(chart, newActions...)
 		if err != nil {
 			return nil, nil, err
 		}
