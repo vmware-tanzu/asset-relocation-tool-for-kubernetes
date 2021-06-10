@@ -195,10 +195,15 @@ func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *lib.
 
 func PrintChanges(output io.Writer, imageChanges []*ImageChange, chartChanges []*lib.RewriteAction) {
 	_, _ = fmt.Fprintln(output, "\nImages to be pushed:")
+	noImagesToPush := true
 	for _, change := range imageChanges {
 		if change.ShouldPush() {
 			_, _ = fmt.Fprintf(output, "  %s (%s)\n", change.RewrittenReference.Name(), change.Digest)
+			noImagesToPush = false
 		}
+	}
+	if noImagesToPush {
+		_, _ = fmt.Fprintln(output, "  no images require pushing")
 	}
 
 	var chartToModify *chart.Chart
@@ -206,7 +211,7 @@ func PrintChanges(output io.Writer, imageChanges []*ImageChange, chartChanges []
 		destination := change.FindChartDestination(Chart)
 		if chartToModify != destination {
 			chartToModify = destination
-			_, _ = fmt.Fprintf(output, "\n Changes written to %s/values.yaml:\n", chartToModify.ChartFullPath())
+			_, _ = fmt.Fprintf(output, "\nChanges written to %s/values.yaml:\n", chartToModify.ChartFullPath())
 		}
 		_, _ = fmt.Fprintf(output, "  %s: %s\n", change.Path, change.Value)
 	}
