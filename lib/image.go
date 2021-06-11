@@ -15,7 +15,8 @@ type ImageInterface interface {
 	Push(image v1.Image, dest name.Reference) error
 }
 
-type ImageImpl struct {}
+type ImageImpl struct{}
+
 var Image ImageInterface = &ImageImpl{}
 
 func (i *ImageImpl) Pull(imageReference name.Reference) (v1.Image, string, error) {
