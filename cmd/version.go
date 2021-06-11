@@ -14,10 +14,14 @@ func init() {
 
 var Version = "dev"
 
+func versionHelp() string {
+	return fmt.Sprintf("Print the version number of %s", AppName)
+}
+
 var VersionCmd = &cobra.Command{
 	Use:   "version",
-	Short: fmt.Sprintf("Print the version number of %s", AppName),
-	Long:  fmt.Sprintf("Print the version number of %s", AppName),
+	Short: versionHelp(),
+	Long:  versionHelp(),
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Printf("%s version: %s\n", AppName, Version)
