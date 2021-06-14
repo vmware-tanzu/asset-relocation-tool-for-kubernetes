@@ -211,7 +211,7 @@ var _ = DescribeTable("Rewrite Actions",
 		})
 
 		By("rendering from values", func() {
-			originalImage, err = template.Render(chart, []*RewriteAction{})
+			originalImage, err = template.Render(chart)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(originalImage).ToNot(BeNil())
 			Expect(originalImage.Name()).To(Equal(expected.Image))
@@ -225,7 +225,7 @@ var _ = DescribeTable("Rewrite Actions",
 		})
 
 		By("rendering the rewritten image", func() {
-			rewrittenImage, err := template.Render(chart, actions)
+			rewrittenImage, err := template.Render(chart, actions...)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(rewrittenImage).ToNot(BeNil())
 			Expect(rewrittenImage.Name()).To(Equal(expected.RewrittenImage))

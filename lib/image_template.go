@@ -101,7 +101,7 @@ func BuildValuesMap(chart *chart.Chart, rewriteActions []*RewriteAction) map[str
 	return values
 }
 
-func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions []*RewriteAction) (name.Reference, error) {
+func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions ...*RewriteAction) (name.Reference, error) {
 	values := BuildValuesMap(chart, rewriteActions)
 
 	output := bytes.Buffer{}
