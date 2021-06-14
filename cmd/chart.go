@@ -118,7 +118,7 @@ func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, output
 	imageCache := map[string]*ImageChange{}
 
 	for _, pattern := range pattens {
-		originalImage, err := pattern.Render(chart, []*lib.RewriteAction{})
+		originalImage, err := pattern.Render(chart)
 		if err != nil {
 			return nil, err
 		}
@@ -161,7 +161,7 @@ func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *lib.
 
 		chartChanges = append(chartChanges, newActions...)
 
-		rewrittenImage, err := change.Pattern.Render(chart, newActions)
+		rewrittenImage, err := change.Pattern.Render(chart, newActions...)
 		if err != nil {
 			return nil, nil, err
 		}
