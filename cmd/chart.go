@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/avast/retry-go"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -26,6 +28,7 @@ var (
 	RegistryRule         string
 	RepositoryPrefixRule string
 	Rules                *lib.RewriteRules
+	Output               string
 )
 
 func init() {
@@ -43,6 +46,7 @@ func init() {
 	ChartMoveCmd.Flags().StringVar(&RepositoryPrefixRule, "repo-prefix", "", "Image repository prefix rule")
 
 	ChartMoveCmd.Flags().UintVar(&Retries, "retries", defaultRetries, "Number of times to retry push operations")
+	ChartMoveCmd.Flags().StringVar(&Output, "out", "./*.relocated.tgz", "Output chart name produced")
 }
 
 var ChartCmd = &cobra.Command{
@@ -73,6 +77,11 @@ var ChartMoveCmd = &cobra.Command{
 
 func MoveChart(cmd *cobra.Command, args []string) error {
 	cmd.SilenceUsage = true
+
+	if !strings.Contains(Output, "*") {
+		return fmt.Errorf("Expected a * placeholder for name-version in the -out flag, but got %s", Output)
+	}
+	targetFormat := strings.Replace(Output, "*", "%s-%s", 1)
 
 	imageChanges, err := PullOriginalImages(Chart, ImagePatterns, cmd)
 	if err != nil {
@@ -105,7 +114,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Print("Writing chart files... ")
-	err = ModifyChart(Chart, chartChanges)
+	err = ModifyChart(Chart, chartChanges, targetFormat)
 	if err != nil {
 		cmd.Println("")
 		return err
