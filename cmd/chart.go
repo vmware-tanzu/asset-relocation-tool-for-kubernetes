@@ -32,8 +32,11 @@ var (
 )
 
 var (
-	// ErrorMissingOutPlaceHolder the out flag is missing the wildcard *  placeholder
+	// ErrorMissingOutPlaceHolder if out flag is missing the wildcard *  placeholder
 	ErrorMissingOutPlaceHolder = fmt.Errorf("missing '*' placeholder in -out flag")
+
+	// ErrorBadExtension when the out flag does not use a expected file extension
+	ErrorBadExtension = fmt.Errorf("bad extension (expected .tgz)")
 )
 
 func init() {
@@ -131,6 +134,9 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 func ParseOutputFlag(out string) (string, error) {
 	if !strings.Contains(out, "*") {
 		return "", fmt.Errorf("%w: %s", ErrorMissingOutPlaceHolder, out)
+	}
+	if !strings.HasSuffix(out, ".tgz") {
+		return "", fmt.Errorf("%w: %s", ErrorBadExtension, out)
 	}
 	return strings.Replace(out, "*", "%s-%s", 1), nil
 }
