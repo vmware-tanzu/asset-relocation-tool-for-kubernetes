@@ -76,7 +76,7 @@ To set up a local development environment, it's recommended to install these too
 
 ### Running tests
 
-There are three types of tests, unit tests, feature tests and enemy tests.
+There are three types of tests, unit tests, feature tests and external tests.
 
 Unit tests exercise the internals of the code. They can be run with:
 
@@ -90,17 +90,17 @@ Feature tests exercise Relok8s from outside in by building and executing it as C
 make test-features
 ```
 
-"Enemy" tests are similar to feature tests except that they execute tests directly against external resources.
+External tests are similar to feature tests except that they execute tests directly against external resources.
 They can report false negatives if that resource is offline or if access to that resource is limited in some way.
 However, they can also assure that Relok8s is correctly integrating with that resource.
 
 They can be run with:
 
 ```bash
-make test-enemies
+make test-external
 ```
 
-Enemy tests require credentials to talk to the internal harbor registry, ask Pete if you need access to a certain project.
+External tests require credentials to talk to the internal harbor registry, ask Pete if you need access to a certain project.
 
 All local tests can be run with:
 
@@ -109,7 +109,7 @@ make test
 ```
 Those are safe to run always, even without credentials setup.
 
-To run all tests, including `test-enemies` do:
+To run all tests, including `test-external` do:
 ```bash
 make test-all
 ```

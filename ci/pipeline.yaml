@@ -8,6 +8,12 @@ resource_types:
       username: ((harbor.username))
       password: ((harbor.token))
 
+  - name: chartmuseum
+    type: docker-image
+    source:
+      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/cathive/concourse-chartmuseum-resource
+      tag: v1.0.0
+
 resources:
   - name: source
     type: git
@@ -73,6 +79,26 @@ resources:
       file: version
       commit_message: "[ci skip] bump version to %version%"
 
+  - name: source-chart
+    type: chartmuseum
+    icon: kubernetes
+    source:
+      server_url: https://harbor-repo.vmware.com/api/chartrepo/tanzu_isv_engineering/charts
+      chart_name: test-chart-product
+      basic_auth_username: ((harbor.username))
+      basic_auth_password: ((harbor.token))
+      harbor_api: true
+
+  - name: rewritten-chart
+    type: chartmuseum
+    icon: kubernetes
+    source:
+      server_url: https://harbor-repo.vmware.com/api/chartrepo/tanzu_isv_engineering_private/charts
+      chart_name: test-chart-product
+      basic_auth_username: ((harbor-private.username))
+      basic_auth_password: ((harbor-private.token))
+      harbor_api: true
+
 jobs:
   - name: build-test-image
     plan:
@@ -105,13 +131,13 @@ jobs:
         params:
           GIT_SSH_KEY: ((gitlab.private_key))
           MAKE_TARGET: test-features
-      - task: run-enemy-tests
+      - task: run-external-tests
         image: test-image
         privileged: true
         file: source/ci/tasks/test.yaml
         params:
           GIT_SSH_KEY: ((gitlab.private_key))
-          MAKE_TARGET: test-enemies
+          MAKE_TARGET: test-external
           REGISTRY_SERVER: harbor-repo.vmware.com
           REGISTRY_USERNAME: ((harbor-private.username))
           REGISTRY_PASSWORD: ((harbor-private.token))
@@ -164,3 +190,43 @@ jobs:
         inputs: detect
         params:
           bump: minor
+
+  - name: relocate-chart
+    plan:
+      - in_parallel:
+        - get: docker-image
+          passed:
+            - build
+          trigger: true
+        - get: source-chart
+      - task: relocate
+        image: docker-image
+        config:
+          platform: linux
+          params:
+            DESTINATION_REGISTRY: https://harbor-repo.vmware.com/tanzu_isv_engineering_private
+            DESTINATION_REGISTRY_USERNAME: ((harbor-private.username))
+            DESTINATION_REGISTRY_PASSWORD: ((harbor-private.token))
+          inputs:
+            - name: source-chart
+          outputs:
+            - name: rewritten-chart
+          run:
+            path: bash
+            args:
+              - -exc
+              - |
+                source /docker-lib.sh
+                start_docker
+
+                echo "${DESTINATION_REGISTRY_PASSWORD}" | docker login ${DESTINATION_REGISTRY} --username ${DESTINATION_REGISTRY_USERNAME} --password-stdin
+
+                cat > image-patterns.yaml <<EOF
+                ---
+                - "{{ .image.repository }}:{{ .image.tag }}"
+                EOF
+                relok8s chart move bitnami-nginx/*.tgz --image-patterns image-patterns.yaml --repo-prefix tanzu_isv_engineering_private
+                mv *.relocated.tgz rewritten-chart/chart.tgz
+      - put: rewritten-chart
+        params:
+          chart: rewritten-chart/chart.tgz

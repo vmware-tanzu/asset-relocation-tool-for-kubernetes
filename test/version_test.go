@@ -1,6 +1,6 @@
 // +build feature
 
-package features
+package test
 
 import (
 	. "github.com/bunniesandbeatings/goerkin"

@@ -1,6 +1,6 @@
-// +build enemies
+// +build external
 
-package features
+package test
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var _ = Describe("Enemy tests", func() {
+var _ = Describe("External tests", func() {
 	steps := NewSteps()
 
 	Context("Unauthorized", func() {

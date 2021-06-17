@@ -70,17 +70,17 @@ test-units: deps
 	ginkgo -r -skipPackage features .
 
 test-fixtures:
-	make --directory features/fixtures
+	make --directory test/fixtures
 
 test-features: deps test-fixtures
-	ginkgo -r -tags=feature features
+	ginkgo -r -tags=feature test
 
-test-enemies: deps test-fixtures
-	ginkgo -r -tags=enemies features
+test-external: deps test-fixtures
+	ginkgo -r -tags=external test
 
 test: deps lint test-units test-features
 
-test-all: test test-enemies
+test-all: test test-external
 
 lint: deps-goimports
 	git ls-files | grep '.go$$' | xargs goimports -l -w

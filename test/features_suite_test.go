@@ -1,4 +1,4 @@
-package features
+package test
 
 import (
 	"testing"
