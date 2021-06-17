@@ -201,6 +201,7 @@ jobs:
         - get: source-chart
       - task: relocate
         image: docker-image
+        privileged: true
         config:
           platform: linux
           params:
@@ -225,7 +226,11 @@ jobs:
                 ---
                 - "{{ .image.repository }}:{{ .image.tag }}"
                 EOF
-                relok8s chart move bitnami-nginx/*.tgz --image-patterns image-patterns.yaml --repo-prefix tanzu_isv_engineering_private
+                relok8s chart move source-chart/*.tgz \
+                  --yes \
+                  --image-patterns image-patterns.yaml \
+                  --registry harbor-repo.vmware.com \
+                  --repo-prefix tanzu_isv_engineering_private
                 mv *.relocated.tgz rewritten-chart/chart.tgz
       - put: rewritten-chart
         params:
