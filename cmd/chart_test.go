@@ -455,4 +455,23 @@ var _ = Describe("Chart", func() {
 			})
 		})
 	})
+
+	Describe("ParseOutputFlag", func() {
+		It("rejects out flag without wildcard *", func() {
+			_, err := cmd.ParseOutputFlag("nowildcardhere.tgz")
+			Expect(err).Should(MatchError(cmd.ErrorMissingOutPlaceHolder))
+		})
+		It("accepts out flag with wildcard", func() {
+			got, err := cmd.ParseOutputFlag("*-wildcardhere.tgz")
+			Expect(got).To(Equal("%s-%s-wildcardhere.tgz"))
+			Expect(err).To(BeNil())
+		})
+	})
+
+	Describe("TargetOutput", func() {
+		It("builds path as expected", func() {
+			target := cmd.TargetOutput("path", "%s-%s-wildcardhere.tgz", "mychart", "0.1")
+			Expect(target).To(Equal("path/mychart-0.1-wildcardhere.tgz"))
+		})
+	})
 })

@@ -31,6 +31,11 @@ var (
 	Output               string
 )
 
+var (
+	// ErrorMissingOutPlaceHolder the out flag is missing the wildcard *  placeholder
+	ErrorMissingOutPlaceHolder = fmt.Errorf("missing '*' placeholder in -out flag")
+)
+
 func init() {
 	rootCmd.AddCommand(ChartCmd)
 	ChartCmd.AddCommand(ChartMoveCmd)
@@ -78,10 +83,10 @@ var ChartMoveCmd = &cobra.Command{
 func MoveChart(cmd *cobra.Command, args []string) error {
 	cmd.SilenceUsage = true
 
-	if !strings.Contains(Output, "*") {
-		return fmt.Errorf("Expected a * placeholder for name-version in the -out flag, but got %s", Output)
+	targetFormat, err := ParseOutputFlag(Output)
+	if err != nil {
+		return fmt.Errorf("failed to move chart: %w", err)
 	}
-	targetFormat := strings.Replace(Output, "*", "%s-%s", 1)
 
 	imageChanges, err := PullOriginalImages(Chart, ImagePatterns, cmd)
 	if err != nil {
@@ -121,6 +126,13 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 	}
 	cmd.Println("Done")
 	return nil
+}
+
+func ParseOutputFlag(out string) (string, error) {
+	if !strings.Contains(out, "*") {
+		return "", fmt.Errorf("%w: %s", ErrorMissingOutPlaceHolder, out)
+	}
+	return strings.Replace(out, "*", "%s-%s", 1), nil
 }
 
 func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, log Printer) ([]*ImageChange, error) {

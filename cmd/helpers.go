@@ -152,11 +152,15 @@ func SaveChart(chart *chart.Chart, targetFormat string) error {
 		return err
 	}
 
-	destinationFile := filepath.Join(cwd, fmt.Sprintf(targetFormat, chart.Name(), chart.Metadata.Version))
+	destinationFile := TargetOutput(cwd, targetFormat, chart.Name(), chart.Metadata.Version)
 	err = os.Rename(filename, destinationFile)
 	if err != nil {
 		return err
 	}
 
 	return os.Remove(tempDir)
+}
+
+func TargetOutput(cwd, targetFormat, name, version string) string {
+	return filepath.Join(cwd, fmt.Sprintf(targetFormat, name, version))
 }
