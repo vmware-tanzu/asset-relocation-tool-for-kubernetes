@@ -33,7 +33,7 @@ var (
 
 var (
 	// ErrorMissingOutPlaceHolder if out flag is missing the wildcard *  placeholder
-	ErrorMissingOutPlaceHolder = fmt.Errorf("missing '*' placeholder in -out flag")
+	ErrorMissingOutPlaceHolder = fmt.Errorf("missing '*' placeholder in --out flag")
 
 	// ErrorBadExtension when the out flag does not use a expected file extension
 	ErrorBadExtension = fmt.Errorf("bad extension (expected .tgz)")
