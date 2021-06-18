@@ -457,6 +457,12 @@ var _ = Describe("Chart", func() {
 	})
 
 	Describe("ParseOutputFlag", func() {
+		It("works with default out flag", func() {
+			got, err := cmd.ParseOutputFlag(cmd.Output)
+			want := "./%s-%s.relocated.tgz"
+			Expect(got).To(Equal(want))
+			Expect(err).To(BeNil())
+		})
 		It("rejects out flag without wildcard *", func() {
 			_, err := cmd.ParseOutputFlag("nowildcardhere.tgz")
 			Expect(err).Should(MatchError(cmd.ErrorMissingOutPlaceHolder))
@@ -473,9 +479,15 @@ var _ = Describe("Chart", func() {
 	})
 
 	Describe("TargetOutput", func() {
-		It("builds path as expected", func() {
-			target := cmd.TargetOutput("path", "%s-%s-wildcardhere.tgz", "mychart", "0.1")
-			Expect(target).To(Equal("path/mychart-0.1-wildcardhere.tgz"))
+		It("works with default out flag", func() {
+			outFmt, err := cmd.ParseOutputFlag(cmd.Output)
+			Expect(err).To(BeNil())
+			target := cmd.TargetOutput("path", outFmt, "my-chart", "0.1")
+			Expect(target).To(Equal("path/my-chart-0.1.relocated.tgz"))
+		})
+		It("builds custom out input as expected", func() {
+			target := cmd.TargetOutput("path", "%s-%s-wildcardhere.tgz", "my-chart", "0.1")
+			Expect(target).To(Equal("path/my-chart-0.1-wildcardhere.tgz"))
 		})
 	})
 })
