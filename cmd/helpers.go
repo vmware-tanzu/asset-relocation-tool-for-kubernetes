@@ -23,6 +23,15 @@ var (
 	ImagePatterns []*lib.ImageTemplate
 )
 
+type Printer interface {
+	Print(i ...interface{})
+	Println(i ...interface{})
+	Printf(format string, i ...interface{})
+	PrintErr(i ...interface{})
+	PrintErrln(i ...interface{})
+	PrintErrf(format string, i ...interface{})
+}
+
 func LoadChart(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 || args[0] == "" {
 		return errors.New("missing helm chart")

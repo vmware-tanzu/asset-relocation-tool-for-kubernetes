@@ -1,10 +1,9 @@
 package cmd
 
 import (
-	"fmt"
-	"io"
 	"os"
 
+	"github.com/avast/retry-go"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/pkg/errors"
@@ -13,8 +12,13 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 )
 
+const (
+	defaultRetries = 3
+)
+
 var (
 	skipConfirmation bool
+	Retries          uint
 
 	ImagePatternsFile string
 
@@ -37,6 +41,8 @@ func init() {
 	_ = ChartMoveCmd.Flags().MarkHidden("rules")
 	ChartMoveCmd.Flags().StringVar(&RegistryRule, "registry", "", "Image registry rewrite rule")
 	ChartMoveCmd.Flags().StringVar(&RepositoryPrefixRule, "repo-prefix", "", "Image repository prefix rule")
+
+	ChartMoveCmd.Flags().UintVar(&Retries, "retries", defaultRetries, "Number of times to retry push operations")
 }
 
 var ChartCmd = &cobra.Command{
@@ -68,17 +74,17 @@ var ChartMoveCmd = &cobra.Command{
 func MoveChart(cmd *cobra.Command, args []string) error {
 	cmd.SilenceUsage = true
 
-	imageChanges, err := PullOriginalImages(Chart, ImagePatterns, cmd.OutOrStdout())
+	imageChanges, err := PullOriginalImages(Chart, ImagePatterns, cmd)
 	if err != nil {
 		return err
 	}
 
-	imageChanges, chartChanges, err := CheckNewImages(Chart, imageChanges, Rules, cmd.OutOrStdout())
+	imageChanges, chartChanges, err := CheckNewImages(Chart, imageChanges, Rules, cmd)
 	if err != nil {
 		return err
 	}
 
-	PrintChanges(cmd.OutOrStdout(), imageChanges, chartChanges)
+	PrintChanges(imageChanges, chartChanges, cmd)
 
 	if !skipConfirmation {
 		cmd.Println("Would you like to proceed? (y/N)")
@@ -93,16 +99,9 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	for _, change := range imageChanges {
-		if change.ShouldPush() {
-			cmd.Printf("Pushing %s... ", change.RewrittenReference.Name())
-			err := lib.Image.Push(change.Image, change.RewrittenReference)
-			if err != nil {
-				cmd.Println("")
-				return err
-			}
-			cmd.Println("Done")
-		}
+	err = PushRewrittenImages(imageChanges, cmd)
+	if err != nil {
+		return err
 	}
 
 	cmd.Print("Writing chart files... ")
@@ -115,7 +114,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, output io.Writer) ([]*ImageChange, error) {
+func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, log Printer) ([]*ImageChange, error) {
 	var changes []*ImageChange
 	imageCache := map[string]*ImageChange{}
 
@@ -131,13 +130,13 @@ func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, output
 		}
 
 		if imageCache[originalImage.Name()] == nil {
-			_, _ = fmt.Fprintf(output, "Pulling %s... ", originalImage.Name())
+			log.Printf("Pulling %s... ", originalImage.Name())
 			image, digest, err := lib.Image.Pull(originalImage)
 			if err != nil {
-				_, _ = fmt.Fprintln(output, "")
+				log.Println("")
 				return nil, err
 			}
-			_, _ = fmt.Fprintln(output, "Done")
+			log.Println("Done")
 			change.Image = image
 			change.Digest = digest
 			imageCache[originalImage.Name()] = change
@@ -150,7 +149,7 @@ func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, output
 	return changes, nil
 }
 
-func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *lib.RewriteRules, output io.Writer) ([]*ImageChange, []*lib.RewriteAction, error) {
+func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *lib.RewriteRules, log Printer) ([]*ImageChange, []*lib.RewriteAction, error) {
 	var chartChanges []*lib.RewriteAction
 	imageCache := map[string]bool{}
 
@@ -175,17 +174,17 @@ func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *lib.
 				// This image has already been checked previously, so just force this one to be skipped
 				change.AlreadyPushed = true
 			} else {
-				_, _ = fmt.Fprintf(output, "Checking %s (%s)... ", rewrittenImage.Name(), change.Digest)
+				log.Printf("Checking %s (%s)... ", rewrittenImage.Name(), change.Digest)
 				needToPush, err := lib.Image.Check(change.Digest, rewrittenImage)
 				if err != nil {
-					_, _ = fmt.Fprintln(output, "")
+					log.Println("")
 					return nil, nil, err
 				}
 
 				if needToPush {
-					_, _ = fmt.Fprintln(output, "Push required")
+					log.Println("Push required")
 				} else {
-					_, _ = fmt.Fprintln(output, "Already exists")
+					log.Println("Already exists")
 					change.AlreadyPushed = true
 				}
 				imageCache[rewrittenImage.Name()] = true
@@ -195,17 +194,44 @@ func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *lib.
 	return imageChanges, chartChanges, nil
 }
 
-func PrintChanges(output io.Writer, imageChanges []*ImageChange, chartChanges []*lib.RewriteAction) {
-	_, _ = fmt.Fprintln(output, "\nImages to be pushed:")
+func PushRewrittenImages(imageChanges []*ImageChange, log Printer) error {
+	for _, change := range imageChanges {
+		if change.ShouldPush() {
+			err := retry.Do(
+				func() error {
+					log.Printf("Pushing %s... ", change.RewrittenReference.Name())
+					err := lib.Image.Push(change.Image, change.RewrittenReference)
+					if err != nil {
+						log.Println("")
+						return err
+					}
+					log.Println("Done")
+					return nil
+				},
+				retry.Attempts(Retries),
+				retry.OnRetry(func(n uint, err error) {
+					log.PrintErrf("Attempt #%d failed: %s\n", n+1, err.Error())
+				}),
+			)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func PrintChanges(imageChanges []*ImageChange, chartChanges []*lib.RewriteAction, log Printer) {
+	log.Println("\nImages to be pushed:")
 	noImagesToPush := true
 	for _, change := range imageChanges {
 		if change.ShouldPush() {
-			_, _ = fmt.Fprintf(output, "  %s (%s)\n", change.RewrittenReference.Name(), change.Digest)
+			log.Printf("  %s (%s)\n", change.RewrittenReference.Name(), change.Digest)
 			noImagesToPush = false
 		}
 	}
 	if noImagesToPush {
-		_, _ = fmt.Fprintln(output, "  no images require pushing")
+		log.Printf("  no images require pushing")
 	}
 
 	var chartToModify *chart.Chart
@@ -213,8 +239,8 @@ func PrintChanges(output io.Writer, imageChanges []*ImageChange, chartChanges []
 		destination := change.FindChartDestination(Chart)
 		if chartToModify != destination {
 			chartToModify = destination
-			_, _ = fmt.Fprintf(output, "\nChanges written to %s/values.yaml:\n", chartToModify.ChartFullPath())
+			log.Printf("\nChanges written to %s/values.yaml:\n", chartToModify.ChartFullPath())
 		}
-		_, _ = fmt.Fprintf(output, "  %s: %s\n", change.Path, change.Value)
+		log.Printf("  %s: %s\n", change.Path, change.Value)
 	}
 }
