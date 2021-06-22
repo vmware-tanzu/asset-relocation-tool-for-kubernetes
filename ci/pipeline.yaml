@@ -89,16 +89,6 @@ resources:
       basic_auth_password: ((harbor.token))
       harbor_api: true
 
-  - name: rewritten-chart
-    type: chartmuseum
-    icon: kubernetes
-    source:
-      server_url: https://harbor-repo.vmware.com/api/chartrepo/tanzu_isv_engineering_private/charts
-      chart_name: test-chart-product
-      basic_auth_username: ((harbor-private.username))
-      basic_auth_password: ((harbor-private.token))
-      harbor_api: true
-
 jobs:
   - name: build-test-image
     plan:
@@ -232,6 +222,19 @@ jobs:
                   --registry harbor-repo.vmware.com \
                   --repo-prefix tanzu_isv_engineering_private
                 mv *.relocated.tgz rewritten-chart/chart.tgz
-      - put: rewritten-chart
-        params:
-          chart: rewritten-chart/chart.tgz
+      - task: print-diff
+        image: docker-image
+        config:
+          platform: linux
+          inputs:
+            - name: source-chart
+            - name: rewritten-chart
+          run:
+            path: bash
+            args:
+              - -exc
+              - |
+                # NOTE: The leading ! is because it is an error condition if there are no differences in the two files
+                ! diff --context=3 \
+                  <(tar xzfO source-chart/*.tgz test-chart-product/values.yaml) \
+                  <(tar xzfO rewritten-chart/chart.tgz test-chart-product/values.yaml)
