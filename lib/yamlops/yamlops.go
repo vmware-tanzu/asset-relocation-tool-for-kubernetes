@@ -3,7 +3,6 @@ package yamlops
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"sort"
 
@@ -88,7 +87,7 @@ func UpdateMap(doc []byte, pathSpec, selectorFilter string, selectors, values ma
 		}
 	}
 	if len(matchers) == 0 {
-		return nil, errors.New("need path or selectors or both")
+		return nil, fmt.Errorf("need path or selectors or both")
 	}
 	maps := SearchNodes(root, ".", matchers...)
 

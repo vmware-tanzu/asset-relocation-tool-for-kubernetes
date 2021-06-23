@@ -1,9 +1,9 @@
 package lib
 
 import (
+	"fmt"
 	"strings"
 
-	"github.com/pkg/errors"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib/yamlops"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -61,7 +61,7 @@ func (a *RewriteAction) Apply(input *chart.Chart) (*chart.Chart, error) {
 			}
 			newData, err := yamlops.UpdateMap(data, a.GetSubPathToMap(), "", nil, value)
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to apply modification to %s", dependency.Name())
+				return nil, fmt.Errorf("failed to apply modification to %s: %w", dependency.Name(), err)
 			}
 
 			dependencies[dependencyIndex].Raw[valuesIndex].Data = newData
@@ -77,7 +77,7 @@ func (a *RewriteAction) Apply(input *chart.Chart) (*chart.Chart, error) {
 		}
 		newData, err := yamlops.UpdateMap(data, a.GetPathToMap(), "", nil, value)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to apply modification to %s", input.Name())
+			return nil, fmt.Errorf("failed to apply modification to %s: %w", input.Name(), err)
 		}
 
 		input.Raw[valuesIndex].Data = newData

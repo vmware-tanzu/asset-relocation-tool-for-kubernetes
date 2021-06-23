@@ -7,7 +7,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
-	"github.com/pkg/errors"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/cmd"
 	. "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib/libfakes"
@@ -175,7 +174,7 @@ var _ = Describe("Chart", func() {
 
 		Context("error pulling an image", func() {
 			It("returns the error", func() {
-				fakeImage.PullReturns(nil, "", errors.New("image pull error"))
+				fakeImage.PullReturns(nil, "", fmt.Errorf("image pull error"))
 				patterns := []*ImageTemplate{
 					NewPattern("{{.image.registry}}/{{.image.repository}}"),
 				}
@@ -407,7 +406,7 @@ var _ = Describe("Chart", func() {
 		Context("pushing fails once", func() {
 			BeforeEach(func() {
 				cmd.Retries = 3
-				fakeImage.PushReturnsOnCall(0, errors.New("push failed"))
+				fakeImage.PushReturnsOnCall(0, fmt.Errorf("push failed"))
 				fakeImage.PushReturnsOnCall(1, nil)
 			})
 
@@ -431,7 +430,7 @@ var _ = Describe("Chart", func() {
 		Context("pushing fails every time", func() {
 			BeforeEach(func() {
 				cmd.Retries = 3
-				fakeImage.PushReturns(errors.New("push failed"))
+				fakeImage.PushReturns(fmt.Errorf("push failed"))
 			})
 
 			It("returns an error", func() {

@@ -1,11 +1,12 @@
 package lib
 
 import (
+	"fmt"
+
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/pkg/errors"
 )
 
 //go:generate counterfeiter . ImageInterface
@@ -22,12 +23,12 @@ var Image ImageInterface = &ImageImpl{}
 func (i *ImageImpl) Pull(imageReference name.Reference) (v1.Image, string, error) {
 	image, err := remote.Image(imageReference, remote.WithAuthFromKeychain(authn.DefaultKeychain))
 	if err != nil {
-		return nil, "", errors.Wrapf(err, "failed to pull image %s", imageReference.Name())
+		return nil, "", fmt.Errorf("failed to pull image %s: %w", imageReference.Name(), err)
 	}
 
 	digest, err := image.Digest()
 	if err != nil {
-		return nil, "", errors.Wrapf(err, "failed to get image digest for %s", imageReference.Name())
+		return nil, "", fmt.Errorf("failed to get image digest for %s: %w", imageReference.Name(), err)
 	}
 
 	return image, digest.String(), nil
@@ -44,7 +45,7 @@ func (i *ImageImpl) Check(digest string, imageReference name.Reference) (bool, e
 	}
 
 	if remoteDigest != digest {
-		return false, errors.Errorf("remote image \"%s\" already exists with a different digest: %s. Will not overwrite", imageReference.Name(), remoteDigest)
+		return false, fmt.Errorf("remote image \"%s\" already exists with a different digest: %s. Will not overwrite", imageReference.Name(), remoteDigest)
 	} else {
 		return false, nil
 	}
@@ -53,7 +54,7 @@ func (i *ImageImpl) Check(digest string, imageReference name.Reference) (bool, e
 func (i *ImageImpl) Push(image v1.Image, dest name.Reference) error {
 	err := remote.Write(dest, image, remote.WithAuthFromKeychain(authn.DefaultKeychain))
 	if err != nil {
-		return errors.Wrapf(err, "failed to push image %s", dest.Name())
+		return fmt.Errorf("failed to push image %s: %w", dest.Name(), err)
 	}
 
 	return nil

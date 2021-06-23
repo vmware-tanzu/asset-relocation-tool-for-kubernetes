@@ -9,7 +9,6 @@ import (
 
 	"github.com/divideandconquer/go-merge/merge"
 	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/chart"
 )
 
@@ -38,7 +37,7 @@ func (t *ImageTemplate) String() string {
 func NewFromString(input string) (*ImageTemplate, error) {
 	temp, err := template.New(input).Parse(input)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse image template \"%s\"", input)
+		return nil, fmt.Errorf("failed to parse image template \"%s\": %w", input, err)
 	}
 
 	imageTemplate := &ImageTemplate{
@@ -50,14 +49,14 @@ func NewFromString(input string) (*ImageTemplate, error) {
 	if len(tagMatches) == 1 {
 		imageTemplate.TagTemplate = tagMatches[0][1]
 	} else if len(tagMatches) > 1 {
-		return nil, errors.Errorf("failed to parse image template \"%s\": too many tag template matches", input)
+		return nil, fmt.Errorf("failed to parse image template \"%s\": too many tag template matches", input)
 	}
 
 	digestMatches := DigestRegex.FindAllStringSubmatch(input, -1)
 	if len(digestMatches) == 1 {
 		imageTemplate.DigestTemplate = digestMatches[0][1]
 	} else if len(digestMatches) > 1 {
-		return nil, errors.Errorf("failed to parse image template \"%s\": too many digest template matches", input)
+		return nil, fmt.Errorf("failed to parse image template \"%s\": too many digest template matches", input)
 	}
 
 	templateWithoutTagDigest := TagOrDigestRegex.ReplaceAllString(input, "")
@@ -65,14 +64,14 @@ func NewFromString(input string) (*ImageTemplate, error) {
 
 	switch len(extraFragments) {
 	case 0:
-		return nil, errors.Errorf("failed to parse image template \"%s\": missing repo or a registry fragment", input)
+		return nil, fmt.Errorf("failed to parse image template \"%s\": missing repo or a registry fragment", input)
 	case 1:
 		imageTemplate.RegistryAndRepositoryTemplate = extraFragments[0][1]
 	case 2:
 		imageTemplate.RegistryTemplate = extraFragments[0][1]
 		imageTemplate.RepositoryTemplate = extraFragments[1][1]
 	default:
-		return nil, errors.Errorf("failed to parse image template \"%s\": more fragments than expected", input)
+		return nil, fmt.Errorf("failed to parse image template \"%s\": more fragments than expected", input)
 	}
 
 	return imageTemplate, nil
@@ -107,12 +106,12 @@ func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions ...*RewriteAct
 	output := bytes.Buffer{}
 	err := t.Template.Execute(&output, values)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to render image")
+		return nil, fmt.Errorf("failed to render image: %w", err)
 	}
 
 	image, err := name.ParseReference(output.String())
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse image reference")
+		return nil, fmt.Errorf("failed to parse image reference: %w", err)
 	}
 
 	return image, nil

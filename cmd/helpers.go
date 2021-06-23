@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
 	"gopkg.in/yaml.v2"
@@ -34,31 +33,31 @@ type Printer interface {
 
 func LoadChart(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 || args[0] == "" {
-		return errors.New("missing helm chart")
+		return fmt.Errorf("missing helm chart")
 	}
 
 	var err error
 	Chart, err = loader.Load(args[0])
 	if err != nil {
-		return errors.Wrapf(err, "failed to load helm chart at \"%s\"", args[0])
+		return fmt.Errorf("failed to load helm chart at \"%s\": %w", args[0], err)
 	}
 	return nil
 }
 
 func LoadImagePatterns(cmd *cobra.Command, args []string) error {
 	if ImagePatternsFile == "" {
-		return errors.New("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
+		return fmt.Errorf("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
 	}
 
 	fileContents, err := ioutil.ReadFile(ImagePatternsFile)
 	if err != nil {
-		return errors.Wrap(err, "failed to read image pattern file")
+		return fmt.Errorf("failed to read image pattern file: %w", err)
 	}
 
 	var templateStrings []string
 	err = yaml.Unmarshal(fileContents, &templateStrings)
 	if err != nil {
-		return errors.Wrap(err, "image pattern file is not in the correct format")
+		return fmt.Errorf("image pattern file is not in the correct format: %w", err)
 	}
 
 	for _, line := range templateStrings {
@@ -77,12 +76,12 @@ func ParseRules(cmd *cobra.Command, args []string) error {
 	if RulesFile != "" {
 		fileContents, err := ioutil.ReadFile(RulesFile)
 		if err != nil {
-			return errors.Wrap(err, "failed to read rewrite the rules file")
+			return fmt.Errorf("failed to read the rewrite rules file: %w", err)
 		}
 
 		err = yaml.UnmarshalStrict(fileContents, &Rules)
 		if err != nil {
-			return errors.Wrap(err, "the rewrite rules file is not in the correct format")
+			return fmt.Errorf("the rewrite rules file is not in the correct format: %w", err)
 		}
 	}
 
@@ -94,7 +93,7 @@ func ParseRules(cmd *cobra.Command, args []string) error {
 	}
 
 	if *Rules == (lib.RewriteRules{}) {
-		return errors.New("Error: at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
+		return fmt.Errorf("Error: at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
 	}
 
 	return nil

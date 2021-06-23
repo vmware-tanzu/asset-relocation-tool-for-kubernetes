@@ -8,7 +8,6 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
 	"helm.sh/helm/v3/pkg/chart"
@@ -107,7 +106,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		cmd.Println("Would you like to proceed? (y/N)")
 		proceed, err := GetConfirmation(cmd.InOrStdin())
 		if err != nil {
-			return errors.Wrap(err, "failed to prompt for confirmation")
+			return fmt.Errorf("failed to prompt for confirmation: %w", err)
 		}
 
 		if !proceed {
