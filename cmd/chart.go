@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/avast/retry-go"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -26,6 +28,15 @@ var (
 	RegistryRule         string
 	RepositoryPrefixRule string
 	Rules                *lib.RewriteRules
+	Output               string
+)
+
+var (
+	// ErrorMissingOutPlaceHolder if out flag is missing the wildcard * placeholder
+	ErrorMissingOutPlaceHolder = fmt.Errorf("missing '*' placeholder in --out flag")
+
+	// ErrorBadExtension when the out flag does not use a expected file extension
+	ErrorBadExtension = fmt.Errorf("bad extension (expected .tgz)")
 )
 
 func init() {
@@ -43,6 +54,7 @@ func init() {
 	ChartMoveCmd.Flags().StringVar(&RepositoryPrefixRule, "repo-prefix", "", "Image repository prefix rule")
 
 	ChartMoveCmd.Flags().UintVar(&Retries, "retries", defaultRetries, "Number of times to retry push operations")
+	ChartMoveCmd.Flags().StringVar(&Output, "out", "./*.relocated.tgz", "Output chart name produced")
 }
 
 var ChartCmd = &cobra.Command{
@@ -73,6 +85,11 @@ var ChartMoveCmd = &cobra.Command{
 
 func MoveChart(cmd *cobra.Command, args []string) error {
 	cmd.SilenceUsage = true
+
+	targetFormat, err := ParseOutputFlag(Output)
+	if err != nil {
+		return fmt.Errorf("failed to move chart: %w", err)
+	}
 
 	imageChanges, err := PullOriginalImages(Chart, ImagePatterns, cmd)
 	if err != nil {
@@ -105,13 +122,23 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Print("Writing chart files... ")
-	err = ModifyChart(Chart, chartChanges)
+	err = ModifyChart(Chart, chartChanges, targetFormat)
 	if err != nil {
 		cmd.Println("")
 		return err
 	}
 	cmd.Println("Done")
 	return nil
+}
+
+func ParseOutputFlag(out string) (string, error) {
+	if !strings.Contains(out, "*") {
+		return "", fmt.Errorf("%w: %s", ErrorMissingOutPlaceHolder, out)
+	}
+	if !strings.HasSuffix(out, ".tgz") {
+		return "", fmt.Errorf("%w: %s", ErrorBadExtension, out)
+	}
+	return strings.Replace(out, "*", "%s-%s", 1), nil
 }
 
 func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, log Printer) ([]*ImageChange, error) {
