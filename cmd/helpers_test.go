@@ -16,6 +16,9 @@ const (
 
 var _ = Describe("Helpers", func() {
 	Describe("ReadImagePatterns", func() {
+		BeforeEach(func() {
+			cmd.EmbeddedPatterns = false
+		})
 		It("reads from given file first if present", func() {
 			imagefile := filepath.Join(FixturesRoot, "testchart.images.yaml")
 			contents, err := cmd.ReadImagePatterns(imagefile, nil)
@@ -23,6 +26,7 @@ var _ = Describe("Helpers", func() {
 			expected, err2 := ioutil.ReadFile(imagefile)
 			Expect(err2).To(BeNil())
 			Expect(contents).To(Equal(expected))
+			Expect(cmd.EmbeddedPatterns).To(BeFalse())
 		})
 		It("reads from chart if file missing", func() {
 			chart, err := loader.Load(filepath.Join(FixturesRoot, "self-relok8ing-chart"))
@@ -33,6 +37,7 @@ var _ = Describe("Helpers", func() {
 			expected, err3 := ioutil.ReadFile(embeddedPatterns)
 			Expect(err3).To(BeNil())
 			Expect(contents).To(Equal(expected))
+			Expect(cmd.EmbeddedPatterns).To(BeTrue())
 		})
 		It("reads nothing when no file and the chart is not self relok8able", func() {
 			chart, err := loader.Load(filepath.Join(FixturesRoot, "testchart"))
@@ -40,6 +45,7 @@ var _ = Describe("Helpers", func() {
 			contents, err2 := cmd.ReadImagePatterns("", chart)
 			Expect(err2).To(BeNil())
 			Expect(contents).To(BeNil())
+			Expect(cmd.EmbeddedPatterns).To(BeFalse())
 		})
 	})
 
