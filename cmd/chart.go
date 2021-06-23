@@ -249,6 +249,9 @@ func PushRewrittenImages(imageChanges []*ImageChange, log Printer) error {
 }
 
 func PrintChanges(imageChanges []*ImageChange, chartChanges []*lib.RewriteAction, log Printer) {
+	if EmbeddedPatterns {
+		log.Printf("Image patterns from chart .relok8s-images.yaml")
+	}
 	log.Println("\nImages to be pushed:")
 	noImagesToPush := true
 	for _, change := range imageChanges {

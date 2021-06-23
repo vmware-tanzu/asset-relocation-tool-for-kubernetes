@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	Chart         *chart.Chart
-	ImagePatterns []*lib.ImageTemplate
+	Chart            *chart.Chart
+	ImagePatterns    []*lib.ImageTemplate
+	EmbeddedPatterns bool
 )
 
 type Printer interface {
@@ -46,13 +47,13 @@ func LoadChart(cmd *cobra.Command, args []string) error {
 }
 
 func LoadImagePatterns(cmd *cobra.Command, args []string) error {
-	if ImagePatternsFile == "" {
-		return errors.New("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
-	}
-
-	fileContents, err := ioutil.ReadFile(ImagePatternsFile)
+	fileContents, err := ReadImagePatterns(ImagePatternsFile, Chart)
 	if err != nil {
 		return errors.Wrap(err, "failed to read image pattern file")
+	}
+
+	if fileContents == nil {
+		return errors.New("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
 	}
 
 	var templateStrings []string
@@ -70,6 +71,19 @@ func LoadImagePatterns(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func ReadImagePatterns(patternsFile string, chart *chart.Chart) ([]byte, error) {
+	if patternsFile != "" {
+		return ioutil.ReadFile(patternsFile)
+	}
+	for _, file := range chart.Files {
+		if file.Name == ".relok8s-images.yaml" && file.Data != nil {
+			EmbeddedPatterns = true
+			return file.Data, nil
+		}
+	}
+	return nil, nil
 }
 
 func ParseRules(cmd *cobra.Command, args []string) error {
