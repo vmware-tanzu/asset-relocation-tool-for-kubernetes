@@ -45,13 +45,17 @@ func LoadChart(cmd *cobra.Command, args []string) error {
 }
 
 func LoadImagePatterns(cmd *cobra.Command, args []string) error {
-	if ImagePatternsFile == "" {
+	fileContents, err := ReadImagePatterns(ImagePatternsFile, Chart)
+	if err != nil {
+		return fmt.Errorf("failed to read image pattern file: %w", err)
+	}
+
+	if fileContents == nil {
 		return fmt.Errorf("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
 	}
 
-	fileContents, err := ioutil.ReadFile(ImagePatternsFile)
-	if err != nil {
-		return fmt.Errorf("failed to read image pattern file: %w", err)
+	if ImagePatternsFile == "" {
+		cmd.Println("Using embedded image patterns file.")
 	}
 
 	var templateStrings []string
@@ -69,6 +73,18 @@ func LoadImagePatterns(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func ReadImagePatterns(patternsFile string, chart *chart.Chart) ([]byte, error) {
+	if patternsFile != "" {
+		return ioutil.ReadFile(patternsFile)
+	}
+	for _, file := range chart.Files {
+		if file.Name == ".relok8s-images.yaml" && file.Data != nil {
+			return file.Data, nil
+		}
+	}
+	return nil, nil
 }
 
 func ParseRules(cmd *cobra.Command, args []string) error {
