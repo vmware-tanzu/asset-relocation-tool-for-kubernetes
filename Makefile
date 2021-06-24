@@ -1,17 +1,26 @@
 SHELL = /bin/bash
-GO-VER = go1.16
 
 default: build
 
 
 # #### GO Binary Management ####
-.PHONY: deps-go-binary deps-goimports
+.PHONY: deps-go-binary deps-goimports deps-counterfeiter deps-ginkgo
+
+GO_VERSION := $(shell go version)
+GO_VERSION_REQUIRED = go1.16
+GO_VERSION_MATCHED := $(shell go version | grep $(GO_VERSION_REQUIRED))
 
 deps-go-binary:
-	echo "Expect: $(GO-VER)" && \
-		echo "Actual: $$(go version)" && \
-	 	go version | grep $(GO-VER) > /dev/null
+ifndef GO_VERSION
+	$(error Go not installed)
+endif
+ifndef GO_VERSION_MATCHED
+	$(error Required Go version is $(GO_VERSION_REQUIRED), but was $(GO_VERSION))
+endif
+	@:
 
+HAS_COUNTERFEITER := $(shell command -v counterfeiter;)
+HAS_GINKGO := $(shell command -v ginkgo;)
 HAS_GO_IMPORTS := $(shell command -v goimports;)
 
 deps-goimports: deps-go-binary
@@ -19,28 +28,30 @@ ifndef HAS_GO_IMPORTS
 	go get -u golang.org/x/tools/cmd/goimports
 endif
 
+deps-counterfeiter: deps-go-binary
+ifndef HAS_COUNTERFEITER
+	go get -u github.com/maxbrunsfeld/counterfeiter/v6
+endif
+
+deps-ginkgo: deps-go-binary
+ifndef HAS_GINKGO
+	go get -u github.com/onsi/ginkgo/ginkgo github.com/onsi/gomega
+endif
 
 # #### CLEAN ####
 .PHONY: clean
 
 clean: deps-go-binary 
 	rm -rf build/*
-	go clean --modcache
-
+	find vendor -d 1 -not -name .gitkeep | xargs rm -rf
 
 # #### DEPS ####
-.PHONY: deps deps-counterfeiter deps-ginkgo deps-modules
+.PHONY: deps
 
-deps-modules: deps-goimports deps-go-binary
-	go mod download
+vendor/modules.txt: go.mod
+	go mod vendor
 
-deps-counterfeiter: deps-modules
-	command -v counterfeiter >/dev/null 2>&1 || go get -u github.com/maxbrunsfeld/counterfeiter/v6
-
-deps-ginkgo: deps-go-binary
-	command -v ginkgo >/dev/null 2>&1 || go get -u github.com/onsi/ginkgo/ginkgo github.com/onsi/gomega
-
-deps: deps-modules deps-counterfeiter deps-ginkgo
+deps: vendor/modules.txt deps-goimports deps-counterfeiter deps-ginkgo
 
 
 # #### BUILD ####
