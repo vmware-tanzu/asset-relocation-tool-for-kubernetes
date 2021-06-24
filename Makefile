@@ -67,7 +67,7 @@ build-all: build/relok8s-darwin build/relok8s-linux
 .PHONY: lint test test-features test-units
 
 test-units: deps
-	ginkgo -r -skipPackage features .
+	ginkgo -r -skipPackage test .
 
 test-fixtures:
 	make --directory test/fixtures

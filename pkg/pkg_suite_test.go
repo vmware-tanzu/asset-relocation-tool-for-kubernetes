@@ -1,4 +1,4 @@
-package lib_test
+package pkg_test
 
 import (
 	"testing"
@@ -9,5 +9,5 @@ import (
 
 func TestLib(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Lib Suite")
+	RunSpecs(t, "Pkg Suite")
 }

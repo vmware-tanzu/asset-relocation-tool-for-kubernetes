@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg"
 	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -19,7 +19,7 @@ import (
 
 var (
 	Chart         *chart.Chart
-	ImagePatterns []*lib.ImageTemplate
+	ImagePatterns []*pkg.ImageTemplate
 )
 
 type Printer interface {
@@ -65,7 +65,7 @@ func LoadImagePatterns(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, line := range templateStrings {
-		temp, err := lib.NewFromString(line)
+		temp, err := pkg.NewFromString(line)
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func ReadImagePatterns(patternsFile string, chart *chart.Chart) ([]byte, error) 
 }
 
 func ParseRules(cmd *cobra.Command, args []string) error {
-	Rules = &lib.RewriteRules{}
+	Rules = &pkg.RewriteRules{}
 	if RulesFile != "" {
 		fileContents, err := ioutil.ReadFile(RulesFile)
 		if err != nil {
@@ -108,7 +108,7 @@ func ParseRules(cmd *cobra.Command, args []string) error {
 		Rules.RepositoryPrefix = RepositoryPrefixRule
 	}
 
-	if *Rules == (lib.RewriteRules{}) {
+	if *Rules == (pkg.RewriteRules{}) {
 		return fmt.Errorf("Error: at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
 	}
 
@@ -142,7 +142,7 @@ func GetConfirmation(input io.Reader) (bool, error) {
 	return false, nil
 }
 
-func ModifyChart(originalChart *chart.Chart, actions []*lib.RewriteAction, targetFormat string) error {
+func ModifyChart(originalChart *chart.Chart, actions []*pkg.RewriteAction, targetFormat string) error {
 	var err error
 	modifiedChart := originalChart
 	for _, action := range actions {

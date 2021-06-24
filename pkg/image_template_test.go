@@ -1,11 +1,12 @@
-package lib_test
+package pkg_test
 
 import (
 	"github.com/google/go-containerregistry/pkg/name"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	. "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
+	. "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/test"
 )
 
 var _ = Describe("NewFromString", func() {
@@ -92,7 +93,7 @@ var _ = Describe("NewFromString", func() {
 })
 
 type TableInput struct {
-	ParentChart *ChartSeed
+	ParentChart *test.ChartSeed
 	Template    string
 }
 type TableOutput struct {
@@ -103,7 +104,7 @@ type TableOutput struct {
 
 var (
 	imageAlone = &TableInput{
-		ParentChart: &ChartSeed{
+		ParentChart: &test.ChartSeed{
 			Values: map[string]interface{}{
 				"image": "ubuntu:latest",
 			},
@@ -111,7 +112,7 @@ var (
 		Template: "{{ .image }}",
 	}
 	imageAndTag = &TableInput{
-		ParentChart: &ChartSeed{
+		ParentChart: &test.ChartSeed{
 			Values: map[string]interface{}{
 				"image": "petewall/amazingapp",
 				"tag":   "latest",
@@ -120,7 +121,7 @@ var (
 		Template: "{{ .image }}:{{ .tag }}",
 	}
 	registryAndImage = &TableInput{
-		ParentChart: &ChartSeed{
+		ParentChart: &test.ChartSeed{
 			Values: map[string]interface{}{
 				"registry": "quay.io",
 				"image":    "proxy/nginx",
@@ -129,7 +130,7 @@ var (
 		Template: "{{ .registry }}/{{ .image }}",
 	}
 	registryImageAndTag = &TableInput{
-		ParentChart: &ChartSeed{
+		ParentChart: &test.ChartSeed{
 			Values: map[string]interface{}{
 				"registry": "quay.io",
 				"image":    "busycontainers/busybox",
@@ -139,7 +140,7 @@ var (
 		Template: "{{ .registry }}/{{ .image }}:{{ .tag }}",
 	}
 	imageAndDigest = &TableInput{
-		ParentChart: &ChartSeed{
+		ParentChart: &test.ChartSeed{
 			Values: map[string]interface{}{
 				"image":  "petewall/platformio",
 				"digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -149,7 +150,7 @@ var (
 	}
 
 	nestedValues = &TableInput{
-		ParentChart: &ChartSeed{
+		ParentChart: &test.ChartSeed{
 			Values: map[string]interface{}{
 				"image": map[string]interface{}{
 					"registry":   "docker.io",
@@ -162,13 +163,13 @@ var (
 	}
 
 	dependencyRegistryImageAndTag = &TableInput{
-		ParentChart: &ChartSeed{
+		ParentChart: &test.ChartSeed{
 			Values: map[string]interface{}{
 				"registry": "quay.io",
 				"image":    "busycontainers/busybox",
 				"tag":      "busiest",
 			},
-			Dependencies: []*ChartSeed{
+			Dependencies: []*test.ChartSeed{
 				{
 					Name: "lazy",
 					Values: map[string]interface{}{
@@ -197,7 +198,7 @@ var _ = DescribeTable("Rewrite Actions",
 	func(input *TableInput, rules *RewriteRules, expected *TableOutput) {
 		var (
 			err           error
-			chart         = MakeChart(input.ParentChart)
+			chart         = test.MakeChart(input.ParentChart)
 			template      *ImageTemplate
 			originalImage name.Reference
 			actions       []*RewriteAction

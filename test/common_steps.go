@@ -1,3 +1,5 @@
+// +build feature external
+
 package test
 
 import (

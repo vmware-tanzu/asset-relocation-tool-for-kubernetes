@@ -1,10 +1,10 @@
-package lib
+package pkg
 
 import (
 	"fmt"
 	"strings"
 
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib/yamlops"
+	yamlops2 "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal/yamlops"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -49,7 +49,6 @@ func (a *RewriteAction) ToMap() map[string]interface{} {
 }
 
 func (a *RewriteAction) Apply(input *chart.Chart) (*chart.Chart, error) {
-
 	dependencies := input.Dependencies()
 	foundInDependency := false
 	for dependencyIndex, dependency := range dependencies {
@@ -59,7 +58,7 @@ func (a *RewriteAction) Apply(input *chart.Chart) (*chart.Chart, error) {
 			value := map[string]string{
 				a.GetKey(): a.Value,
 			}
-			newData, err := yamlops.UpdateMap(data, a.GetSubPathToMap(), "", nil, value)
+			newData, err := yamlops2.UpdateMap(data, a.GetSubPathToMap(), "", nil, value)
 			if err != nil {
 				return nil, fmt.Errorf("failed to apply modification to %s: %w", dependency.Name(), err)
 			}
@@ -75,7 +74,7 @@ func (a *RewriteAction) Apply(input *chart.Chart) (*chart.Chart, error) {
 		value := map[string]string{
 			a.GetKey(): a.Value,
 		}
-		newData, err := yamlops.UpdateMap(data, a.GetPathToMap(), "", nil, value)
+		newData, err := yamlops2.UpdateMap(data, a.GetPathToMap(), "", nil, value)
 		if err != nil {
 			return nil, fmt.Errorf("failed to apply modification to %s: %w", input.Name(), err)
 		}

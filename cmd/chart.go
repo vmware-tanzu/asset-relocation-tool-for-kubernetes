@@ -9,7 +9,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/spf13/cobra"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg"
 	"helm.sh/helm/v3/pkg/chart"
 )
 
@@ -26,7 +27,7 @@ var (
 	RulesFile            string
 	RegistryRule         string
 	RepositoryPrefixRule string
-	Rules                *lib.RewriteRules
+	Rules                *pkg.RewriteRules
 	Output               string
 )
 
@@ -61,7 +62,7 @@ var ChartCmd = &cobra.Command{
 }
 
 type ImageChange struct {
-	Pattern            *lib.ImageTemplate
+	Pattern            *pkg.ImageTemplate
 	ImageReference     name.Reference
 	RewrittenReference name.Reference
 	Image              v1.Image
@@ -140,7 +141,7 @@ func ParseOutputFlag(out string) (string, error) {
 	return strings.Replace(out, "*", "%s-%s", 1), nil
 }
 
-func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, log Printer) ([]*ImageChange, error) {
+func PullOriginalImages(chart *chart.Chart, pattens []*pkg.ImageTemplate, log Printer) ([]*ImageChange, error) {
 	var changes []*ImageChange
 	imageCache := map[string]*ImageChange{}
 
@@ -157,7 +158,7 @@ func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, log Pr
 
 		if imageCache[originalImage.Name()] == nil {
 			log.Printf("Pulling %s... ", originalImage.Name())
-			image, digest, err := lib.Image.Pull(originalImage)
+			image, digest, err := internal.Image.Pull(originalImage)
 			if err != nil {
 				log.Println("")
 				return nil, err
@@ -175,8 +176,8 @@ func PullOriginalImages(chart *chart.Chart, pattens []*lib.ImageTemplate, log Pr
 	return changes, nil
 }
 
-func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *lib.RewriteRules, log Printer) ([]*ImageChange, []*lib.RewriteAction, error) {
-	var chartChanges []*lib.RewriteAction
+func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *pkg.RewriteRules, log Printer) ([]*ImageChange, []*pkg.RewriteAction, error) {
+	var chartChanges []*pkg.RewriteAction
 	imageCache := map[string]bool{}
 
 	for _, change := range imageChanges {
@@ -201,7 +202,7 @@ func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *lib.
 				change.AlreadyPushed = true
 			} else {
 				log.Printf("Checking %s (%s)... ", rewrittenImage.Name(), change.Digest)
-				needToPush, err := lib.Image.Check(change.Digest, rewrittenImage)
+				needToPush, err := internal.Image.Check(change.Digest, rewrittenImage)
 				if err != nil {
 					log.Println("")
 					return nil, nil, err
@@ -226,7 +227,7 @@ func PushRewrittenImages(imageChanges []*ImageChange, log Printer) error {
 			err := retry.Do(
 				func() error {
 					log.Printf("Pushing %s... ", change.RewrittenReference.Name())
-					err := lib.Image.Push(change.Image, change.RewrittenReference)
+					err := internal.Image.Push(change.Image, change.RewrittenReference)
 					if err != nil {
 						log.Println("")
 						return err
@@ -247,7 +248,7 @@ func PushRewrittenImages(imageChanges []*ImageChange, log Printer) error {
 	return nil
 }
 
-func PrintChanges(imageChanges []*ImageChange, chartChanges []*lib.RewriteAction, log Printer) {
+func PrintChanges(imageChanges []*ImageChange, chartChanges []*pkg.RewriteAction, log Printer) {
 	log.Println("\nImages to be pushed:")
 	noImagesToPush := true
 	for _, change := range imageChanges {

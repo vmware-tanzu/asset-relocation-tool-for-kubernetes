@@ -8,8 +8,10 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/cmd"
-	. "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib/libfakes"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/pkgfakes"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/test"
 )
 
 type TestPrinter struct {
@@ -48,7 +50,7 @@ func (c *TestPrinter) PrintErrf(format string, i ...interface{}) {
 	c.PrintErr(fmt.Sprintf(format, i...))
 }
 
-var chart = MakeChart(&ChartSeed{
+var chart = test.MakeChart(&test.ChartSeed{
 	Values: map[string]interface{}{
 		"image": map[string]interface{}{
 			"registry":   "docker.io",
@@ -76,24 +78,24 @@ var chart = MakeChart(&ChartSeed{
 	},
 })
 
-func NewPattern(input string) *ImageTemplate {
-	template, err := NewFromString(input)
+func NewPattern(input string) *pkg.ImageTemplate {
+	template, err := pkg.NewFromString(input)
 	Expect(err).ToNot(HaveOccurred())
 	return template
 }
 
 var _ = Describe("Chart", func() {
 	var (
-		fakeImage     *libfakes.FakeImageInterface
-		originalImage ImageInterface
+		fakeImage     *pkgfakes.FakeImageInterface
+		originalImage internal.ImageInterface
 	)
 	BeforeEach(func() {
-		originalImage = Image
-		fakeImage = &libfakes.FakeImageInterface{}
-		Image = fakeImage
+		originalImage = internal.Image
+		fakeImage = &pkgfakes.FakeImageInterface{}
+		internal.Image = fakeImage
 	})
 	AfterEach(func() {
-		Image = originalImage
+		internal.Image = originalImage
 	})
 
 	Describe("PullOriginalImages", func() {
@@ -105,7 +107,7 @@ var _ = Describe("Chart", func() {
 			fakeImage.PullReturnsOnCall(0, image1, digest1, nil)
 			fakeImage.PullReturnsOnCall(1, image2, digest2, nil)
 
-			patterns := []*ImageTemplate{
+			patterns := []*pkg.ImageTemplate{
 				NewPattern("{{.image.registry}}/{{.image.repository}}"),
 				NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 			}
@@ -142,7 +144,7 @@ var _ = Describe("Chart", func() {
 				image := MakeImage(digest)
 				fakeImage.PullReturns(image, digest, nil)
 
-				patterns := []*ImageTemplate{
+				patterns := []*pkg.ImageTemplate{
 					NewPattern("{{.image.registry}}/{{.image.repository}}"),
 					NewPattern("{{.secondimage.registry}}/{{.secondimage.repository}}:{{.secondimage.tag}}"),
 				}
@@ -175,7 +177,7 @@ var _ = Describe("Chart", func() {
 		Context("error pulling an image", func() {
 			It("returns the error", func() {
 				fakeImage.PullReturns(nil, "", fmt.Errorf("image pull error"))
-				patterns := []*ImageTemplate{
+				patterns := []*pkg.ImageTemplate{
 					NewPattern("{{.image.registry}}/{{.image.repository}}"),
 				}
 
@@ -204,7 +206,7 @@ var _ = Describe("Chart", func() {
 					Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 			}
-			rules := &RewriteRules{
+			rules := &pkg.RewriteRules{
 				Registry:         "harbor-repo.vmware.com",
 				RepositoryPrefix: "pwall",
 			}
@@ -243,7 +245,7 @@ var _ = Describe("Chart", func() {
 
 			By("returning a list of changes that would need to be applied to the chart", func() {
 				Expect(actions).To(HaveLen(4))
-				Expect(actions).To(ContainElements([]*RewriteAction{
+				Expect(actions).To(ContainElements([]*pkg.RewriteAction{
 					{
 						Path:  ".image.registry",
 						Value: "harbor-repo.vmware.com",
@@ -286,7 +288,7 @@ var _ = Describe("Chart", func() {
 						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 					},
 				}
-				rules := &RewriteRules{
+				rules := &pkg.RewriteRules{
 					Registry:         "harbor-repo.vmware.com",
 					RepositoryPrefix: "pwall",
 				}
@@ -321,7 +323,7 @@ var _ = Describe("Chart", func() {
 
 				By("returning a list of changes that would need to be applied to the chart", func() {
 					Expect(actions).To(HaveLen(4))
-					Expect(actions).To(ContainElements([]*RewriteAction{
+					Expect(actions).To(ContainElements([]*pkg.RewriteAction{
 						{
 							Path:  ".observability.image.registry",
 							Value: "harbor-repo.vmware.com",

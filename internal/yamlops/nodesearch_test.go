@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib/yamlops"
+	yamlops2 "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal/yamlops"
 	"gopkg.in/yaml.v3"
 )
 
@@ -14,12 +14,12 @@ func TestSearchNodes(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		matchers    []yamlops.NodeMatchFunc
+		matchers    []yamlops2.NodeMatchFunc
 		matchValues map[string]string
 	}{
 		{
 			"visits all nodes",
-			[]yamlops.NodeMatchFunc{func(*yaml.Node, string) bool { return true }},
+			[]yamlops2.NodeMatchFunc{func(*yaml.Node, string) bool { return true }},
 			map[string]string{
 				".":        "",
 				".foo":     "",
@@ -28,26 +28,26 @@ func TestSearchNodes(t *testing.T) {
 		},
 		{
 			"matches no nodes",
-			[]yamlops.NodeMatchFunc{func(*yaml.Node, string) bool { return false }},
+			[]yamlops2.NodeMatchFunc{func(*yaml.Node, string) bool { return false }},
 			map[string]string{},
 		},
 		{
 			"matches some nodes",
-			[]yamlops.NodeMatchFunc{func(_ *yaml.Node, path string) bool { return path == ".foo.bar" }},
+			[]yamlops2.NodeMatchFunc{func(_ *yaml.Node, path string) bool { return path == ".foo.bar" }},
 			map[string]string{
 				".foo.bar": "fum",
 			},
 		},
 		{
 			"no matchers",
-			[]yamlops.NodeMatchFunc{},
+			[]yamlops2.NodeMatchFunc{},
 			map[string]string{},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			matches := yamlops.SearchNodes(root, ".", test.matchers...)
+			matches := yamlops2.SearchNodes(root, ".", test.matchers...)
 
 			matchValues := map[string]string{}
 			for path, node := range matches {
@@ -75,7 +75,7 @@ func TestNodeHasPath(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			fn := yamlops.NodeHasPath(test.spec)
+			fn := yamlops2.NodeHasPath(test.spec)
 			match := fn(&yaml.Node{}, test.path)
 			if got, want := match, test.match; got != want {
 				t.Errorf("got: %t, want: %t", got, want)
@@ -152,7 +152,7 @@ func TestMapNodeContains(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fn := yamlops.MapNodeContains(test.selectors)
+			fn := yamlops2.MapNodeContains(test.selectors)
 			node := yamlRootNode(t, test.yaml)
 			match := fn(node, ".")
 			if got, want := match, test.match; got != want {
@@ -188,7 +188,7 @@ func TestMapNodeContainsKeyTypes(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.yaml, func(t *testing.T) {
-			fn := yamlops.MapNodeContains(map[string]string{
+			fn := yamlops2.MapNodeContains(map[string]string{
 				test.fieldName: "foo",
 			})
 			node := yamlRootNode(t, test.yaml)
@@ -273,9 +273,9 @@ func TestSelectorMatchFilter(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fn := yamlops.SelectorMatchFilter(test.filter, test.selectors)
+			fn := yamlops2.SelectorMatchFilter(test.filter, test.selectors)
 			node := yamlRootNode(t, yamlTest)
-			maps := yamlops.SearchNodes(node, ".", fn)
+			maps := yamlops2.SearchNodes(node, ".", fn)
 			if test.match {
 				for k, v := range test.expectedKeys {
 					if _, ok := maps[v]; !ok {

@@ -69,10 +69,7 @@ Repository Prefix   | `mytenant`                | `docker.io/mycompany/myapp:1.2
 
 ## Development
 
-To set up a local development environment, it's recommended to install these tools:
-
-* jq (`brew install jq`) - For parsing and formatting output
-* direnv (`brew install direnv`) - For setting environment local environment variables
+Relok8s is built with Golang 1.16.
 
 ### Running tests
 
@@ -100,7 +97,7 @@ They can be run with:
 make test-external
 ```
 
-External tests require credentials to talk to the internal harbor registry, ask Pete if you need access to a certain project.
+External tests require credentials to talk to the internal VMware Harbor registry, ask Pete if you need access.
 
 All local tests can be run with:
 

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib/yamlops"
+	yamlops2 "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal/yamlops"
 )
 
 func TestUpdateMap(t *testing.T) {
@@ -108,7 +108,7 @@ func TestUpdateMap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := yamlops.UpdateMap(
+			result, err := yamlops2.UpdateMap(
 				[]byte(test.doc), test.path, "", test.selectors, test.values,
 			)
 			if err != nil {
@@ -161,7 +161,7 @@ func TestUpdateMapUnicode(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := yamlops.UpdateMap(
+			result, err := yamlops2.UpdateMap(
 				[]byte(test.doc), test.path, "", nil, test.values,
 			)
 			if err != nil {
@@ -180,7 +180,7 @@ func TestUpdateMapEncodesValues(t *testing.T) {
 	values := map[string]string{"foo": "1"}
 	expected := "a:\n  foo: \"1\""
 
-	result, err := yamlops.UpdateMap([]byte(doc), path, "", nil, values)
+	result, err := yamlops2.UpdateMap([]byte(doc), path, "", nil, values)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func TestUpdateMapValueNodeStyle(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := yamlops.UpdateMap(
+			result, err := yamlops2.UpdateMap(
 				[]byte(test.doc), test.path, "", nil, test.values,
 			)
 			if err != nil {
@@ -339,7 +339,7 @@ func TestUpdateMapComments(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := yamlops.UpdateMap([]byte(test.doc), path, "", nil, values)
+			result, err := yamlops2.UpdateMap([]byte(test.doc), path, "", nil, values)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -387,7 +387,7 @@ func TestUpdateMapErrors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := yamlops.UpdateMap(
+			_, err := yamlops2.UpdateMap(
 				[]byte(test.doc), test.path, "", test.selectors, test.values,
 			)
 			errText := ""

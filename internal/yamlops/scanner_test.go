@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/lib/yamlops"
+	yamlops2 "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal/yamlops"
 )
 
 type node struct {
@@ -96,7 +96,7 @@ func TestScannerSimple(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := yamlRootNode(t, test.doc)
 			visited := []node{}
-			s := yamlops.NewNodeScanner(root, ".")
+			s := yamlops2.NewNodeScanner(root, ".")
 			for s.Next() {
 				n, path := s.Current()
 				visited = append(visited, node{path, n.Tag, n.Value})
