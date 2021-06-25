@@ -33,15 +33,10 @@ type JUnitTestSuite struct {
 type JUnitTestCase struct {
 	Name           string               `xml:"name,attr"`
 	ClassName      string               `xml:"classname,attr"`
-	PassedMessage  *JUnitPassedMessage  `xml:"passed,omitempty"`
 	FailureMessage *JUnitFailureMessage `xml:"failure,omitempty"`
 	Skipped        *JUnitSkipped        `xml:"skipped,omitempty"`
 	Time           float64              `xml:"time,attr"`
 	SystemOut      string               `xml:"system-out,omitempty"`
-}
-
-type JUnitPassedMessage struct {
-	Message string `xml:",chardata"`
 }
 
 type JUnitFailureMessage struct {
@@ -114,9 +109,7 @@ func (reporter *JUnitReporter) SpecDidComplete(specSummary *types.SpecSummary) {
 		ClassName: reporter.testSuiteName,
 	}
 	if reporter.ReporterConfig.ReportPassed && specSummary.State == types.SpecStatePassed {
-		testCase.PassedMessage = &JUnitPassedMessage{
-			Message: specSummary.CapturedOutput,
-		}
+		testCase.SystemOut = specSummary.CapturedOutput
 	}
 	if specSummary.State == types.SpecStateFailed || specSummary.State == types.SpecStateTimedOut || specSummary.State == types.SpecStatePanicked {
 		testCase.FailureMessage = &JUnitFailureMessage{
@@ -167,7 +160,7 @@ func (reporter *JUnitReporter) SpecSuiteDidEnd(summary *types.SuiteSummary) {
 	if err == nil {
 		fmt.Fprintf(os.Stdout, "\nJUnit report was created: %s\n", filePath)
 	} else {
-		fmt.Fprintf(os.Stderr, "\nFailed to generate JUnit report data:\n\t%s", err.Error())
+		fmt.Fprintf(os.Stderr,"\nFailed to generate JUnit report data:\n\t%s", err.Error())
 	}
 }
 

@@ -26,14 +26,6 @@ resources:
         - ci/Dockerfile
         - ci/pipeline.yaml
 
-  - name: golang-image
-    type: registry-image
-    source:
-      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/library/golang
-      tag: 1.16
-      username: ((harbor.username))
-      password: ((harbor.token))
-
   - name: test-image-source
     type: git
     icon: gitlab
@@ -53,7 +45,7 @@ resources:
       password: ((harbor.token))
 
   - name: docker-image
-    type: docker-image
+    type: registry-image
     icon: docker
     source:
       repository: harbor-repo.vmware.com/tanzu_isv_engineering/relok8s
@@ -96,37 +88,33 @@ jobs:
         trigger: true
       - put: test-image
         params:
-          build: .
+          build: test-image-source
           dockerfile: test-image-source/ci/Dockerfile
           tag_as_latest: true
 
   - name: test
     plan:
       - in_parallel:
-          - get: golang-image
           - get: test-image
             passed:
               - build-test-image
+            trigger: true
           - get: source
             trigger: true
       - task: run-unit-tests
-        image: golang-image
+        image: test-image
         file: source/ci/tasks/test.yaml
         params:
-          GIT_SSH_KEY: ((gitlab.private_key))
           MAKE_TARGET: test-units
       - task: run-feature-tests
         image: test-image
         file: source/ci/tasks/test.yaml
         params:
-          GIT_SSH_KEY: ((gitlab.private_key))
           MAKE_TARGET: test-features
       - task: run-external-tests
         image: test-image
-        privileged: true
         file: source/ci/tasks/test.yaml
         params:
-          GIT_SSH_KEY: ((gitlab.private_key))
           MAKE_TARGET: test-external
           REGISTRY_SERVER: harbor-repo.vmware.com
           REGISTRY_USERNAME: ((harbor-private.username))
@@ -136,7 +124,7 @@ jobs:
     serial_groups: [version]
     plan:
       - in_parallel:
-        - get: golang-image
+        - get: test-image
           passed:
             - test
         - get: source
@@ -147,20 +135,33 @@ jobs:
           params:
             bump: patch
       - task: build
-        image: golang-image
+        image: test-image
         file: source/ci/tasks/build.yaml
-        params:
-          GIT_SSH_KEY: ((gitlab.private_key))
+      - task: build-image
+        privileged: true
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: harbor-repo.vmware.com/dockerhub-proxy-cache/concourse/oci-build-task
+              username: ((harbor.username))
+              password: ((harbor.token))
+          inputs:
+            - name: build
+            - name: source
+              path: .
+          outputs:
+            - name: image
+          run:
+            path: build
       - put: docker-image
         inputs:
-          - build
-          - source
+          - image
           - version
         params:
-          build: .
-          dockerfile: source/Dockerfile
-          tag_file: version/version
-          tag_as_latest: true
+          image: image/image.tar
+          additional_tags: version/version
       - put: release
         inputs: [build, source, version]
         params:
@@ -191,13 +192,12 @@ jobs:
         - get: source-chart
       - task: relocate
         image: docker-image
-        privileged: true
         config:
           platform: linux
           params:
-            DESTINATION_REGISTRY: https://harbor-repo.vmware.com/tanzu_isv_engineering_private
-            DESTINATION_REGISTRY_USERNAME: ((harbor-private.username))
-            DESTINATION_REGISTRY_PASSWORD: ((harbor-private.token))
+            REGISTRY_SERVER: harbor-repo.vmware.com
+            REGISTRY_USERNAME: ((harbor-private.username))
+            REGISTRY_PASSWORD: ((harbor-private.token))
           inputs:
             - name: source-chart
           outputs:
@@ -207,19 +207,17 @@ jobs:
             args:
               - -exc
               - |
-                source /docker-lib.sh
-                start_docker
-
-                echo "${DESTINATION_REGISTRY_PASSWORD}" | docker login ${DESTINATION_REGISTRY} --username ${DESTINATION_REGISTRY_USERNAME} --password-stdin
+                docker-login.sh "${REGISTRY_SERVER}" "${REGISTRY_USERNAME}" "${REGISTRY_PASSWORD}"
 
                 cat > image-patterns.yaml <<EOF
                 ---
                 - "{{ .image.repository }}:{{ .image.tag }}"
                 EOF
+
                 relok8s chart move source-chart/*.tgz \
                   --yes \
                   --image-patterns image-patterns.yaml \
-                  --registry harbor-repo.vmware.com \
+                  --registry "${REGISTRY_SERVER}" \
                   --repo-prefix tanzu_isv_engineering_private
                 mv *.relocated.tgz rewritten-chart/chart.tgz
       - task: print-diff

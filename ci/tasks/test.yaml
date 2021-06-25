@@ -2,8 +2,6 @@
 platform: linux
 
 params:
-  GIT_SSH_KEY:
-  GOPRIVATE: gitlab.eng.vmware.com
   MAKE_TARGET: test
   REGISTRY_SERVER:
   REGISTRY_USERNAME:
@@ -19,14 +17,7 @@ run:
     - -exc
     - |
       if [ "${MAKE_TARGET}" == "test-external" ] ; then
-        export DOCKER_API_VERSION=1.39
-        source /docker-lib.sh
-        start_docker
-
-        set +x
-        echo "${REGISTRY_PASSWORD}" | docker login "${REGISTRY_SERVER}" --username "${REGISTRY_USERNAME}" --password-stdin
-        set -x
+        docker-login.sh "${REGISTRY_SERVER}" "${REGISTRY_USERNAME}" "${REGISTRY_PASSWORD}"
       fi
 
-      ci/scripts/install-git-ssh-key
       make "${MAKE_TARGET}"
