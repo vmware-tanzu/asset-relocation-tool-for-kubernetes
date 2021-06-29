@@ -94,7 +94,7 @@ test: deps lint test-units test-features
 test-all: test test-external
 
 lint: deps-goimports
-	git ls-files | grep '.go$$' | xargs goimports -l -w
+	git ls-files | grep -v '^vendor/' | grep '.go$$' | xargs goimports -l -w
 
 
 # #### DEVOPS ####
