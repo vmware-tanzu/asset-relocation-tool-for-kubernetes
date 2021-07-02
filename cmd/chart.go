@@ -5,13 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/avast/retry-go"
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/spf13/cobra"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg"
-	"helm.sh/helm/v3/pkg/chart"
 )
 
 const (
@@ -61,19 +56,6 @@ var ChartCmd = &cobra.Command{
 	Use: "chart",
 }
 
-type ImageChange struct {
-	Pattern            *pkg.ImageTemplate
-	ImageReference     name.Reference
-	RewrittenReference name.Reference
-	Image              v1.Image
-	Digest             string
-	AlreadyPushed      bool
-}
-
-func (change *ImageChange) ShouldPush() bool {
-	return !change.AlreadyPushed && change.ImageReference.Name() != change.RewrittenReference.Name()
-}
-
 var ChartMoveCmd = &cobra.Command{
 	Use:     "move <chart>",
 	Short:   "Lists the container images in a chart",
@@ -86,22 +68,17 @@ var ChartMoveCmd = &cobra.Command{
 func MoveChart(cmd *cobra.Command, args []string) error {
 	cmd.SilenceUsage = true
 
-	targetFormat, err := ParseOutputFlag(Output)
+	outputFmt, err := ParseOutputFlag(Output)
 	if err != nil {
 		return fmt.Errorf("failed to move chart: %w", err)
 	}
 
-	imageChanges, err := PullOriginalImages(Chart, ImagePatterns, cmd)
+	relocation, err := pkg.Compute(Chart, ImagePatterns, Rules, cmd)
 	if err != nil {
 		return err
 	}
 
-	imageChanges, chartChanges, err := CheckNewImages(Chart, imageChanges, Rules, cmd)
-	if err != nil {
-		return err
-	}
-
-	PrintChanges(imageChanges, chartChanges, cmd)
+	pkg.PrintChanges(relocation, cmd)
 
 	if !skipConfirmation {
 		cmd.Println("Would you like to proceed? (y/N)")
@@ -116,19 +93,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	err = PushRewrittenImages(imageChanges, cmd)
-	if err != nil {
-		return err
-	}
-
-	cmd.Print("Writing chart files... ")
-	err = ModifyChart(Chart, chartChanges, targetFormat)
-	if err != nil {
-		cmd.Println("")
-		return err
-	}
-	cmd.Println("Done")
-	return nil
+	return pkg.Apply(relocation, outputFmt, Retries, cmd)
 }
 
 func ParseOutputFlag(out string) (string, error) {
@@ -139,135 +104,4 @@ func ParseOutputFlag(out string) (string, error) {
 		return "", fmt.Errorf("%w: %s", ErrorBadExtension, out)
 	}
 	return strings.Replace(out, "*", "%s-%s", 1), nil
-}
-
-func PullOriginalImages(chart *chart.Chart, pattens []*pkg.ImageTemplate, log Printer) ([]*ImageChange, error) {
-	var changes []*ImageChange
-	imageCache := map[string]*ImageChange{}
-
-	for _, pattern := range pattens {
-		originalImage, err := pattern.Render(chart)
-		if err != nil {
-			return nil, err
-		}
-
-		change := &ImageChange{
-			Pattern:        pattern,
-			ImageReference: originalImage,
-		}
-
-		if imageCache[originalImage.Name()] == nil {
-			log.Printf("Pulling %s... ", originalImage.Name())
-			image, digest, err := internal.Image.Pull(originalImage)
-			if err != nil {
-				log.Println("")
-				return nil, err
-			}
-			log.Println("Done")
-			change.Image = image
-			change.Digest = digest
-			imageCache[originalImage.Name()] = change
-		} else {
-			change.Image = imageCache[originalImage.Name()].Image
-			change.Digest = imageCache[originalImage.Name()].Digest
-		}
-		changes = append(changes, change)
-	}
-	return changes, nil
-}
-
-func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *pkg.RewriteRules, log Printer) ([]*ImageChange, []*pkg.RewriteAction, error) {
-	var chartChanges []*pkg.RewriteAction
-	imageCache := map[string]bool{}
-
-	for _, change := range imageChanges {
-		rules.Digest = change.Digest
-		newActions, err := change.Pattern.Apply(change.ImageReference, rules)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		chartChanges = append(chartChanges, newActions...)
-
-		rewrittenImage, err := change.Pattern.Render(chart, newActions...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		change.RewrittenReference = rewrittenImage
-
-		if change.ShouldPush() {
-			if imageCache[rewrittenImage.Name()] {
-				// This image has already been checked previously, so just force this one to be skipped
-				change.AlreadyPushed = true
-			} else {
-				log.Printf("Checking %s (%s)... ", rewrittenImage.Name(), change.Digest)
-				needToPush, err := internal.Image.Check(change.Digest, rewrittenImage)
-				if err != nil {
-					log.Println("")
-					return nil, nil, err
-				}
-
-				if needToPush {
-					log.Println("Push required")
-				} else {
-					log.Println("Already exists")
-					change.AlreadyPushed = true
-				}
-				imageCache[rewrittenImage.Name()] = true
-			}
-		}
-	}
-	return imageChanges, chartChanges, nil
-}
-
-func PushRewrittenImages(imageChanges []*ImageChange, log Printer) error {
-	for _, change := range imageChanges {
-		if change.ShouldPush() {
-			err := retry.Do(
-				func() error {
-					log.Printf("Pushing %s... ", change.RewrittenReference.Name())
-					err := internal.Image.Push(change.Image, change.RewrittenReference)
-					if err != nil {
-						log.Println("")
-						return err
-					}
-					log.Println("Done")
-					return nil
-				},
-				retry.Attempts(Retries),
-				retry.OnRetry(func(n uint, err error) {
-					log.PrintErrf("Attempt #%d failed: %s\n", n+1, err.Error())
-				}),
-			)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func PrintChanges(imageChanges []*ImageChange, chartChanges []*pkg.RewriteAction, log Printer) {
-	log.Println("\nImages to be pushed:")
-	noImagesToPush := true
-	for _, change := range imageChanges {
-		if change.ShouldPush() {
-			log.Printf("  %s (%s)\n", change.RewrittenReference.Name(), change.Digest)
-			noImagesToPush = false
-		}
-	}
-	if noImagesToPush {
-		log.Printf("  no images require pushing")
-	}
-
-	var chartToModify *chart.Chart
-	for _, change := range chartChanges {
-		destination := change.FindChartDestination(Chart)
-		if chartToModify != destination {
-			chartToModify = destination
-			log.Printf("\nChanges written to %s/values.yaml:\n", chartToModify.ChartFullPath())
-		}
-		log.Printf("  %s: %s\n", change.Path, change.Value)
-	}
 }

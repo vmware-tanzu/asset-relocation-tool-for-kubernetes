@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -14,22 +12,12 @@ import (
 	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/chartutil"
 )
 
 var (
 	Chart         *chart.Chart
 	ImagePatterns []*pkg.ImageTemplate
 )
-
-type Printer interface {
-	Print(i ...interface{})
-	Println(i ...interface{})
-	Printf(format string, i ...interface{})
-	PrintErr(i ...interface{})
-	PrintErrln(i ...interface{})
-	PrintErrf(format string, i ...interface{})
-}
 
 func LoadChart(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 || args[0] == "" {
@@ -140,42 +128,4 @@ func GetConfirmation(input io.Reader) (bool, error) {
 
 	}
 	return false, nil
-}
-
-func ModifyChart(originalChart *chart.Chart, actions []*pkg.RewriteAction, targetFormat string) error {
-	var err error
-	modifiedChart := originalChart
-	for _, action := range actions {
-		modifiedChart, err = action.Apply(modifiedChart)
-		if err != nil {
-			return err
-		}
-	}
-
-	return SaveChart(modifiedChart, targetFormat)
-}
-
-func SaveChart(chart *chart.Chart, targetFormat string) error {
-	cwd, _ := os.Getwd()
-	tempDir, err := ioutil.TempDir(cwd, "relok8s-*")
-	if err != nil {
-		return err
-	}
-
-	filename, err := chartutil.Save(chart, tempDir)
-	if err != nil {
-		return err
-	}
-
-	destinationFile := TargetOutput(cwd, targetFormat, chart.Name(), chart.Metadata.Version)
-	err = os.Rename(filename, destinationFile)
-	if err != nil {
-		return err
-	}
-
-	return os.Remove(tempDir)
-}
-
-func TargetOutput(cwd, targetFormat, name, version string) string {
-	return filepath.Join(cwd, fmt.Sprintf(targetFormat, name, version))
 }
