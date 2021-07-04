@@ -1,4 +1,4 @@
-package pkg
+package mover
 
 type RewriteRules struct {
 	Registry         string `json:"registry,omitempty"`

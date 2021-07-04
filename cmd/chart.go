@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover"
 )
 
 const (
@@ -22,7 +22,7 @@ var (
 	RulesFile            string
 	RegistryRule         string
 	RepositoryPrefixRule string
-	Rules                *pkg.RewriteRules
+	Rules                *mover.RewriteRules
 	Output               string
 )
 
@@ -73,12 +73,12 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to move chart: %w", err)
 	}
 
-	relocation, err := pkg.Compute(Chart, ImagePatterns, Rules, cmd)
+	chartMover, err := mover.NewChartMover(Chart, ImagePatterns, Rules, cmd)
 	if err != nil {
 		return err
 	}
 
-	pkg.PrintChanges(relocation, cmd)
+	chartMover.Print(cmd)
 
 	if !skipConfirmation {
 		cmd.Println("Would you like to proceed? (y/N)")
@@ -93,7 +93,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return pkg.Apply(relocation, outputFmt, Retries, cmd)
+	return chartMover.Apply(outputFmt, Retries, cmd)
 }
 
 func ParseOutputFlag(out string) (string, error) {
