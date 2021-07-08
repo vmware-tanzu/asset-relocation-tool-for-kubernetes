@@ -48,9 +48,9 @@ resources:
     type: registry-image
     icon: docker
     source:
-      repository: harbor-repo.vmware.com/tanzu_isv_engineering/relok8s
-      username: ((harbor.username))
-      password: ((harbor.token))
+      repository: projects.registry.vmware.com/tanzu_isv_engineering/relok8s
+      username: ((harbor-public.username))
+      password: ((harbor-public.token))
 
   - name: release
     type: gl-release
