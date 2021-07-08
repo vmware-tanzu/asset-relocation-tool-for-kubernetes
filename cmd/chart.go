@@ -1,12 +1,16 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
 const (
@@ -22,8 +26,11 @@ var (
 	RulesFile            string
 	RegistryRule         string
 	RepositoryPrefixRule string
-	Rules                *mover.RewriteRules
-	Output               string
+
+	Chart         *chart.Chart
+	ImagePatterns []*mover.ImageTemplate
+	Rules         *mover.RewriteRules
+	Output        string
 )
 
 var (
@@ -65,6 +72,43 @@ var ChartMoveCmd = &cobra.Command{
 	RunE:    MoveChart,
 }
 
+func RunSerially(funcs ...func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		for _, fn := range funcs {
+			err := fn(cmd, args)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func LoadChart(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 || args[0] == "" {
+		return fmt.Errorf("missing helm chart")
+	}
+
+	var err error
+	Chart, err = loader.Load(args[0])
+	if err != nil {
+		return fmt.Errorf("failed to load helm chart at \"%s\": %w", args[0], err)
+	}
+	return nil
+}
+
+func LoadImagePatterns(cmd *cobra.Command, args []string) error {
+	var err error
+	ImagePatterns, err = mover.LoadImagePatterns(Chart, ImagePatternsFile, cmd)
+	return err
+}
+
+func ParseRules(cmd *cobra.Command, args []string) error {
+	var err error
+	Rules, err = mover.ParseRules(RegistryRule, RepositoryPrefixRule, RulesFile)
+	return err
+}
+
 func MoveChart(cmd *cobra.Command, args []string) error {
 	cmd.SilenceUsage = true
 
@@ -104,4 +148,19 @@ func ParseOutputFlag(out string) (string, error) {
 		return "", fmt.Errorf("%w: %s", ErrorBadExtension, out)
 	}
 	return strings.Replace(out, "*", "%s-%s", 1), nil
+}
+
+func GetConfirmation(input io.Reader) (bool, error) {
+	reader := bufio.NewReader(input)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false, err
+	}
+	response = strings.ToLower(strings.TrimSpace(response))
+
+	if response == "y" || response == "yes" {
+		return true, nil
+
+	}
+	return false, nil
 }
