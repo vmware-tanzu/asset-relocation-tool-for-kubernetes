@@ -1,32 +1,32 @@
-package pkg_test
+package mover_test
 
 import (
 	"github.com/google/go-containerregistry/pkg/name"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	. "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/test"
 )
 
-var _ = Describe("NewFromString", func() {
+var _ = Describe("mover.NewFromString", func() {
 	Context("Empty string", func() {
 		It("returns an error", func() {
-			_, err := NewFromString("")
+			_, err := mover.NewFromString("")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("failed to parse image template \"\": missing repo or a registry fragment"))
 		})
 	})
 	Context("Invalid template", func() {
 		It("returns an error", func() {
-			_, err := NewFromString("not a template")
+			_, err := mover.NewFromString("not a template")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("failed to parse image template \"not a template\": missing repo or a registry fragment"))
 		})
 	})
 	Context("Single template", func() {
 		It("parses successfully", func() {
-			imageTemplate, err := NewFromString("{{ .image }}")
+			imageTemplate, err := mover.NewFromString("{{ .image }}")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(imageTemplate.Raw).To(Equal("{{ .image }}"))
 			Expect(imageTemplate.RegistryTemplate).To(Equal(""))
@@ -38,7 +38,7 @@ var _ = Describe("NewFromString", func() {
 
 	})
 	Context("Image and tag", func() {
-		imageTemplate, err := NewFromString("{{ .image }}:{{ .tag }}")
+		imageTemplate, err := mover.NewFromString("{{ .image }}:{{ .tag }}")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(imageTemplate.Raw).To(Equal("{{ .image }}:{{ .tag }}"))
 		Expect(imageTemplate.RegistryTemplate).To(Equal(""))
@@ -49,13 +49,13 @@ var _ = Describe("NewFromString", func() {
 	})
 	Context("Image and multiple tags", func() {
 		It("returns an error", func() {
-			_, err := NewFromString("{{ .image }}:{{ .tag1 }}:{{ .tag2 }}")
+			_, err := mover.NewFromString("{{ .image }}:{{ .tag1 }}:{{ .tag2 }}")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("failed to parse image template \"{{ .image }}:{{ .tag1 }}:{{ .tag2 }}\": too many tag template matches"))
 		})
 	})
 	Context("Image and digest", func() {
-		imageTemplate, err := NewFromString("{{ .image }}@{{ .digest }}")
+		imageTemplate, err := mover.NewFromString("{{ .image }}@{{ .digest }}")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(imageTemplate.Raw).To(Equal("{{ .image }}@{{ .digest }}"))
 		Expect(imageTemplate.RegistryTemplate).To(Equal(""))
@@ -66,14 +66,14 @@ var _ = Describe("NewFromString", func() {
 	})
 	Context("Image and multiple digests", func() {
 		It("returns an error", func() {
-			_, err := NewFromString("{{ .image }}@{{ .digest1 }}@{{ .digest2 }}")
+			_, err := mover.NewFromString("{{ .image }}@{{ .digest1 }}@{{ .digest2 }}")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("failed to parse image template \"{{ .image }}@{{ .digest1 }}@{{ .digest2 }}\": too many digest template matches"))
 		})
 
 	})
 	Context("registry, image, and tag", func() {
-		imageTemplate, err := NewFromString("{{ .registry }}/{{ .image }}:{{ .tag }}")
+		imageTemplate, err := mover.NewFromString("{{ .registry }}/{{ .image }}:{{ .tag }}")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(imageTemplate.Raw).To(Equal("{{ .registry }}/{{ .image }}:{{ .tag }}"))
 		Expect(imageTemplate.RegistryTemplate).To(Equal(".registry"))
@@ -84,7 +84,7 @@ var _ = Describe("NewFromString", func() {
 	})
 	Context("Too many templates", func() {
 		It("returns an error", func() {
-			_, err := NewFromString("{{ .a }}/{{ .b }}/{{ .c }}/{{ .d }}")
+			_, err := mover.NewFromString("{{ .a }}/{{ .b }}/{{ .c }}/{{ .d }}")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("failed to parse image template \"{{ .a }}/{{ .b }}/{{ .c }}/{{ .d }}\": more fragments than expected"))
 		})
@@ -99,7 +99,7 @@ type TableInput struct {
 type TableOutput struct {
 	Image          string
 	RewrittenImage string
-	Actions        []*RewriteAction
+	Actions        []*mover.RewriteAction
 }
 
 var (
@@ -183,29 +183,29 @@ var (
 		Template: "{{ .lazy.registry }}/{{ .lazy.image }}:{{ .lazy.tag }}",
 	}
 
-	registryRule             = &RewriteRules{Registry: "registry.vmware.com"}
-	repositoryPrefixRule     = &RewriteRules{RepositoryPrefix: "my-company"}
-	repositoryRule           = &RewriteRules{Repository: "owner/name"}
-	tagRule                  = &RewriteRules{Tag: "explosive"}
-	digestRule               = &RewriteRules{Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
-	registryAndPrefixRule    = &RewriteRules{Registry: "registry.vmware.com", RepositoryPrefix: "my-company"}
-	registryAndTagRule       = &RewriteRules{Registry: "registry.vmware.com", Tag: "explosive"}
-	registryAndDigestRule    = &RewriteRules{Registry: "registry.vmware.com", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
-	registryTagAndDigestRule = &RewriteRules{Registry: "registry.vmware.com", Tag: "explosive", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
+	registryRule             = &mover.RewriteRules{Registry: "registry.vmware.com"}
+	repositoryPrefixRule     = &mover.RewriteRules{RepositoryPrefix: "my-company"}
+	repositoryRule           = &mover.RewriteRules{Repository: "owner/name"}
+	tagRule                  = &mover.RewriteRules{Tag: "explosive"}
+	digestRule               = &mover.RewriteRules{Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
+	registryAndPrefixRule    = &mover.RewriteRules{Registry: "registry.vmware.com", RepositoryPrefix: "my-company"}
+	registryAndTagRule       = &mover.RewriteRules{Registry: "registry.vmware.com", Tag: "explosive"}
+	registryAndDigestRule    = &mover.RewriteRules{Registry: "registry.vmware.com", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
+	registryTagAndDigestRule = &mover.RewriteRules{Registry: "registry.vmware.com", Tag: "explosive", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
 )
 
 var _ = DescribeTable("Rewrite Actions",
-	func(input *TableInput, rules *RewriteRules, expected *TableOutput) {
+	func(input *TableInput, rules *mover.RewriteRules, expected *TableOutput) {
 		var (
 			err           error
 			chart         = test.MakeChart(input.ParentChart)
-			template      *ImageTemplate
+			template      *mover.ImageTemplate
 			originalImage name.Reference
-			actions       []*RewriteAction
+			actions       []*mover.RewriteAction
 		)
 
 		By("parsing the template string", func() {
-			template, err = NewFromString(input.Template)
+			template, err = mover.NewFromString(input.Template)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(template.Raw).To(Equal(input.Template))
 			Expect(template.Template).ToNot(BeNil())
@@ -235,7 +235,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image alone, registry only", imageAlone, registryRule, &TableOutput{
 		Image:          "index.docker.io/library/ubuntu:latest",
 		RewrittenImage: "registry.vmware.com/library/ubuntu:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/library/ubuntu:latest",
@@ -245,7 +245,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image alone, repository prefix only", imageAlone, repositoryPrefixRule, &TableOutput{
 		Image:          "index.docker.io/library/ubuntu:latest",
 		RewrittenImage: "index.docker.io/my-company/ubuntu:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "index.docker.io/my-company/ubuntu:latest",
@@ -255,7 +255,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image alone, repository only", imageAlone, repositoryRule, &TableOutput{
 		Image:          "index.docker.io/library/ubuntu:latest",
 		RewrittenImage: "index.docker.io/owner/name:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "index.docker.io/owner/name:latest",
@@ -265,7 +265,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image alone, tag only", imageAlone, tagRule, &TableOutput{
 		Image:          "index.docker.io/library/ubuntu:latest",
 		RewrittenImage: "index.docker.io/library/ubuntu:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "index.docker.io/library/ubuntu:explosive",
@@ -275,7 +275,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image alone, digest only", imageAlone, digestRule, &TableOutput{
 		Image:          "index.docker.io/library/ubuntu:latest",
 		RewrittenImage: "index.docker.io/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "index.docker.io/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -285,7 +285,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image alone, registry and prefix", imageAlone, registryAndPrefixRule, &TableOutput{
 		Image:          "index.docker.io/library/ubuntu:latest",
 		RewrittenImage: "registry.vmware.com/my-company/ubuntu:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/my-company/ubuntu:latest",
@@ -295,7 +295,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image alone, registry and tag", imageAlone, registryAndTagRule, &TableOutput{
 		Image:          "index.docker.io/library/ubuntu:latest",
 		RewrittenImage: "registry.vmware.com/library/ubuntu:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/library/ubuntu:explosive",
@@ -305,7 +305,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image alone, registry and digest", imageAlone, registryAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/library/ubuntu:latest",
 		RewrittenImage: "registry.vmware.com/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -315,7 +315,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image alone, registry and tag and digest", imageAlone, registryTagAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/library/ubuntu:latest",
 		RewrittenImage: "registry.vmware.com/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -326,7 +326,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and tag, registry only", imageAndTag, registryRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "registry.vmware.com/petewall/amazingapp:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/petewall/amazingapp",
@@ -336,7 +336,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and tag, repository prefix only", imageAndTag, repositoryPrefixRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "index.docker.io/my-company/amazingapp:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "index.docker.io/my-company/amazingapp",
@@ -346,7 +346,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and tag, repository only", imageAndTag, repositoryRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "index.docker.io/owner/name:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "index.docker.io/owner/name",
@@ -356,7 +356,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and tag, tag only", imageAndTag, tagRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "index.docker.io/petewall/amazingapp:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".tag",
 				Value: "explosive",
@@ -366,12 +366,12 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and tag, digest only", imageAndTag, digestRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "index.docker.io/petewall/amazingapp:latest",
-		Actions:        []*RewriteAction{},
+		Actions:        []*mover.RewriteAction{},
 	}),
 	Entry("image and tag, registry and prefix", imageAndTag, registryAndPrefixRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "registry.vmware.com/my-company/amazingapp:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/my-company/amazingapp",
@@ -381,7 +381,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and tag, registry and tag", imageAndTag, registryAndTagRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "registry.vmware.com/petewall/amazingapp:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/petewall/amazingapp",
@@ -395,7 +395,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and tag, registry and digest", imageAndTag, registryAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "registry.vmware.com/petewall/amazingapp:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/petewall/amazingapp",
@@ -405,7 +405,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and tag, registry and tag and digest", imageAndTag, registryTagAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "registry.vmware.com/petewall/amazingapp:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/petewall/amazingapp",
@@ -420,7 +420,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry and image, registry only", registryAndImage, registryRule, &TableOutput{
 		Image:          "quay.io/proxy/nginx:latest",
 		RewrittenImage: "registry.vmware.com/proxy/nginx:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".registry",
 				Value: "registry.vmware.com",
@@ -430,7 +430,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry and image, repository prefix only", registryAndImage, repositoryPrefixRule, &TableOutput{
 		Image:          "quay.io/proxy/nginx:latest",
 		RewrittenImage: "quay.io/my-company/nginx:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "my-company/nginx:latest",
@@ -440,7 +440,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry and image, repository only", registryAndImage, repositoryRule, &TableOutput{
 		Image:          "quay.io/proxy/nginx:latest",
 		RewrittenImage: "quay.io/owner/name:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "owner/name:latest",
@@ -450,7 +450,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry and image, tag only", registryAndImage, tagRule, &TableOutput{
 		Image:          "quay.io/proxy/nginx:latest",
 		RewrittenImage: "quay.io/proxy/nginx:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "proxy/nginx:explosive",
@@ -460,7 +460,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry and image, digest only", registryAndImage, digestRule, &TableOutput{
 		Image:          "quay.io/proxy/nginx:latest",
 		RewrittenImage: "quay.io/proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -470,7 +470,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry and image, registry and prefix", registryAndImage, registryAndPrefixRule, &TableOutput{
 		Image:          "quay.io/proxy/nginx:latest",
 		RewrittenImage: "registry.vmware.com/my-company/nginx:latest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".registry",
 				Value: "registry.vmware.com",
@@ -484,7 +484,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry and image, registry and tag", registryAndImage, registryAndTagRule, &TableOutput{
 		Image:          "quay.io/proxy/nginx:latest",
 		RewrittenImage: "registry.vmware.com/proxy/nginx:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".registry",
 				Value: "registry.vmware.com",
@@ -498,7 +498,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry and image, registry and digest", registryAndImage, registryAndDigestRule, &TableOutput{
 		Image:          "quay.io/proxy/nginx:latest",
 		RewrittenImage: "registry.vmware.com/proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".registry",
 				Value: "registry.vmware.com",
@@ -512,7 +512,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry and image, registry and tag and digest", registryAndImage, registryTagAndDigestRule, &TableOutput{
 		Image:          "quay.io/proxy/nginx:latest",
 		RewrittenImage: "registry.vmware.com/proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".registry",
 				Value: "registry.vmware.com",
@@ -527,7 +527,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry, image, and tag, registry only", registryImageAndTag, registryRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/busycontainers/busybox:busiest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".registry",
 				Value: "registry.vmware.com",
@@ -537,7 +537,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry, image, and tag, repository prefix only", registryImageAndTag, repositoryPrefixRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "quay.io/my-company/busybox:busiest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "my-company/busybox",
@@ -547,7 +547,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry, image, and tag, repository only", registryImageAndTag, repositoryRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "quay.io/owner/name:busiest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "owner/name",
@@ -557,7 +557,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry, image, and tag, tag only", registryImageAndTag, tagRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "quay.io/busycontainers/busybox:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".tag",
 				Value: "explosive",
@@ -567,12 +567,12 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry, image, and tag, digest only", registryImageAndTag, digestRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "quay.io/busycontainers/busybox:busiest",
-		Actions:        []*RewriteAction{},
+		Actions:        []*mover.RewriteAction{},
 	}),
 	Entry("registry, image, and tag, registry and prefix", registryImageAndTag, registryAndPrefixRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/my-company/busybox:busiest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".registry",
 				Value: "registry.vmware.com",
@@ -586,7 +586,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry, image, and tag, registry and tag", registryImageAndTag, registryAndTagRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/busycontainers/busybox:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".registry",
 				Value: "registry.vmware.com",
@@ -600,7 +600,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry, image, and tag, registry and digest", registryImageAndTag, registryAndDigestRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/busycontainers/busybox:busiest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".registry",
 				Value: "registry.vmware.com",
@@ -610,7 +610,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("registry, image, and tag, registry and tag and digest", registryImageAndTag, registryTagAndDigestRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/busycontainers/busybox:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".registry",
 				Value: "registry.vmware.com",
@@ -625,7 +625,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and digest, registry only", imageAndDigest, registryRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/petewall/platformio",
@@ -635,7 +635,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and digest, repository prefix only", imageAndDigest, repositoryPrefixRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RewrittenImage: "index.docker.io/my-company/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "index.docker.io/my-company/platformio",
@@ -645,7 +645,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and digest, repository only", imageAndDigest, repositoryRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RewrittenImage: "index.docker.io/owner/name@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "index.docker.io/owner/name",
@@ -655,12 +655,12 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and digest, tag only", imageAndDigest, tagRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RewrittenImage: "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Actions:        []*RewriteAction{},
+		Actions:        []*mover.RewriteAction{},
 	}),
 	Entry("image and digest, digest only", imageAndDigest, digestRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RewrittenImage: "index.docker.io/petewall/platformio@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".digest",
 				Value: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -670,7 +670,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and digest, registry and prefix", imageAndDigest, registryAndPrefixRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RewrittenImage: "registry.vmware.com/my-company/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/my-company/platformio",
@@ -680,7 +680,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and digest, registry and tag", imageAndDigest, registryAndTagRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/petewall/platformio",
@@ -690,7 +690,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and digest, registry and digest", imageAndDigest, registryAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/petewall/platformio",
@@ -704,7 +704,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("image and digest, registry and tag and digest", imageAndDigest, registryTagAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image",
 				Value: "registry.vmware.com/petewall/platformio",
@@ -719,7 +719,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("nested values, registry only", nestedValues, registryRule, &TableOutput{
 		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
 		RewrittenImage: "registry.vmware.com/bitnami/wordpress:1.2.3",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image.registry",
 				Value: "registry.vmware.com",
@@ -729,7 +729,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("nested values, repository prefix only", nestedValues, repositoryPrefixRule, &TableOutput{
 		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
 		RewrittenImage: "index.docker.io/my-company/wordpress:1.2.3",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image.repository",
 				Value: "my-company/wordpress",
@@ -739,7 +739,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("nested values, repository only", nestedValues, repositoryRule, &TableOutput{
 		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
 		RewrittenImage: "index.docker.io/owner/name:1.2.3",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image.repository",
 				Value: "owner/name",
@@ -749,7 +749,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("nested values, tag only", nestedValues, tagRule, &TableOutput{
 		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
 		RewrittenImage: "index.docker.io/bitnami/wordpress:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image.tag",
 				Value: "explosive",
@@ -759,12 +759,12 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("nested values, digest only", nestedValues, digestRule, &TableOutput{
 		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
 		RewrittenImage: "index.docker.io/bitnami/wordpress:1.2.3",
-		Actions:        []*RewriteAction{},
+		Actions:        []*mover.RewriteAction{},
 	}),
 	Entry("nested values, registry and prefix", nestedValues, registryAndPrefixRule, &TableOutput{
 		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
 		RewrittenImage: "registry.vmware.com/my-company/wordpress:1.2.3",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image.registry",
 				Value: "registry.vmware.com",
@@ -778,7 +778,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("nested values, registry and tag", nestedValues, registryAndTagRule, &TableOutput{
 		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
 		RewrittenImage: "registry.vmware.com/bitnami/wordpress:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image.registry",
 				Value: "registry.vmware.com",
@@ -792,7 +792,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("nested values, registry and digest", nestedValues, registryAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
 		RewrittenImage: "registry.vmware.com/bitnami/wordpress:1.2.3",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image.registry",
 				Value: "registry.vmware.com",
@@ -802,7 +802,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("nested values, registry and tag and digest", nestedValues, registryTagAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
 		RewrittenImage: "registry.vmware.com/bitnami/wordpress:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".image.registry",
 				Value: "registry.vmware.com",
@@ -817,7 +817,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("dependency image and digest, registry only", dependencyRegistryImageAndTag, registryRule, &TableOutput{
 		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:laziest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".lazy.registry",
 				Value: "registry.vmware.com",
@@ -827,7 +827,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("dependency image and digest, repository prefix only", dependencyRegistryImageAndTag, repositoryPrefixRule, &TableOutput{
 		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "index.docker.io/my-company/lazybox:laziest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".lazy.image",
 				Value: "my-company/lazybox",
@@ -837,7 +837,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("dependency image and digest, repository only", dependencyRegistryImageAndTag, repositoryRule, &TableOutput{
 		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "index.docker.io/owner/name:laziest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".lazy.image",
 				Value: "owner/name",
@@ -847,7 +847,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("dependency image and digest, tag only", dependencyRegistryImageAndTag, tagRule, &TableOutput{
 		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "index.docker.io/lazycontainers/lazybox:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".lazy.tag",
 				Value: "explosive",
@@ -857,12 +857,12 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("dependency image and digest, digest only", dependencyRegistryImageAndTag, digestRule, &TableOutput{
 		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "index.docker.io/lazycontainers/lazybox:laziest",
-		Actions:        []*RewriteAction{},
+		Actions:        []*mover.RewriteAction{},
 	}),
 	Entry("dependency image and digest, registry and prefix", dependencyRegistryImageAndTag, registryAndPrefixRule, &TableOutput{
 		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "registry.vmware.com/my-company/lazybox:laziest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".lazy.registry",
 				Value: "registry.vmware.com",
@@ -876,7 +876,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("dependency image and digest, registry and tag", dependencyRegistryImageAndTag, registryAndTagRule, &TableOutput{
 		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".lazy.registry",
 				Value: "registry.vmware.com",
@@ -890,7 +890,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("dependency image and digest, registry and digest", dependencyRegistryImageAndTag, registryAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:laziest",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".lazy.registry",
 				Value: "registry.vmware.com",
@@ -900,7 +900,7 @@ var _ = DescribeTable("Rewrite Actions",
 	Entry("dependency image and digest, registry and tag and digest", dependencyRegistryImageAndTag, registryTagAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:explosive",
-		Actions: []*RewriteAction{
+		Actions: []*mover.RewriteAction{
 			{
 				Path:  ".lazy.registry",
 				Value: "registry.vmware.com",

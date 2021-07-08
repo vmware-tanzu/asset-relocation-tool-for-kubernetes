@@ -1,4 +1,4 @@
-package pkg_test
+package mover_test
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/cmd"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal/internalfakes"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/test"
 )
 
@@ -80,8 +80,8 @@ var chart = test.MakeChart(&test.ChartSeed{
 
 const testRetries = 3
 
-func NewPattern(input string) *pkg.ImageTemplate {
-	template, err := pkg.NewFromString(input)
+func NewPattern(input string) *mover.ImageTemplate {
+	template, err := mover.NewFromString(input)
 	Expect(err).ToNot(HaveOccurred())
 	return template
 }
@@ -109,13 +109,13 @@ var _ = Describe("Chart", func() {
 			fakeImage.PullReturnsOnCall(0, image1, digest1, nil)
 			fakeImage.PullReturnsOnCall(1, image2, digest2, nil)
 
-			patterns := []*pkg.ImageTemplate{
+			patterns := []*mover.ImageTemplate{
 				NewPattern("{{.image.registry}}/{{.image.repository}}"),
 				NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 			}
 
 			printer := NewPrinter()
-			changes, err := pkg.PullOriginalImages(chart, patterns, printer)
+			changes, err := mover.PullOriginalImages(chart, patterns, printer)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("pulling the images", func() {
@@ -146,13 +146,13 @@ var _ = Describe("Chart", func() {
 				image := MakeImage(digest)
 				fakeImage.PullReturns(image, digest, nil)
 
-				patterns := []*pkg.ImageTemplate{
+				patterns := []*mover.ImageTemplate{
 					NewPattern("{{.image.registry}}/{{.image.repository}}"),
 					NewPattern("{{.secondimage.registry}}/{{.secondimage.repository}}:{{.secondimage.tag}}"),
 				}
 
 				printer := NewPrinter()
-				changes, err := pkg.PullOriginalImages(chart, patterns, printer)
+				changes, err := mover.PullOriginalImages(chart, patterns, printer)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("pulling the image once", func() {
@@ -179,12 +179,12 @@ var _ = Describe("Chart", func() {
 		Context("error pulling an image", func() {
 			It("returns the error", func() {
 				fakeImage.PullReturns(nil, "", fmt.Errorf("image pull error"))
-				patterns := []*pkg.ImageTemplate{
+				patterns := []*mover.ImageTemplate{
 					NewPattern("{{.image.registry}}/{{.image.repository}}"),
 				}
 
 				printer := NewPrinter()
-				_, err := pkg.PullOriginalImages(chart, patterns, printer)
+				_, err := mover.PullOriginalImages(chart, patterns, printer)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("image pull error"))
 				Expect(printer.Out).To(Say("Pulling index.docker.io/bitnami/wordpress:1.2.3..."))
@@ -194,7 +194,7 @@ var _ = Describe("Chart", func() {
 
 	Describe("CheckNewImages", func() {
 		It("checks if the rewritten images are present", func() {
-			changes := []*pkg.ImageChange{
+			changes := []*mover.ImageChange{
 				{
 					Pattern:        NewPattern("{{.image.registry}}/{{.image.repository}}"),
 					ImageReference: name.MustParseReference("index.docker.io/bitnami/wordpress:1.2.3"),
@@ -208,7 +208,7 @@ var _ = Describe("Chart", func() {
 					Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 			}
-			rules := &pkg.RewriteRules{
+			rules := &mover.RewriteRules{
 				Registry:         "harbor-repo.vmware.com",
 				RepositoryPrefix: "pwall",
 			}
@@ -217,7 +217,7 @@ var _ = Describe("Chart", func() {
 			fakeImage.CheckReturnsOnCall(0, true, nil)  // Pretend it doesn't exist
 			fakeImage.CheckReturnsOnCall(1, false, nil) // Pretend it already exists
 
-			relocation, err := pkg.CheckNewImages(chart, changes, rules, printer)
+			relocation, err := mover.CheckNewImages(chart, changes, rules, printer)
 			newChanges := relocation.ImageChanges
 			actions := relocation.ChartChanges
 			Expect(err).ToNot(HaveOccurred())
@@ -249,7 +249,7 @@ var _ = Describe("Chart", func() {
 
 			By("returning a list of changes that would need to be applied to the chart", func() {
 				Expect(actions).To(HaveLen(4))
-				Expect(actions).To(ContainElements([]*pkg.RewriteAction{
+				Expect(actions).To(ContainElements([]*mover.RewriteAction{
 					{
 						Path:  ".image.registry",
 						Value: "harbor-repo.vmware.com",
@@ -278,7 +278,7 @@ var _ = Describe("Chart", func() {
 		Context("two of the same image with different templates", func() {
 			It("only checks one image", func() {
 
-				changes := []*pkg.ImageChange{
+				changes := []*mover.ImageChange{
 					{
 						Pattern:        NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 						ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
@@ -292,7 +292,7 @@ var _ = Describe("Chart", func() {
 						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 					},
 				}
-				rules := &pkg.RewriteRules{
+				rules := &mover.RewriteRules{
 					Registry:         "harbor-repo.vmware.com",
 					RepositoryPrefix: "pwall",
 				}
@@ -300,7 +300,7 @@ var _ = Describe("Chart", func() {
 
 				fakeImage.CheckReturns(true, nil) // Pretend it doesn't exist
 
-				relocation, err := pkg.CheckNewImages(chart, changes, rules, printer)
+				relocation, err := mover.CheckNewImages(chart, changes, rules, printer)
 				newChanges := relocation.ImageChanges
 				actions := relocation.ChartChanges
 				Expect(err).ToNot(HaveOccurred())
@@ -329,7 +329,7 @@ var _ = Describe("Chart", func() {
 
 				By("returning a list of changes that would need to be applied to the chart", func() {
 					Expect(actions).To(HaveLen(4))
-					Expect(actions).To(ContainElements([]*pkg.RewriteAction{
+					Expect(actions).To(ContainElements([]*mover.RewriteAction{
 						{
 							Path:  ".observability.image.registry",
 							Value: "harbor-repo.vmware.com",
@@ -357,9 +357,9 @@ var _ = Describe("Chart", func() {
 	})
 
 	Describe("PushRewrittenImages", func() {
-		var images []*pkg.ImageChange
+		var images []*mover.ImageChange
 		BeforeEach(func() {
-			images = []*pkg.ImageChange{
+			images = []*mover.ImageChange{
 				{
 					ImageReference:     name.MustParseReference("acme/busybox:1.2.3"),
 					RewrittenReference: name.MustParseReference("harbor-repo.vmware.com/pwall/busybox:1.2.3"),
@@ -370,7 +370,7 @@ var _ = Describe("Chart", func() {
 
 		It("pushes the images", func() {
 			printer := NewPrinter()
-			err := pkg.PushRewrittenImages(images, testRetries, printer)
+			err := mover.PushRewrittenImages(images, testRetries, printer)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("pushing the image", func() {
@@ -389,7 +389,7 @@ var _ = Describe("Chart", func() {
 			It("does not push the image", func() {
 				images[0].RewrittenReference = images[0].ImageReference
 				printer := NewPrinter()
-				err := pkg.PushRewrittenImages(images, testRetries, printer)
+				err := mover.PushRewrittenImages(images, testRetries, printer)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("not pushing the image", func() {
@@ -402,7 +402,7 @@ var _ = Describe("Chart", func() {
 			It("does not push the image", func() {
 				images[0].AlreadyPushed = true
 				printer := NewPrinter()
-				err := pkg.PushRewrittenImages(images, testRetries, printer)
+				err := mover.PushRewrittenImages(images, testRetries, printer)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("not pushing the image", func() {
@@ -419,7 +419,7 @@ var _ = Describe("Chart", func() {
 
 			It("retries and passes", func() {
 				printer := NewPrinter()
-				err := pkg.PushRewrittenImages(images, testRetries, printer)
+				err := mover.PushRewrittenImages(images, testRetries, printer)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("trying to push the image twice", func() {
@@ -442,7 +442,7 @@ var _ = Describe("Chart", func() {
 
 			It("returns an error", func() {
 				printer := NewPrinter()
-				err := pkg.PushRewrittenImages(images, testRetries, printer)
+				err := mover.PushRewrittenImages(images, testRetries, printer)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("All attempts fail:\n#1: push failed\n#2: push failed\n#3: push failed"))
 
@@ -466,11 +466,11 @@ var _ = Describe("Chart", func() {
 		It("works with default out flag", func() {
 			outFmt, err := cmd.ParseOutputFlag(cmd.Output)
 			Expect(err).To(BeNil())
-			target := pkg.TargetOutput("path", outFmt, "my-chart", "0.1")
+			target := mover.TargetOutput("path", outFmt, "my-chart", "0.1")
 			Expect(target).To(Equal("path/my-chart-0.1.relocated.tgz"))
 		})
 		It("builds custom out input as expected", func() {
-			target := pkg.TargetOutput("path", "%s-%s-wildcardhere.tgz", "my-chart", "0.1")
+			target := mover.TargetOutput("path", "%s-%s-wildcardhere.tgz", "my-chart", "0.1")
 			Expect(target).To(Equal("path/my-chart-0.1-wildcardhere.tgz"))
 		})
 	})
