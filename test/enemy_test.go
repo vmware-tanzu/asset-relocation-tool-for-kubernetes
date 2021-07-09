@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover"
 	"helm.sh/helm/v3/pkg/chart/loader"
 
 	. "github.com/bunniesandbeatings/goerkin"
@@ -55,7 +55,7 @@ var _ = Describe("External tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			customTag = fmt.Sprintf("%d", time.Now().Unix())
-			bytes, err := yaml.Marshal(&pkg.RewriteRules{
+			bytes, err := yaml.Marshal(&mover.RewriteRules{
 				Tag: customTag,
 			})
 			Expect(err).ToNot(HaveOccurred())
