@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
+	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -241,4 +242,76 @@ func saveChart(chart *chart.Chart, targetFormat string) error {
 
 func TargetOutput(cwd, targetFormat, name, version string) string {
 	return filepath.Join(cwd, fmt.Sprintf(targetFormat, name, version))
+}
+
+func LoadImagePatterns(chart *chart.Chart, imagePatternsFile string, log Printer) ([]*ImageTemplate, error) {
+	fileContents, err := ReadImagePatterns(imagePatternsFile, chart)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image pattern file: %w", err)
+	}
+
+	if fileContents == nil {
+		return nil, fmt.Errorf("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
+	}
+
+	if imagePatternsFile == "" {
+		log.Println("Using embedded image patterns file.")
+	}
+
+	var templateStrings []string
+	err = yaml.Unmarshal(fileContents, &templateStrings)
+	if err != nil {
+		return nil, fmt.Errorf("image pattern file is not in the correct format: %w", err)
+	}
+
+	imagePatterns := []*ImageTemplate{}
+	for _, line := range templateStrings {
+		temp, err := NewFromString(line)
+		if err != nil {
+			return nil, err
+		}
+		imagePatterns = append(imagePatterns, temp)
+	}
+
+	return imagePatterns, nil
+}
+
+func ReadImagePatterns(patternsFile string, chart *chart.Chart) ([]byte, error) {
+	if patternsFile != "" {
+		return ioutil.ReadFile(patternsFile)
+	}
+	for _, file := range chart.Files {
+		if file.Name == ".relok8s-images.yaml" && file.Data != nil {
+			return file.Data, nil
+		}
+	}
+	return nil, nil
+}
+
+func ParseRules(registryRule, repositoryPrefixRule, rulesFile string) (*RewriteRules, error) {
+	rules := &RewriteRules{}
+	if rulesFile != "" {
+		fileContents, err := ioutil.ReadFile(rulesFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read the rewrite rules file: %w", err)
+		}
+
+		err = yaml.UnmarshalStrict(fileContents, &rules)
+		if err != nil {
+			return nil, fmt.Errorf("the rewrite rules file is not in the correct format: %w", err)
+		}
+	}
+
+	if registryRule != "" {
+		rules.Registry = registryRule
+	}
+	if repositoryPrefixRule != "" {
+		rules.RepositoryPrefix = repositoryPrefixRule
+	}
+
+	if (*rules == RewriteRules{}) {
+		return nil, fmt.Errorf("Error: at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
+	}
+
+	return rules, nil
 }
