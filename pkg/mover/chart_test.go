@@ -2,7 +2,7 @@ package mover_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -87,8 +87,8 @@ var chart = test.MakeChart(&test.ChartSeed{
 
 const testRetries = 3
 
-func NewPattern(input string) *mover.ImageTemplate {
-	template, err := mover.NewFromString(input)
+func NewPattern(input string) *internal.ImageTemplate {
+	template, err := internal.NewFromString(input)
 	Expect(err).ToNot(HaveOccurred())
 	return template
 }
@@ -116,7 +116,7 @@ var _ = Describe("Chart", func() {
 			fakeImage.PullReturnsOnCall(0, image1, digest1, nil)
 			fakeImage.PullReturnsOnCall(1, image2, digest2, nil)
 
-			patterns := []*mover.ImageTemplate{
+			patterns := []*internal.ImageTemplate{
 				NewPattern("{{.image.registry}}/{{.image.repository}}"),
 				NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 			}
@@ -153,7 +153,7 @@ var _ = Describe("Chart", func() {
 				image := MakeImage(digest)
 				fakeImage.PullReturns(image, digest, nil)
 
-				patterns := []*mover.ImageTemplate{
+				patterns := []*internal.ImageTemplate{
 					NewPattern("{{.image.registry}}/{{.image.repository}}"),
 					NewPattern("{{.secondimage.registry}}/{{.secondimage.repository}}:{{.secondimage.tag}}"),
 				}
@@ -186,7 +186,7 @@ var _ = Describe("Chart", func() {
 		Context("error pulling an image", func() {
 			It("returns the error", func() {
 				fakeImage.PullReturns(nil, "", fmt.Errorf("image pull error"))
-				patterns := []*mover.ImageTemplate{
+				patterns := []*internal.ImageTemplate{
 					NewPattern("{{.image.registry}}/{{.image.repository}}"),
 				}
 
@@ -201,7 +201,7 @@ var _ = Describe("Chart", func() {
 
 	Describe("CheckNewImages", func() {
 		It("checks if the rewritten images are present", func() {
-			changes := []*mover.ImageChange{
+			changes := []*internal.ImageChange{
 				{
 					Pattern:        NewPattern("{{.image.registry}}/{{.image.repository}}"),
 					ImageReference: name.MustParseReference("index.docker.io/bitnami/wordpress:1.2.3"),
@@ -215,7 +215,7 @@ var _ = Describe("Chart", func() {
 					Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 			}
-			rules := &mover.RewriteRules{
+			rules := &internal.RewriteRules{
 				Registry:         "harbor-repo.vmware.com",
 				RepositoryPrefix: "pwall",
 			}
@@ -254,7 +254,7 @@ var _ = Describe("Chart", func() {
 
 			By("returning a list of changes that would need to be applied to the chart", func() {
 				Expect(actions).To(HaveLen(4))
-				Expect(actions).To(ContainElements([]*mover.RewriteAction{
+				Expect(actions).To(ContainElements([]*internal.RewriteAction{
 					{
 						Path:  ".image.registry",
 						Value: "harbor-repo.vmware.com",
@@ -283,7 +283,7 @@ var _ = Describe("Chart", func() {
 		Context("two of the same image with different templates", func() {
 			It("only checks one image", func() {
 
-				changes := []*mover.ImageChange{
+				changes := []*internal.ImageChange{
 					{
 						Pattern:        NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 						ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
@@ -297,7 +297,7 @@ var _ = Describe("Chart", func() {
 						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 					},
 				}
-				rules := &mover.RewriteRules{
+				rules := &internal.RewriteRules{
 					Registry:         "harbor-repo.vmware.com",
 					RepositoryPrefix: "pwall",
 				}
@@ -332,7 +332,7 @@ var _ = Describe("Chart", func() {
 
 				By("returning a list of changes that would need to be applied to the chart", func() {
 					Expect(actions).To(HaveLen(4))
-					Expect(actions).To(ContainElements([]*mover.RewriteAction{
+					Expect(actions).To(ContainElements([]*internal.RewriteAction{
 						{
 							Path:  ".observability.image.registry",
 							Value: "harbor-repo.vmware.com",
@@ -360,9 +360,9 @@ var _ = Describe("Chart", func() {
 	})
 
 	Describe("PushRewrittenImages", func() {
-		var images []*mover.ImageChange
+		var images []*internal.ImageChange
 		BeforeEach(func() {
-			images = []*mover.ImageChange{
+			images = []*internal.ImageChange{
 				{
 					ImageReference:     name.MustParseReference("acme/busybox:1.2.3"),
 					RewrittenReference: name.MustParseReference("harbor-repo.vmware.com/pwall/busybox:1.2.3"),
@@ -478,31 +478,33 @@ var _ = Describe("Chart", func() {
 		})
 	})
 
-	Describe("ReadImagePatterns", func() {
+	Describe("LoadImagePatterns", func() {
 		It("reads from given file first if present", func() {
 			imagefile := filepath.Join(FixturesRoot, "testchart.images.yaml")
-			contents, err := mover.ReadImagePatterns(imagefile, nil)
+			contents, err := mover.LoadImagePatterns(imagefile, nil)
 			Expect(err).To(BeNil())
-			expected, err2 := ioutil.ReadFile(imagefile)
+			expectedContents, err2 := os.ReadFile(imagefile)
+			expected := string(expectedContents)
 			Expect(err2).To(BeNil())
 			Expect(contents).To(Equal(expected))
 		})
 		It("reads from chart if file missing", func() {
 			chart, err := loader.Load(filepath.Join(FixturesRoot, "self-relok8ing-chart"))
 			Expect(err).To(BeNil())
-			contents, err2 := mover.ReadImagePatterns("", chart)
+			contents, err2 := mover.LoadImagePatterns("", chart)
 			Expect(err2).To(BeNil())
 			embeddedPatterns := filepath.Join(FixturesRoot, "self-relok8ing-chart/.relok8s-images.yaml")
-			expected, err3 := ioutil.ReadFile(embeddedPatterns)
+			expectedContents, err3 := os.ReadFile(embeddedPatterns)
+			expected := string(expectedContents)
 			Expect(err3).To(BeNil())
 			Expect(contents).To(Equal(expected))
 		})
 		It("reads nothing when no file and the chart is not self relok8able", func() {
 			chart, err := loader.Load(filepath.Join(FixturesRoot, "testchart"))
 			Expect(err).To(BeNil())
-			contents, err2 := mover.ReadImagePatterns("", chart)
+			contents, err2 := mover.LoadImagePatterns("", chart)
 			Expect(err2).To(BeNil())
-			Expect(contents).To(BeNil())
+			Expect(contents).To(BeEmpty())
 		})
 	})
 })

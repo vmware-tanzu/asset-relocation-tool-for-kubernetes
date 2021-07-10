@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strings"
 
@@ -27,10 +28,7 @@ var (
 	RegistryRule         string
 	RepositoryPrefixRule string
 
-	Chart         *chart.Chart
-	ImagePatterns []*mover.ImageTemplate
-	Rules         *mover.RewriteRules
-	Output        string
+	Output string
 )
 
 var (
@@ -59,57 +57,62 @@ func init() {
 	ChartMoveCmd.Flags().StringVar(&Output, "out", "./*.relocated.tgz", "Output chart name produced")
 }
 
-var ChartCmd = &cobra.Command{
-	Use: "chart",
-}
+var ChartCmd = &cobra.Command{Use: "chart"}
 
 var ChartMoveCmd = &cobra.Command{
 	Use:     "move <chart>",
 	Short:   "Lists the container images in a chart",
 	Long:    "Finds, renders and lists the container images found in a Helm chart, using an image template file to detect the templates that build the image reference.",
 	Example: "images <chart> -i <image templates>",
-	PreRunE: RunSerially(LoadChart, LoadImagePatterns, ParseRules),
 	RunE:    MoveChart,
 }
 
-func RunSerially(funcs ...func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
-	return func(cmd *cobra.Command, args []string) error {
-		for _, fn := range funcs {
-			err := fn(cmd, args)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-}
-
-func LoadChart(cmd *cobra.Command, args []string) error {
+func loadChart(cmd *cobra.Command, args []string) (*chart.Chart, error) {
 	if len(args) == 0 || args[0] == "" {
-		return fmt.Errorf("missing helm chart")
+		return nil, fmt.Errorf("missing helm chart")
 	}
 
 	var err error
-	Chart, err = loader.Load(args[0])
+	chart, err := loader.Load(args[0])
 	if err != nil {
-		return fmt.Errorf("failed to load helm chart at \"%s\": %w", args[0], err)
+		return nil, fmt.Errorf("failed to load helm chart at \"%s\": %w", args[0], err)
 	}
-	return nil
+	return chart, nil
 }
 
-func LoadImagePatterns(cmd *cobra.Command, args []string) error {
-	var err error
-	ImagePatterns, err = mover.LoadImagePatterns(Chart, ImagePatternsFile, cmd)
-	return err
-}
-
-func ParseRules(cmd *cobra.Command, args []string) error {
-	var err error
-	Rules, err = mover.ParseRules(RegistryRule, RepositoryPrefixRule, RulesFile)
-	return err
+func loadImagePatterns(chart *chart.Chart) (string, error) {
+	patterns, err := mover.LoadImagePatterns(ImagePatternsFile, chart)
+	if err != nil {
+		return "", fmt.Errorf("failed to read image pattern file: %w", err)
+	}
+	if patterns == "" {
+		return patterns, fmt.Errorf("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
+	}
+	if ImagePatternsFile == "" {
+		log.Println("Using embedded image patterns file.")
+	}
+	return patterns, nil
 }
 
 func MoveChart(cmd *cobra.Command, args []string) error {
+	chart, err := loadChart(cmd, args)
+	if err != nil {
+		return err
+	}
+
+	imagePatterns, err := loadImagePatterns(chart)
+	if err != nil {
+		return err
+	}
+
+	rules, err := mover.LoadRules(RegistryRule, RepositoryPrefixRule, RulesFile)
+	if err != nil {
+		return err
+	}
+	if rules == "" {
+		return fmt.Errorf("Error: at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
+	}
+
 	cmd.SilenceUsage = true
 
 	outputFmt, err := ParseOutputFlag(Output)
@@ -117,7 +120,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to move chart: %w", err)
 	}
 
-	chartMover, err := mover.NewChartMover(Chart, ImagePatterns, Rules, cmd)
+	chartMover, err := mover.NewChartMover(chart, imagePatterns, rules, cmd)
 	if err != nil {
 		return err
 	}

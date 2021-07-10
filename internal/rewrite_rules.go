@@ -1,4 +1,4 @@
-package mover
+package internal
 
 type RewriteRules struct {
 	Registry         string `json:"registry,omitempty"`

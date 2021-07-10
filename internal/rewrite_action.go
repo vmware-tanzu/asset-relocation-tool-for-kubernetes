@@ -1,80 +1,110 @@
-package mover
+package internal
 
 import (
 	"bytes"
 	"fmt"
-	"regexp"
 	"strings"
-	"text/template"
 
 	"github.com/divideandconquer/go-merge/merge"
 	"github.com/google/go-containerregistry/pkg/name"
+	yamlops2 "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal/yamlops"
 	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chartutil"
 )
 
-var (
-	TemplateRegex    = regexp.MustCompile(`{{\s*(.*?)\s*}}`)
-	TagRegex         = regexp.MustCompile(`:{{\s*(.*?)\s*}}`)
-	DigestRegex      = regexp.MustCompile(`@{{\s*(.*?)\s*}}`)
-	TagOrDigestRegex = regexp.MustCompile(`[:|@]{{.*?}}`)
-)
-
-type ImageTemplate struct {
-	Raw      string
-	Template *template.Template
-
-	RegistryTemplate              string
-	RepositoryTemplate            string
-	RegistryAndRepositoryTemplate string
-	TagTemplate                   string
-	DigestTemplate                string
+type RewriteAction struct {
+	Path  string `json:"path"`
+	Value string `json:"value"`
 }
 
-func (t *ImageTemplate) String() string {
-	return t.Raw
+func (a *RewriteAction) TopLevelKey() string {
+	return strings.Split(a.Path, ".")[1]
 }
 
-func NewFromString(input string) (*ImageTemplate, error) {
-	temp, err := template.New(input).Parse(input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse image template \"%s\": %w", input, err)
+func (a *RewriteAction) GetPathToMap() string {
+	pathParts := strings.Split(a.Path, ".")
+	return strings.Join(pathParts[:len(pathParts)-1], ".")
+}
+
+func (a *RewriteAction) GetSubPathToMap() string {
+	pathParts := strings.Split(a.Path, ".")
+	return "." + strings.Join(pathParts[2:len(pathParts)-1], ".")
+}
+
+func (a *RewriteAction) GetKey() string {
+	pathParts := strings.Split(a.Path, ".")
+	return pathParts[len(pathParts)-1]
+}
+
+func (a *RewriteAction) ToMap() map[string]interface{} {
+	keys := strings.Split(strings.TrimPrefix(a.Path, "."), ".")
+	var node ValuesMap
+	var value interface{} = a.Value
+
+	for i := len(keys) - 1; i >= 0; i -= 1 {
+		key := keys[i]
+		node = make(ValuesMap)
+		node[key] = value
+		value = node
 	}
 
-	imageTemplate := &ImageTemplate{
-		Raw:      input,
-		Template: temp,
+	return node
+}
+
+func (a *RewriteAction) Apply(input *chart.Chart) (*chart.Chart, error) {
+	dependencies := input.Dependencies()
+	foundInDependency := false
+	for dependencyIndex, dependency := range dependencies {
+		if dependency.Name() == a.TopLevelKey() {
+			foundInDependency = true
+			valuesIndex, data := GetChartValues(dependency)
+			value := map[string]string{
+				a.GetKey(): a.Value,
+			}
+			newData, err := yamlops2.UpdateMap(data, a.GetSubPathToMap(), "", nil, value)
+			if err != nil {
+				return nil, fmt.Errorf("failed to apply modification to %s: %w", dependency.Name(), err)
+			}
+
+			dependencies[dependencyIndex].Raw[valuesIndex].Data = newData
+		}
 	}
 
-	tagMatches := TagRegex.FindAllStringSubmatch(input, -1)
-	if len(tagMatches) == 1 {
-		imageTemplate.TagTemplate = tagMatches[0][1]
-	} else if len(tagMatches) > 1 {
-		return nil, fmt.Errorf("failed to parse image template \"%s\": too many tag template matches", input)
+	if foundInDependency {
+		input.SetDependencies(dependencies...)
+	} else {
+		valuesIndex, data := GetChartValues(input)
+		value := map[string]string{
+			a.GetKey(): a.Value,
+		}
+		newData, err := yamlops2.UpdateMap(data, a.GetPathToMap(), "", nil, value)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply modification to %s: %w", input.Name(), err)
+		}
+
+		input.Raw[valuesIndex].Data = newData
 	}
 
-	digestMatches := DigestRegex.FindAllStringSubmatch(input, -1)
-	if len(digestMatches) == 1 {
-		imageTemplate.DigestTemplate = digestMatches[0][1]
-	} else if len(digestMatches) > 1 {
-		return nil, fmt.Errorf("failed to parse image template \"%s\": too many digest template matches", input)
+	return input, nil
+}
+
+func (a *RewriteAction) FindChartDestination(parentChart *chart.Chart) *chart.Chart {
+	for _, subchart := range parentChart.Dependencies() {
+		if subchart.Name() == a.TopLevelKey() {
+			return subchart
+		}
 	}
 
-	templateWithoutTagDigest := TagOrDigestRegex.ReplaceAllString(input, "")
-	extraFragments := TemplateRegex.FindAllStringSubmatch(templateWithoutTagDigest, -1)
+	return parentChart
+}
 
-	switch len(extraFragments) {
-	case 0:
-		return nil, fmt.Errorf("failed to parse image template \"%s\": missing repo or a registry fragment", input)
-	case 1:
-		imageTemplate.RegistryAndRepositoryTemplate = extraFragments[0][1]
-	case 2:
-		imageTemplate.RegistryTemplate = extraFragments[0][1]
-		imageTemplate.RepositoryTemplate = extraFragments[1][1]
-	default:
-		return nil, fmt.Errorf("failed to parse image template \"%s\": more fragments than expected", input)
+func GetChartValues(chart *chart.Chart) (int, []byte) {
+	for fileIndex, file := range chart.Raw {
+		if file.Name == chartutil.ValuesfileName {
+			return fileIndex, file.Data
+		}
 	}
-
-	return imageTemplate, nil
+	return -1, nil
 }
 
 type ValuesMap map[string]interface{}
