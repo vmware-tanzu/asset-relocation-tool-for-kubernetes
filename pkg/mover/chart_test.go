@@ -224,9 +224,7 @@ var _ = Describe("Chart", func() {
 			fakeImage.CheckReturnsOnCall(0, true, nil)  // Pretend it doesn't exist
 			fakeImage.CheckReturnsOnCall(1, false, nil) // Pretend it already exists
 
-			relocation, err := mover.CheckNewImages(chart, changes, rules, printer)
-			newChanges := relocation.ImageChanges
-			actions := relocation.ChartChanges
+			newChanges, actions, err := mover.ComputeChanges(chart, changes, rules, printer)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("checking the existing images on the remote registry", func() {
@@ -307,9 +305,7 @@ var _ = Describe("Chart", func() {
 
 				fakeImage.CheckReturns(true, nil) // Pretend it doesn't exist
 
-				relocation, err := mover.CheckNewImages(chart, changes, rules, printer)
-				newChanges := relocation.ImageChanges
-				actions := relocation.ChartChanges
+				newChanges, actions, err := mover.ComputeChanges(chart, changes, rules, printer)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("checking the image once", func() {

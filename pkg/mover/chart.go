@@ -49,9 +49,13 @@ func (change *ImageChange) ShouldPush() bool {
 func NewChartMover(chart *chart.Chart, imagePatterns []*ImageTemplate, rules *RewriteRules, log Printer) (*ChartMover, error) {
 	imageChanges, err := PullOriginalImages(chart, imagePatterns, log)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
-	return CheckNewImages(chart, imageChanges, rules, log)
+	imageChanges, chartChanges, err := ComputeChanges(chart, imageChanges, rules, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
+	}
+	return &ChartMover{Chart: chart, ImageChanges: imageChanges, ChartChanges: chartChanges}, nil
 }
 
 // Print dumps the chart mover changes to the given logger
@@ -132,8 +136,9 @@ func PullOriginalImages(chart *chart.Chart, pattens []*ImageTemplate, log Printe
 	return changes, nil
 }
 
-// CheckNewImages creates a ChartMover from a chart, image changes and rules
-func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *RewriteRules, log Printer) (*ChartMover, error) {
+// ComputeChanges calculates the image and chart changes, it also checks which
+// images need to be pushed
+func ComputeChanges(chart *chart.Chart, imageChanges []*ImageChange, rules *RewriteRules, log Printer) ([]*ImageChange, []*RewriteAction, error) {
 	var chartChanges []*RewriteAction
 	imageCache := map[string]bool{}
 
@@ -141,14 +146,14 @@ func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *Rewr
 		rules.Digest = change.Digest
 		newActions, err := change.Pattern.Apply(change.ImageReference, rules)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		chartChanges = append(chartChanges, newActions...)
 
 		rewrittenImage, err := change.Pattern.Render(chart, newActions...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		change.RewrittenReference = rewrittenImage
@@ -162,7 +167,7 @@ func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *Rewr
 				needToPush, err := internal.Image.Check(change.Digest, rewrittenImage)
 				if err != nil {
 					log.Println("")
-					return nil, err
+					return nil, nil, err
 				}
 
 				if needToPush {
@@ -175,7 +180,7 @@ func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *Rewr
 			}
 		}
 	}
-	return &ChartMover{Chart: chart, ImageChanges: imageChanges, ChartChanges: chartChanges}, nil
+	return imageChanges, chartChanges, nil
 }
 
 // PushRewrittenImages processes all image changes pushing to the target locations
