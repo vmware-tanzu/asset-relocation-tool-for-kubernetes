@@ -9,7 +9,6 @@ import (
 
 	"github.com/avast/retry-go"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
-	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -80,7 +79,7 @@ func LoadRules(registryRule, repositoryPrefixRule, rulesFile string) (string, er
 // imagePatters and rules.
 // TODO: Can/should we make this not need a logger as a input?
 func NewChartMover(chart *chart.Chart, patterns string, rules string, log Printer) (*ChartMover, error) {
-	imagePatterns, err := ParseImagePatterns(patterns, log)
+	imagePatterns, err := internal.ParseImagePatterns(patterns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
 	}
@@ -88,7 +87,7 @@ func NewChartMover(chart *chart.Chart, patterns string, rules string, log Printe
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
-	rewriteRules, err := ParseRules(rules)
+	rewriteRules, err := internal.ParseRules(rules)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse rules: %w", err)
 	}
@@ -124,8 +123,8 @@ func (rl *ChartMover) Print(log Printer) {
 	}
 }
 
-// Apply executes the chart move image and chart changes
-func (rl *ChartMover) Apply(outputFmt string, retries uint, log Printer) error {
+// Move executes the chart move image and chart changes
+func (rl *ChartMover) Move(outputFmt string, retries uint, log Printer) error {
 	err := PushRewrittenImages(rl.imageChanges, retries, log)
 	if err != nil {
 		return err
@@ -288,32 +287,4 @@ func saveChart(chart *chart.Chart, targetFormat string) error {
 
 func TargetOutput(cwd, targetFormat, name, version string) string {
 	return filepath.Join(cwd, fmt.Sprintf(targetFormat, name, version))
-}
-
-func ParseImagePatterns(patterns string, log Printer) ([]*internal.ImageTemplate, error) {
-	var templateStrings []string
-	err := yaml.Unmarshal(([]byte)(patterns), &templateStrings)
-	if err != nil {
-		return nil, fmt.Errorf("image pattern file is not in the correct format: %w", err)
-	}
-
-	imagePatterns := []*internal.ImageTemplate{}
-	for _, line := range templateStrings {
-		temp, err := internal.NewFromString(line)
-		if err != nil {
-			return nil, err
-		}
-		imagePatterns = append(imagePatterns, temp)
-	}
-
-	return imagePatterns, nil
-}
-
-func ParseRules(rules string) (*internal.RewriteRules, error) {
-	rewriteRules := &internal.RewriteRules{}
-	err := yaml.UnmarshalStrict(([]byte)(rules), &rewriteRules)
-	if err != nil {
-		return nil, fmt.Errorf("the given rewrite rules are not in the correct format: %w", err)
-	}
-	return rewriteRules, nil
 }

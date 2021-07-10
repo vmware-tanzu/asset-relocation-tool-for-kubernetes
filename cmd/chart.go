@@ -140,7 +140,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return chartMover.Apply(outputFmt, Retries, cmd)
+	return chartMover.Move(outputFmt, Retries, cmd)
 }
 
 func ParseOutputFlag(out string) (string, error) {

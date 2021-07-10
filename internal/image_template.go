@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"text/template"
+
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -69,4 +71,23 @@ func NewFromString(input string) (*ImageTemplate, error) {
 	}
 
 	return imageTemplate, nil
+}
+
+func ParseImagePatterns(patterns string) ([]*ImageTemplate, error) {
+	var templateStrings []string
+	err := yaml.Unmarshal(([]byte)(patterns), &templateStrings)
+	if err != nil {
+		return nil, fmt.Errorf("image pattern file is not in the correct format: %w", err)
+	}
+
+	imagePatterns := []*ImageTemplate{}
+	for _, line := range templateStrings {
+		temp, err := NewFromString(line)
+		if err != nil {
+			return nil, err
+		}
+		imagePatterns = append(imagePatterns, temp)
+	}
+
+	return imagePatterns, nil
 }
