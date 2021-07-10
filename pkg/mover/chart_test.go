@@ -465,19 +465,6 @@ var _ = Describe("Chart", func() {
 		})
 	})
 
-	Describe("TargetOutput", func() {
-		It("works with default out flag", func() {
-			outFmt, err := cmd.ParseOutputFlag(cmd.Output)
-			Expect(err).To(BeNil())
-			target := mover.TargetOutput("path", outFmt, "my-chart", "0.1")
-			Expect(target).To(Equal("path/my-chart-0.1.relocated.tgz"))
-		})
-		It("builds custom out input as expected", func() {
-			target := mover.TargetOutput("path", "%s-%s-wildcardhere.tgz", "my-chart", "0.1")
-			Expect(target).To(Equal("path/my-chart-0.1-wildcardhere.tgz"))
-		})
-	})
-
 	Describe("LoadImagePatterns", func() {
 		It("reads from given file first if present", func() {
 			imagefile := filepath.Join(FixturesRoot, "testchart.images.yaml")
