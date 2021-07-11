@@ -9,7 +9,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/cmd"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal/internalfakes"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover"
@@ -85,8 +84,6 @@ var chart = test.MakeChart(&test.ChartSeed{
 	},
 })
 
-const testRetries = 3
-
 func NewPattern(input string) *internal.ImageTemplate {
 	template, err := internal.NewFromString(input)
 	Expect(err).ToNot(HaveOccurred())
@@ -107,99 +104,7 @@ var _ = Describe("Chart", func() {
 		internal.Image = originalImage
 	})
 
-	Describe("PullOriginalImages", func() {
-		It("creates a change list for each image in the pattern list", func() {
-			digest1 := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-			image1 := MakeImage(digest1)
-			digest2 := "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-			image2 := MakeImage(digest2)
-			fakeImage.PullReturnsOnCall(0, image1, digest1, nil)
-			fakeImage.PullReturnsOnCall(1, image2, digest2, nil)
-
-			patterns := []*internal.ImageTemplate{
-				NewPattern("{{.image.registry}}/{{.image.repository}}"),
-				NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
-			}
-
-			printer := NewPrinter()
-			changes, err := mover.PullOriginalImages(chart, patterns, printer)
-			Expect(err).ToNot(HaveOccurred())
-
-			By("pulling the images", func() {
-				Expect(fakeImage.PullCallCount()).To(Equal(2))
-				Expect(fakeImage.PullArgsForCall(0).Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
-				Expect(fakeImage.PullArgsForCall(1).Name()).To(Equal("index.docker.io/bitnami/wavefront:5.6.7"))
-			})
-
-			By("returning a list of images", func() {
-				Expect(changes).To(HaveLen(2))
-				Expect(changes[0].Pattern).To(Equal(patterns[0]))
-				Expect(changes[0].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
-				Expect(changes[0].Digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-				Expect(changes[1].Pattern).To(Equal(patterns[1]))
-				Expect(changes[1].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wavefront:5.6.7"))
-				Expect(changes[1].Digest).To(Equal("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-			})
-
-			By("outputting the progress", func() {
-				Expect(printer.Out).To(Say("Pulling index.docker.io/bitnami/wordpress:1.2.3... Done"))
-				Expect(printer.Out).To(Say("Pulling index.docker.io/bitnami/wavefront:5.6.7... Done"))
-			})
-		})
-
-		Context("duplicated image", func() {
-			It("only pulls once", func() {
-				digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-				image := MakeImage(digest)
-				fakeImage.PullReturns(image, digest, nil)
-
-				patterns := []*internal.ImageTemplate{
-					NewPattern("{{.image.registry}}/{{.image.repository}}"),
-					NewPattern("{{.secondimage.registry}}/{{.secondimage.repository}}:{{.secondimage.tag}}"),
-				}
-
-				printer := NewPrinter()
-				changes, err := mover.PullOriginalImages(chart, patterns, printer)
-				Expect(err).ToNot(HaveOccurred())
-
-				By("pulling the image once", func() {
-					Expect(fakeImage.PullCallCount()).To(Equal(1))
-					Expect(fakeImage.PullArgsForCall(0).Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
-				})
-
-				By("returning a list of images", func() {
-					Expect(changes).To(HaveLen(2))
-					Expect(changes[0].Pattern).To(Equal(patterns[0]))
-					Expect(changes[0].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
-					Expect(changes[0].Digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-					Expect(changes[1].Pattern).To(Equal(patterns[1]))
-					Expect(changes[1].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
-					Expect(changes[1].Digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-				})
-
-				By("outputting the progress", func() {
-					Expect(printer.Out).To(Say("Pulling index.docker.io/bitnami/wordpress:1.2.3... Done"))
-				})
-			})
-		})
-
-		Context("error pulling an image", func() {
-			It("returns the error", func() {
-				fakeImage.PullReturns(nil, "", fmt.Errorf("image pull error"))
-				patterns := []*internal.ImageTemplate{
-					NewPattern("{{.image.registry}}/{{.image.repository}}"),
-				}
-
-				printer := NewPrinter()
-				_, err := mover.PullOriginalImages(chart, patterns, printer)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("image pull error"))
-				Expect(printer.Out).To(Say("Pulling index.docker.io/bitnami/wordpress:1.2.3..."))
-			})
-		})
-	})
-
-	Describe("CheckNewImages", func() {
+	Describe("ComputeChanges", func() {
 		It("checks if the rewritten images are present", func() {
 			changes := []*internal.ImageChange{
 				{
@@ -354,112 +259,6 @@ var _ = Describe("Chart", func() {
 
 				By("outputting the progress", func() {
 					Expect(printer.Out).To(Say("Checking harbor-repo.vmware.com/pwall/wavefront:5.6.7 \\(sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\)... Push required"))
-				})
-			})
-		})
-	})
-
-	Describe("PushRewrittenImages", func() {
-		var images []*internal.ImageChange
-		BeforeEach(func() {
-			images = []*internal.ImageChange{
-				{
-					ImageReference:     name.MustParseReference("acme/busybox:1.2.3"),
-					RewrittenReference: name.MustParseReference("harbor-repo.vmware.com/pwall/busybox:1.2.3"),
-					Image:              MakeImage("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-				},
-			}
-		})
-
-		It("pushes the images", func() {
-			printer := NewPrinter()
-			err := mover.PushRewrittenImages(images, testRetries, printer)
-			Expect(err).ToNot(HaveOccurred())
-
-			By("pushing the image", func() {
-				Expect(fakeImage.PushCallCount()).To(Equal(1))
-				image, ref := fakeImage.PushArgsForCall(0)
-				Expect(image).To(Equal(images[0].Image))
-				Expect(ref).To(Equal(images[0].RewrittenReference))
-			})
-
-			By("logging the process", func() {
-				Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3... Done"))
-			})
-		})
-
-		Context("rewritten image is the same", func() {
-			It("does not push the image", func() {
-				images[0].RewrittenReference = images[0].ImageReference
-				printer := NewPrinter()
-				err := mover.PushRewrittenImages(images, testRetries, printer)
-				Expect(err).ToNot(HaveOccurred())
-
-				By("not pushing the image", func() {
-					Expect(fakeImage.PushCallCount()).To(Equal(0))
-				})
-			})
-		})
-
-		Context("image has already been pushed", func() {
-			It("does not push the image", func() {
-				images[0].AlreadyPushed = true
-				printer := NewPrinter()
-				err := mover.PushRewrittenImages(images, testRetries, printer)
-				Expect(err).ToNot(HaveOccurred())
-
-				By("not pushing the image", func() {
-					Expect(fakeImage.PushCallCount()).To(Equal(0))
-				})
-			})
-		})
-
-		Context("pushing fails once", func() {
-			BeforeEach(func() {
-				fakeImage.PushReturnsOnCall(0, fmt.Errorf("push failed"))
-				fakeImage.PushReturnsOnCall(1, nil)
-			})
-
-			It("retries and passes", func() {
-				printer := NewPrinter()
-				err := mover.PushRewrittenImages(images, testRetries, printer)
-				Expect(err).ToNot(HaveOccurred())
-
-				By("trying to push the image twice", func() {
-					Expect(fakeImage.PushCallCount()).To(Equal(2))
-				})
-
-				By("logging the process", func() {
-					Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3... "))
-					Expect(printer.Err).To(Say("Attempt #1 failed: push failed"))
-					Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3... Done"))
-				})
-			})
-		})
-
-		Context("pushing fails every time", func() {
-			BeforeEach(func() {
-				cmd.Retries = 3
-				fakeImage.PushReturns(fmt.Errorf("push failed"))
-			})
-
-			It("returns an error", func() {
-				printer := NewPrinter()
-				err := mover.PushRewrittenImages(images, testRetries, printer)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("All attempts fail:\n#1: push failed\n#2: push failed\n#3: push failed"))
-
-				By("trying to push the image", func() {
-					Expect(fakeImage.PushCallCount()).To(Equal(3))
-				})
-
-				By("logging the process", func() {
-					Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3... "))
-					Expect(printer.Err).To(Say("Attempt #1 failed: push failed"))
-					Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3... "))
-					Expect(printer.Err).To(Say("Attempt #2 failed: push failed"))
-					Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3... "))
-					Expect(printer.Err).To(Say("Attempt #3 failed: push failed"))
 				})
 			})
 		})

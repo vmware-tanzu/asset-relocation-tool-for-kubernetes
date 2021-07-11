@@ -83,7 +83,7 @@ func NewChartMover(chart *chart.Chart, patterns string, rules string, log Printe
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
 	}
-	imageChanges, err := PullOriginalImages(chart, imagePatterns, log)
+	imageChanges, err := pullOriginalImages(chart, imagePatterns, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
@@ -125,7 +125,7 @@ func (rl *ChartMover) Print(log Printer) {
 
 // Move executes the chart move image and chart changes
 func (rl *ChartMover) Move(outputFmt string, retries uint, log Printer) error {
-	err := PushRewrittenImages(rl.imageChanges, retries, log)
+	err := pushRewrittenImages(rl.imageChanges, retries, log)
 	if err != nil {
 		return err
 	}
@@ -139,9 +139,7 @@ func (rl *ChartMover) Move(outputFmt string, retries uint, log Printer) error {
 	return nil
 }
 
-// PullOriginalImages takes the chart and image patters to pull all images
-// and compute the image changes for a move
-func PullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, log Printer) ([]*internal.ImageChange, error) {
+func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, log Printer) ([]*internal.ImageChange, error) {
 	var changes []*internal.ImageChange
 	imageCache := map[string]*internal.ImageChange{}
 
@@ -223,8 +221,7 @@ func ComputeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, ru
 	return imageChanges, chartChanges, nil
 }
 
-// PushRewrittenImages processes all image changes pushing to the target locations
-func PushRewrittenImages(imageChanges []*internal.ImageChange, retries uint, log Printer) error {
+func pushRewrittenImages(imageChanges []*internal.ImageChange, retries uint, log Printer) error {
 	for _, change := range imageChanges {
 		if change.ShouldPush() {
 			err := retry.Do(
