@@ -1,24 +1,17 @@
-package mover_test
+package mover
 
 import (
 	"fmt"
-	"io/ioutil"
-	"path/filepath"
 
 	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/cmd"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal/internalfakes"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover/moverfakes"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/test"
-	"helm.sh/helm/v3/pkg/chart/loader"
-)
-
-const (
-	FixturesRoot = "../../test/fixtures/"
 )
 
 type TestPrinter struct {
@@ -57,7 +50,9 @@ func (c *TestPrinter) PrintErrf(format string, i ...interface{}) {
 	c.PrintErr(fmt.Sprintf(format, i...))
 }
 
-var chart = test.MakeChart(&test.ChartSeed{
+const testRetries = 3
+
+var testchart = test.MakeChart(&test.ChartSeed{
 	Values: map[string]interface{}{
 		"image": map[string]interface{}{
 			"registry":   "docker.io",
@@ -85,15 +80,21 @@ var chart = test.MakeChart(&test.ChartSeed{
 	},
 })
 
-const testRetries = 3
-
-func NewPattern(input string) *mover.ImageTemplate {
-	template, err := mover.NewFromString(input)
+func NewPattern(input string) *internal.ImageTemplate {
+	template, err := internal.NewFromString(input)
 	Expect(err).ToNot(HaveOccurred())
 	return template
 }
 
-var _ = Describe("Chart", func() {
+//go:generate counterfeiter github.com/google/go-containerregistry/pkg/v1.Image
+
+func MakeImage(digest string) *moverfakes.FakeImage {
+	image := &moverfakes.FakeImage{}
+	image.DigestReturns(v1.NewHash(digest))
+	return image
+}
+
+var _ = Describe("Pull & Push Images", func() {
 	var (
 		fakeImage     *internalfakes.FakeImageInterface
 		originalImage internal.ImageInterface
@@ -107,7 +108,167 @@ var _ = Describe("Chart", func() {
 		internal.Image = originalImage
 	})
 
-	Describe("PullOriginalImages", func() {
+	Describe("ComputeChanges", func() {
+		It("checks if the rewritten images are present", func() {
+			changes := []*internal.ImageChange{
+				{
+					Pattern:        NewPattern("{{.image.registry}}/{{.image.repository}}"),
+					ImageReference: name.MustParseReference("index.docker.io/bitnami/wordpress:1.2.3"),
+					Image:          MakeImage("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+					Digest:         "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				},
+				{
+					Pattern:        NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
+					ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
+					Image:          MakeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+					Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				},
+			}
+			rules := &internal.RewriteRules{
+				Registry:         "harbor-repo.vmware.com",
+				RepositoryPrefix: "pwall",
+			}
+			printer := NewPrinter()
+
+			fakeImage.CheckReturnsOnCall(0, true, nil)  // Pretend it doesn't exist
+			fakeImage.CheckReturnsOnCall(1, false, nil) // Pretend it already exists
+
+			newChanges, actions, err := computeChanges(testchart, changes, rules, printer)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("checking the existing images on the remote registry", func() {
+				Expect(fakeImage.CheckCallCount()).To(Equal(2))
+				digest, imageReference := fakeImage.CheckArgsForCall(0)
+				Expect(digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+				Expect(imageReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+				digest, imageReference = fakeImage.CheckArgsForCall(1)
+				Expect(digest).To(Equal("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+				Expect(imageReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
+			})
+
+			By("updating the image change list", func() {
+				Expect(newChanges).To(HaveLen(2))
+				Expect(newChanges[0].Pattern).To(Equal(changes[0].Pattern))
+				Expect(newChanges[0].ImageReference).To(Equal(changes[0].ImageReference))
+				Expect(newChanges[0].RewrittenReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+				Expect(newChanges[0].Digest).To(Equal(changes[0].Digest))
+				Expect(newChanges[0].AlreadyPushed).To(BeFalse())
+
+				Expect(newChanges[1].Pattern).To(Equal(changes[1].Pattern))
+				Expect(newChanges[1].ImageReference).To(Equal(changes[1].ImageReference))
+				Expect(newChanges[1].RewrittenReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
+				Expect(newChanges[1].Digest).To(Equal(changes[1].Digest))
+				Expect(newChanges[1].AlreadyPushed).To(BeTrue())
+			})
+
+			By("returning a list of changes that would need to be applied to the chart", func() {
+				Expect(actions).To(HaveLen(4))
+				Expect(actions).To(ContainElements([]*internal.RewriteAction{
+					{
+						Path:  ".image.registry",
+						Value: "harbor-repo.vmware.com",
+					},
+					{
+						Path:  ".image.repository",
+						Value: "pwall/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					},
+					{
+						Path:  ".observability.image.registry",
+						Value: "harbor-repo.vmware.com",
+					},
+					{
+						Path:  ".observability.image.repository",
+						Value: "pwall/wavefront",
+					},
+				}))
+			})
+
+			By("outputting the progress", func() {
+				Expect(printer.Out).To(Say("Checking harbor-repo.vmware.com/pwall/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \\(sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\)... Push required"))
+				Expect(printer.Out).To(Say("Checking harbor-repo.vmware.com/pwall/wavefront:5.6.7 \\(sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\)... Already exists"))
+			})
+		})
+
+		Context("two of the same image with different templates", func() {
+			It("only checks one image", func() {
+
+				changes := []*internal.ImageChange{
+					{
+						Pattern:        NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
+						ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
+						Image:          MakeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					},
+					{
+						Pattern:        NewPattern("{{.observabilitytoo.image.registry}}/{{.observabilitytoo.image.repository}}:{{.observabilitytoo.image.tag}}"),
+						ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
+						Image:          MakeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					},
+				}
+				rules := &internal.RewriteRules{
+					Registry:         "harbor-repo.vmware.com",
+					RepositoryPrefix: "pwall",
+				}
+				printer := NewPrinter()
+
+				fakeImage.CheckReturns(true, nil) // Pretend it doesn't exist
+
+				newChanges, actions, err := computeChanges(testchart, changes, rules, printer)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("checking the image once", func() {
+					Expect(fakeImage.CheckCallCount()).To(Equal(1))
+					digest, imageReference := fakeImage.CheckArgsForCall(0)
+					Expect(digest).To(Equal("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+					Expect(imageReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
+				})
+
+				By("updating the image change list, but one is marked already pushed", func() {
+					Expect(newChanges).To(HaveLen(2))
+					Expect(newChanges[0].Pattern).To(Equal(changes[0].Pattern))
+					Expect(newChanges[0].ImageReference).To(Equal(changes[0].ImageReference))
+					Expect(newChanges[0].RewrittenReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
+					Expect(newChanges[0].Digest).To(Equal(changes[0].Digest))
+					Expect(newChanges[0].AlreadyPushed).To(BeFalse())
+
+					Expect(newChanges[1].Pattern).To(Equal(changes[1].Pattern))
+					Expect(newChanges[1].ImageReference).To(Equal(changes[1].ImageReference))
+					Expect(newChanges[1].RewrittenReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
+					Expect(newChanges[1].Digest).To(Equal(changes[1].Digest))
+					Expect(newChanges[1].AlreadyPushed).To(BeTrue())
+				})
+
+				By("returning a list of changes that would need to be applied to the chart", func() {
+					Expect(actions).To(HaveLen(4))
+					Expect(actions).To(ContainElements([]*internal.RewriteAction{
+						{
+							Path:  ".observability.image.registry",
+							Value: "harbor-repo.vmware.com",
+						},
+						{
+							Path:  ".observability.image.repository",
+							Value: "pwall/wavefront",
+						},
+						{
+							Path:  ".observabilitytoo.image.registry",
+							Value: "harbor-repo.vmware.com",
+						},
+						{
+							Path:  ".observabilitytoo.image.repository",
+							Value: "pwall/wavefront",
+						},
+					}))
+				})
+
+				By("outputting the progress", func() {
+					Expect(printer.Out).To(Say("Checking harbor-repo.vmware.com/pwall/wavefront:5.6.7 \\(sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\)... Push required"))
+				})
+			})
+		})
+	})
+
+	Describe("pullOriginalImages", func() {
 		It("creates a change list for each image in the pattern list", func() {
 			digest1 := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 			image1 := MakeImage(digest1)
@@ -116,13 +277,13 @@ var _ = Describe("Chart", func() {
 			fakeImage.PullReturnsOnCall(0, image1, digest1, nil)
 			fakeImage.PullReturnsOnCall(1, image2, digest2, nil)
 
-			patterns := []*mover.ImageTemplate{
+			patterns := []*internal.ImageTemplate{
 				NewPattern("{{.image.registry}}/{{.image.repository}}"),
 				NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 			}
 
 			printer := NewPrinter()
-			changes, err := mover.PullOriginalImages(chart, patterns, printer)
+			changes, err := pullOriginalImages(testchart, patterns, printer)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("pulling the images", func() {
@@ -153,13 +314,13 @@ var _ = Describe("Chart", func() {
 				image := MakeImage(digest)
 				fakeImage.PullReturns(image, digest, nil)
 
-				patterns := []*mover.ImageTemplate{
+				patterns := []*internal.ImageTemplate{
 					NewPattern("{{.image.registry}}/{{.image.repository}}"),
 					NewPattern("{{.secondimage.registry}}/{{.secondimage.repository}}:{{.secondimage.tag}}"),
 				}
 
 				printer := NewPrinter()
-				changes, err := mover.PullOriginalImages(chart, patterns, printer)
+				changes, err := pullOriginalImages(testchart, patterns, printer)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("pulling the image once", func() {
@@ -186,12 +347,12 @@ var _ = Describe("Chart", func() {
 		Context("error pulling an image", func() {
 			It("returns the error", func() {
 				fakeImage.PullReturns(nil, "", fmt.Errorf("image pull error"))
-				patterns := []*mover.ImageTemplate{
+				patterns := []*internal.ImageTemplate{
 					NewPattern("{{.image.registry}}/{{.image.repository}}"),
 				}
 
 				printer := NewPrinter()
-				_, err := mover.PullOriginalImages(chart, patterns, printer)
+				_, err := pullOriginalImages(testchart, patterns, printer)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("image pull error"))
 				Expect(printer.Out).To(Say("Pulling index.docker.io/bitnami/wordpress:1.2.3..."))
@@ -199,174 +360,10 @@ var _ = Describe("Chart", func() {
 		})
 	})
 
-	Describe("CheckNewImages", func() {
-		It("checks if the rewritten images are present", func() {
-			changes := []*mover.ImageChange{
-				{
-					Pattern:        NewPattern("{{.image.registry}}/{{.image.repository}}"),
-					ImageReference: name.MustParseReference("index.docker.io/bitnami/wordpress:1.2.3"),
-					Image:          MakeImage("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-					Digest:         "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-				},
-				{
-					Pattern:        NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
-					ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
-					Image:          MakeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-					Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-				},
-			}
-			rules := &mover.RewriteRules{
-				Registry:         "harbor-repo.vmware.com",
-				RepositoryPrefix: "pwall",
-			}
-			printer := NewPrinter()
-
-			fakeImage.CheckReturnsOnCall(0, true, nil)  // Pretend it doesn't exist
-			fakeImage.CheckReturnsOnCall(1, false, nil) // Pretend it already exists
-
-			relocation, err := mover.CheckNewImages(chart, changes, rules, printer)
-			newChanges := relocation.ImageChanges
-			actions := relocation.ChartChanges
-			Expect(err).ToNot(HaveOccurred())
-
-			By("checking the existing images on the remote registry", func() {
-				Expect(fakeImage.CheckCallCount()).To(Equal(2))
-				digest, imageReference := fakeImage.CheckArgsForCall(0)
-				Expect(digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-				Expect(imageReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-				digest, imageReference = fakeImage.CheckArgsForCall(1)
-				Expect(digest).To(Equal("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-				Expect(imageReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
-			})
-
-			By("updating the image change list", func() {
-				Expect(newChanges).To(HaveLen(2))
-				Expect(newChanges[0].Pattern).To(Equal(changes[0].Pattern))
-				Expect(newChanges[0].ImageReference).To(Equal(changes[0].ImageReference))
-				Expect(newChanges[0].RewrittenReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-				Expect(newChanges[0].Digest).To(Equal(changes[0].Digest))
-				Expect(newChanges[0].AlreadyPushed).To(BeFalse())
-
-				Expect(newChanges[1].Pattern).To(Equal(changes[1].Pattern))
-				Expect(newChanges[1].ImageReference).To(Equal(changes[1].ImageReference))
-				Expect(newChanges[1].RewrittenReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
-				Expect(newChanges[1].Digest).To(Equal(changes[1].Digest))
-				Expect(newChanges[1].AlreadyPushed).To(BeTrue())
-			})
-
-			By("returning a list of changes that would need to be applied to the chart", func() {
-				Expect(actions).To(HaveLen(4))
-				Expect(actions).To(ContainElements([]*mover.RewriteAction{
-					{
-						Path:  ".image.registry",
-						Value: "harbor-repo.vmware.com",
-					},
-					{
-						Path:  ".image.repository",
-						Value: "pwall/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-					},
-					{
-						Path:  ".observability.image.registry",
-						Value: "harbor-repo.vmware.com",
-					},
-					{
-						Path:  ".observability.image.repository",
-						Value: "pwall/wavefront",
-					},
-				}))
-			})
-
-			By("outputting the progress", func() {
-				Expect(printer.Out).To(Say("Checking harbor-repo.vmware.com/pwall/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \\(sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\)... Push required"))
-				Expect(printer.Out).To(Say("Checking harbor-repo.vmware.com/pwall/wavefront:5.6.7 \\(sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\)... Already exists"))
-			})
-		})
-
-		Context("two of the same image with different templates", func() {
-			It("only checks one image", func() {
-
-				changes := []*mover.ImageChange{
-					{
-						Pattern:        NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
-						ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
-						Image:          MakeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-					},
-					{
-						Pattern:        NewPattern("{{.observabilitytoo.image.registry}}/{{.observabilitytoo.image.repository}}:{{.observabilitytoo.image.tag}}"),
-						ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
-						Image:          MakeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-					},
-				}
-				rules := &mover.RewriteRules{
-					Registry:         "harbor-repo.vmware.com",
-					RepositoryPrefix: "pwall",
-				}
-				printer := NewPrinter()
-
-				fakeImage.CheckReturns(true, nil) // Pretend it doesn't exist
-
-				relocation, err := mover.CheckNewImages(chart, changes, rules, printer)
-				newChanges := relocation.ImageChanges
-				actions := relocation.ChartChanges
-				Expect(err).ToNot(HaveOccurred())
-
-				By("checking the image once", func() {
-					Expect(fakeImage.CheckCallCount()).To(Equal(1))
-					digest, imageReference := fakeImage.CheckArgsForCall(0)
-					Expect(digest).To(Equal("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-					Expect(imageReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
-				})
-
-				By("updating the image change list, but one is marked already pushed", func() {
-					Expect(newChanges).To(HaveLen(2))
-					Expect(newChanges[0].Pattern).To(Equal(changes[0].Pattern))
-					Expect(newChanges[0].ImageReference).To(Equal(changes[0].ImageReference))
-					Expect(newChanges[0].RewrittenReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
-					Expect(newChanges[0].Digest).To(Equal(changes[0].Digest))
-					Expect(newChanges[0].AlreadyPushed).To(BeFalse())
-
-					Expect(newChanges[1].Pattern).To(Equal(changes[1].Pattern))
-					Expect(newChanges[1].ImageReference).To(Equal(changes[1].ImageReference))
-					Expect(newChanges[1].RewrittenReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
-					Expect(newChanges[1].Digest).To(Equal(changes[1].Digest))
-					Expect(newChanges[1].AlreadyPushed).To(BeTrue())
-				})
-
-				By("returning a list of changes that would need to be applied to the chart", func() {
-					Expect(actions).To(HaveLen(4))
-					Expect(actions).To(ContainElements([]*mover.RewriteAction{
-						{
-							Path:  ".observability.image.registry",
-							Value: "harbor-repo.vmware.com",
-						},
-						{
-							Path:  ".observability.image.repository",
-							Value: "pwall/wavefront",
-						},
-						{
-							Path:  ".observabilitytoo.image.registry",
-							Value: "harbor-repo.vmware.com",
-						},
-						{
-							Path:  ".observabilitytoo.image.repository",
-							Value: "pwall/wavefront",
-						},
-					}))
-				})
-
-				By("outputting the progress", func() {
-					Expect(printer.Out).To(Say("Checking harbor-repo.vmware.com/pwall/wavefront:5.6.7 \\(sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\)... Push required"))
-				})
-			})
-		})
-	})
-
 	Describe("PushRewrittenImages", func() {
-		var images []*mover.ImageChange
+		var images []*internal.ImageChange
 		BeforeEach(func() {
-			images = []*mover.ImageChange{
+			images = []*internal.ImageChange{
 				{
 					ImageReference:     name.MustParseReference("acme/busybox:1.2.3"),
 					RewrittenReference: name.MustParseReference("harbor-repo.vmware.com/pwall/busybox:1.2.3"),
@@ -377,7 +374,7 @@ var _ = Describe("Chart", func() {
 
 		It("pushes the images", func() {
 			printer := NewPrinter()
-			err := mover.PushRewrittenImages(images, testRetries, printer)
+			err := pushRewrittenImages(images, testRetries, printer)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("pushing the image", func() {
@@ -396,7 +393,7 @@ var _ = Describe("Chart", func() {
 			It("does not push the image", func() {
 				images[0].RewrittenReference = images[0].ImageReference
 				printer := NewPrinter()
-				err := mover.PushRewrittenImages(images, testRetries, printer)
+				err := pushRewrittenImages(images, testRetries, printer)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("not pushing the image", func() {
@@ -409,7 +406,7 @@ var _ = Describe("Chart", func() {
 			It("does not push the image", func() {
 				images[0].AlreadyPushed = true
 				printer := NewPrinter()
-				err := mover.PushRewrittenImages(images, testRetries, printer)
+				err := pushRewrittenImages(images, testRetries, printer)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("not pushing the image", func() {
@@ -426,7 +423,7 @@ var _ = Describe("Chart", func() {
 
 			It("retries and passes", func() {
 				printer := NewPrinter()
-				err := mover.PushRewrittenImages(images, testRetries, printer)
+				err := pushRewrittenImages(images, testRetries, printer)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("trying to push the image twice", func() {
@@ -443,13 +440,12 @@ var _ = Describe("Chart", func() {
 
 		Context("pushing fails every time", func() {
 			BeforeEach(func() {
-				cmd.Retries = 3
 				fakeImage.PushReturns(fmt.Errorf("push failed"))
 			})
 
 			It("returns an error", func() {
 				printer := NewPrinter()
-				err := mover.PushRewrittenImages(images, testRetries, printer)
+				err := pushRewrittenImages(images, testRetries, printer)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("All attempts fail:\n#1: push failed\n#2: push failed\n#3: push failed"))
 
@@ -469,44 +465,15 @@ var _ = Describe("Chart", func() {
 		})
 	})
 
-	Describe("TargetOutput", func() {
+	Describe("targetOutput", func() {
 		It("works with default out flag", func() {
-			outFmt, err := cmd.ParseOutputFlag(cmd.Output)
-			Expect(err).To(BeNil())
-			target := mover.TargetOutput("path", outFmt, "my-chart", "0.1")
+			outFmt := "./%s-%s.relocated.tgz"
+			target := targetOutput("path", outFmt, "my-chart", "0.1")
 			Expect(target).To(Equal("path/my-chart-0.1.relocated.tgz"))
 		})
 		It("builds custom out input as expected", func() {
-			target := mover.TargetOutput("path", "%s-%s-wildcardhere.tgz", "my-chart", "0.1")
+			target := targetOutput("path", "%s-%s-wildcardhere.tgz", "my-chart", "0.1")
 			Expect(target).To(Equal("path/my-chart-0.1-wildcardhere.tgz"))
-		})
-	})
-
-	Describe("ReadImagePatterns", func() {
-		It("reads from given file first if present", func() {
-			imagefile := filepath.Join(FixturesRoot, "testchart.images.yaml")
-			contents, err := mover.ReadImagePatterns(imagefile, nil)
-			Expect(err).To(BeNil())
-			expected, err2 := ioutil.ReadFile(imagefile)
-			Expect(err2).To(BeNil())
-			Expect(contents).To(Equal(expected))
-		})
-		It("reads from chart if file missing", func() {
-			chart, err := loader.Load(filepath.Join(FixturesRoot, "self-relok8ing-chart"))
-			Expect(err).To(BeNil())
-			contents, err2 := mover.ReadImagePatterns("", chart)
-			Expect(err2).To(BeNil())
-			embeddedPatterns := filepath.Join(FixturesRoot, "self-relok8ing-chart/.relok8s-images.yaml")
-			expected, err3 := ioutil.ReadFile(embeddedPatterns)
-			Expect(err3).To(BeNil())
-			Expect(contents).To(Equal(expected))
-		})
-		It("reads nothing when no file and the chart is not self relok8able", func() {
-			chart, err := loader.Load(filepath.Join(FixturesRoot, "testchart"))
-			Expect(err).To(BeNil())
-			contents, err2 := mover.ReadImagePatterns("", chart)
-			Expect(err2).To(BeNil())
-			Expect(contents).To(BeNil())
 		})
 	})
 })

@@ -5,12 +5,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/avast/retry-go"
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
-	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -25,40 +23,86 @@ type Printer interface {
 }
 
 type ChartMover struct {
-	Chart        *chart.Chart
-	ImageChanges []*ImageChange
-	ChartChanges []*RewriteAction
+	chart        *chart.Chart
+	imageChanges []*internal.ImageChange
+	chartChanges []*internal.RewriteAction
 }
 
-type ImageChange struct {
-	Pattern            *ImageTemplate
-	ImageReference     name.Reference
-	RewrittenReference name.Reference
-	Image              v1.Image
-	Digest             string
-	AlreadyPushed      bool
+// Returns the chart embedded image patterns from the .relok8s-images.yaml file
+func ChartPatterns(chart *chart.Chart) string {
+	for _, file := range chart.Files {
+		if file.Name == ".relok8s-images.yaml" && file.Data != nil {
+			return string(file.Data)
+		}
+	}
+	return ""
 }
 
-func (change *ImageChange) ShouldPush() bool {
-	return !change.AlreadyPushed && change.ImageReference.Name() != change.RewrittenReference.Name()
+// LoadImagePatterns from file first, or the embedded from the chart as a fallback
+func LoadImagePatterns(patternsFile string, chart *chart.Chart) (string, error) {
+	if patternsFile != "" {
+		contents, err := os.ReadFile(patternsFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to read the image patterns file: %w", err)
+		}
+		return string(contents), nil
+	}
+	return ChartPatterns(chart), nil
+}
+
+// BuildRules creates the rules spec string from registry & repo prefix settings
+func BuildRules(registryRule, repositoryPrefixRule string) string {
+	sb := &strings.Builder{}
+	if registryRule != "" {
+		fmt.Fprintf(sb, "registry: \"%s\"", registryRule)
+	}
+	if repositoryPrefixRule != "" {
+		fmt.Fprintf(sb, "repositoryPrefix: \"%s\"", repositoryPrefixRule)
+	}
+	return sb.String()
+}
+
+// LoadRules from file rule settings first, or a rulesFile as a fallback
+func LoadRules(registryRule, repositoryPrefixRule, rulesFile string) (string, error) {
+	rules := BuildRules(registryRule, repositoryPrefixRule)
+	if rules == "" && rulesFile != "" {
+		contents, err := os.ReadFile(rulesFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to read the rewrite rules file: %w", err)
+		}
+		return string(contents), nil
+	}
+	return rules, nil
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
 // TODO: Can/should we make this not need a logger as a input?
-func NewChartMover(chart *chart.Chart, imagePatterns []*ImageTemplate, rules *RewriteRules, log Printer) (*ChartMover, error) {
-	imageChanges, err := PullOriginalImages(chart, imagePatterns, log)
+func NewChartMover(chart *chart.Chart, patterns string, rules string, log Printer) (*ChartMover, error) {
+	imagePatterns, err := internal.ParseImagePatterns(patterns)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
 	}
-	return CheckNewImages(chart, imageChanges, rules, log)
+	imageChanges, err := pullOriginalImages(chart, imagePatterns, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull original images: %w", err)
+	}
+	rewriteRules, err := internal.ParseRules(rules)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse rules: %w", err)
+	}
+	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, rewriteRules, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
+	}
+	return &ChartMover{chart: chart, imageChanges: imageChanges, chartChanges: chartChanges}, nil
 }
 
 // Print dumps the chart mover changes to the given logger
 func (rl *ChartMover) Print(log Printer) {
 	log.Println("\nImages to be pushed:")
 	noImagesToPush := true
-	for _, change := range rl.ImageChanges {
+	for _, change := range rl.imageChanges {
 		if change.ShouldPush() {
 			log.Printf("  %s (%s)\n", change.RewrittenReference.Name(), change.Digest)
 			noImagesToPush = false
@@ -69,8 +113,8 @@ func (rl *ChartMover) Print(log Printer) {
 	}
 
 	var chartToModify *chart.Chart
-	for _, change := range rl.ChartChanges {
-		destination := change.FindChartDestination(rl.Chart)
+	for _, change := range rl.chartChanges {
+		destination := change.FindChartDestination(rl.chart)
 		if chartToModify != destination {
 			chartToModify = destination
 			log.Printf("\nChanges written to %s/values.yaml:\n", chartToModify.ChartFullPath())
@@ -79,14 +123,14 @@ func (rl *ChartMover) Print(log Printer) {
 	}
 }
 
-// Apply executes the chart move image and chart changes
-func (rl *ChartMover) Apply(outputFmt string, retries uint, log Printer) error {
-	err := PushRewrittenImages(rl.ImageChanges, retries, log)
+// Move executes the chart move image and chart changes
+func (rl *ChartMover) Move(outputFmt string, retries uint, log Printer) error {
+	err := pushRewrittenImages(rl.imageChanges, retries, log)
 	if err != nil {
 		return err
 	}
 	log.Print("Writing chart files... ")
-	err = modifyChart(rl.Chart, rl.ChartChanges, outputFmt)
+	err = modifyChart(rl.chart, rl.chartChanges, outputFmt)
 	if err != nil {
 		log.Println("")
 		return err
@@ -95,11 +139,9 @@ func (rl *ChartMover) Apply(outputFmt string, retries uint, log Printer) error {
 	return nil
 }
 
-// PullOriginalImages takes the chart and image patters to pull all images
-// and compute the image changes for a move
-func PullOriginalImages(chart *chart.Chart, pattens []*ImageTemplate, log Printer) ([]*ImageChange, error) {
-	var changes []*ImageChange
-	imageCache := map[string]*ImageChange{}
+func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, log Printer) ([]*internal.ImageChange, error) {
+	var changes []*internal.ImageChange
+	imageCache := map[string]*internal.ImageChange{}
 
 	for _, pattern := range pattens {
 		originalImage, err := pattern.Render(chart)
@@ -107,7 +149,7 @@ func PullOriginalImages(chart *chart.Chart, pattens []*ImageTemplate, log Printe
 			return nil, err
 		}
 
-		change := &ImageChange{
+		change := &internal.ImageChange{
 			Pattern:        pattern,
 			ImageReference: originalImage,
 		}
@@ -132,23 +174,22 @@ func PullOriginalImages(chart *chart.Chart, pattens []*ImageTemplate, log Printe
 	return changes, nil
 }
 
-// CheckNewImages creates a ChartMover from a chart, image changes and rules
-func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *RewriteRules, log Printer) (*ChartMover, error) {
-	var chartChanges []*RewriteAction
+func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, rules *internal.RewriteRules, log Printer) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
+	var chartChanges []*internal.RewriteAction
 	imageCache := map[string]bool{}
 
 	for _, change := range imageChanges {
 		rules.Digest = change.Digest
 		newActions, err := change.Pattern.Apply(change.ImageReference, rules)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		chartChanges = append(chartChanges, newActions...)
 
 		rewrittenImage, err := change.Pattern.Render(chart, newActions...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		change.RewrittenReference = rewrittenImage
@@ -162,7 +203,7 @@ func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *Rewr
 				needToPush, err := internal.Image.Check(change.Digest, rewrittenImage)
 				if err != nil {
 					log.Println("")
-					return nil, err
+					return nil, nil, err
 				}
 
 				if needToPush {
@@ -175,11 +216,10 @@ func CheckNewImages(chart *chart.Chart, imageChanges []*ImageChange, rules *Rewr
 			}
 		}
 	}
-	return &ChartMover{Chart: chart, ImageChanges: imageChanges, ChartChanges: chartChanges}, nil
+	return imageChanges, chartChanges, nil
 }
 
-// PushRewrittenImages processes all image changes pushing to the target locations
-func PushRewrittenImages(imageChanges []*ImageChange, retries uint, log Printer) error {
+func pushRewrittenImages(imageChanges []*internal.ImageChange, retries uint, log Printer) error {
 	for _, change := range imageChanges {
 		if change.ShouldPush() {
 			err := retry.Do(
@@ -206,7 +246,7 @@ func PushRewrittenImages(imageChanges []*ImageChange, retries uint, log Printer)
 	return nil
 }
 
-func modifyChart(originalChart *chart.Chart, actions []*RewriteAction, targetFormat string) error {
+func modifyChart(originalChart *chart.Chart, actions []*internal.RewriteAction, targetFormat string) error {
 	var err error
 	modifiedChart := originalChart
 	for _, action := range actions {
@@ -231,7 +271,7 @@ func saveChart(chart *chart.Chart, targetFormat string) error {
 		return err
 	}
 
-	destinationFile := TargetOutput(cwd, targetFormat, chart.Name(), chart.Metadata.Version)
+	destinationFile := targetOutput(cwd, targetFormat, chart.Name(), chart.Metadata.Version)
 	err = os.Rename(filename, destinationFile)
 	if err != nil {
 		return err
@@ -240,78 +280,6 @@ func saveChart(chart *chart.Chart, targetFormat string) error {
 	return os.Remove(tempDir)
 }
 
-func TargetOutput(cwd, targetFormat, name, version string) string {
+func targetOutput(cwd, targetFormat, name, version string) string {
 	return filepath.Join(cwd, fmt.Sprintf(targetFormat, name, version))
-}
-
-func LoadImagePatterns(chart *chart.Chart, imagePatternsFile string, log Printer) ([]*ImageTemplate, error) {
-	fileContents, err := ReadImagePatterns(imagePatternsFile, chart)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read image pattern file: %w", err)
-	}
-
-	if fileContents == nil {
-		return nil, fmt.Errorf("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
-	}
-
-	if imagePatternsFile == "" {
-		log.Println("Using embedded image patterns file.")
-	}
-
-	var templateStrings []string
-	err = yaml.Unmarshal(fileContents, &templateStrings)
-	if err != nil {
-		return nil, fmt.Errorf("image pattern file is not in the correct format: %w", err)
-	}
-
-	imagePatterns := []*ImageTemplate{}
-	for _, line := range templateStrings {
-		temp, err := NewFromString(line)
-		if err != nil {
-			return nil, err
-		}
-		imagePatterns = append(imagePatterns, temp)
-	}
-
-	return imagePatterns, nil
-}
-
-func ReadImagePatterns(patternsFile string, chart *chart.Chart) ([]byte, error) {
-	if patternsFile != "" {
-		return ioutil.ReadFile(patternsFile)
-	}
-	for _, file := range chart.Files {
-		if file.Name == ".relok8s-images.yaml" && file.Data != nil {
-			return file.Data, nil
-		}
-	}
-	return nil, nil
-}
-
-func ParseRules(registryRule, repositoryPrefixRule, rulesFile string) (*RewriteRules, error) {
-	rules := &RewriteRules{}
-	if rulesFile != "" {
-		fileContents, err := ioutil.ReadFile(rulesFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read the rewrite rules file: %w", err)
-		}
-
-		err = yaml.UnmarshalStrict(fileContents, &rules)
-		if err != nil {
-			return nil, fmt.Errorf("the rewrite rules file is not in the correct format: %w", err)
-		}
-	}
-
-	if registryRule != "" {
-		rules.Registry = registryRule
-	}
-	if repositoryPrefixRule != "" {
-		rules.RepositoryPrefix = repositoryPrefixRule
-	}
-
-	if (*rules == RewriteRules{}) {
-		return nil, fmt.Errorf("Error: at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
-	}
-
-	return rules, nil
 }
