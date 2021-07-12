@@ -1,15 +1,15 @@
-package mover_test
+package internal_test
 
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
 )
 
 var _ = Describe("RewriteAction", func() {
 	Describe("TopLevelKey", func() {
 		It("returns the first part of the path", func() {
-			action := &mover.RewriteAction{
+			action := &internal.RewriteAction{
 				Path:  ".alpha.bravo.charlie.delta",
 				Value: "needle",
 			}
@@ -19,7 +19,7 @@ var _ = Describe("RewriteAction", func() {
 
 	Describe("GetPathToMap", func() {
 		It("returns the path without the final key", func() {
-			action := &mover.RewriteAction{
+			action := &internal.RewriteAction{
 				Path:  ".alpha.bravo.charlie.delta",
 				Value: "needle",
 			}
@@ -29,7 +29,7 @@ var _ = Describe("RewriteAction", func() {
 
 	Describe("GetSubPathToMap", func() {
 		It("returns the path without the final key and the top-level key", func() {
-			action := &mover.RewriteAction{
+			action := &internal.RewriteAction{
 				Path:  ".alpha.bravo.charlie.delta",
 				Value: "needle",
 			}
@@ -39,7 +39,7 @@ var _ = Describe("RewriteAction", func() {
 
 	Describe("GetKey", func() {
 		It("returns the last part of the path", func() {
-			action := &mover.RewriteAction{
+			action := &internal.RewriteAction{
 				Path:  ".alpha.bravo.charlie.delta",
 				Value: "needle",
 			}
@@ -50,7 +50,7 @@ var _ = Describe("RewriteAction", func() {
 	Describe("ToMap", func() {
 		Context("one key", func() {
 			It("becomes a flat map", func() {
-				action := &mover.RewriteAction{
+				action := &internal.RewriteAction{
 					Path:  ".alpha",
 					Value: "needle",
 				}
@@ -62,7 +62,7 @@ var _ = Describe("RewriteAction", func() {
 
 		Context("two keys", func() {
 			It("becomes a nested map", func() {
-				action := &mover.RewriteAction{
+				action := &internal.RewriteAction{
 					Path:  ".alpha.bravo",
 					Value: "needle",
 				}
@@ -76,7 +76,7 @@ var _ = Describe("RewriteAction", func() {
 
 		Context("multiple keys", func() {
 			It("becomes a deeply nested map", func() {
-				action := &mover.RewriteAction{
+				action := &internal.RewriteAction{
 					Path:  ".alpha.bravo.charlie.delta",
 					Value: "needle",
 				}
@@ -85,15 +85,15 @@ var _ = Describe("RewriteAction", func() {
 				Expect(haystack).To(HaveKey("alpha"))
 
 				var ok bool
-				haystack, ok = haystack["alpha"].(mover.ValuesMap)
+				haystack, ok = haystack["alpha"].(internal.ValuesMap)
 				Expect(ok).To(BeTrue())
 				Expect(haystack).To(HaveKey("bravo"))
 
-				haystack, ok = haystack["bravo"].(mover.ValuesMap)
+				haystack, ok = haystack["bravo"].(internal.ValuesMap)
 				Expect(ok).To(BeTrue())
 				Expect(haystack).To(HaveKey("charlie"))
 
-				haystack, ok = haystack["charlie"].(mover.ValuesMap)
+				haystack, ok = haystack["charlie"].(internal.ValuesMap)
 				Expect(ok).To(BeTrue())
 				Expect(haystack).To(HaveKeyWithValue("delta", "needle"))
 			})
