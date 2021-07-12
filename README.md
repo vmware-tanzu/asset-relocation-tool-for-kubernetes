@@ -1,9 +1,11 @@
-# Relok8s
+# Asset Relocation Tool for Kubernetes
 
-Relok8s is for relocating Helm Charts with rewritten image references.
-It can relocate the images as well as modifying the charts.
+The Asset Relocation Tool for Kubernetes is a tool used for relocating Kubernetes assets from one place to another.
+It's first focus is on relocating Helm Charts, which is done by:
+1. Copying the container images referenced in the chart to a new image registry, and 
+2. Modifying the chart with the updated image references.
 
-Relok8s can work with charts in directory format, or TGZ format. It can handle charts with dependent charts.
+The tool comes in the form of a CLI, named `relok8s`.
 
 ## Running relok8s
 
@@ -25,7 +27,7 @@ New chart: mysql-8.5.8.rewritten.tgz
 
 ## Inputs
 
-Relok8s requires a few inputs for the various commands.
+The Asset Relocation Tool for Kubernetes requires a few inputs for the various commands.
 
 ### Chart
 
@@ -35,7 +37,7 @@ It can contain dependent charts.
 
 ### Image Patterns File
 
-Relok8s requires an image patterns file. This file is used to determine the list of images encoded in the helm chart.
+The Asset Relocation Tool for Kubernetes requires an image patterns file. This file determines the list of images encoded in the helm chart.
 
 ```yaml
 ---
@@ -47,8 +49,7 @@ This file is a list of strings, which can be evaluated like a template to refere
 
 ### Rules
 
-Relok8s allows for two rules to be specified on the command line:
-
+The Asset Relocation Tool for Kubernetes allows for two rules to be specified on the command line:
 
 #### Registry
 ```bash
@@ -67,46 +68,12 @@ Rule                | Example                   | Input                         
 Registry            | `harbor-repo.vmware.com`  | `docker.io/mycompany/myapp:1.2.3` | `harbor-repo.vmware.com/mycompany/myapp:1.2.3`
 Repository Prefix   | `mytenant`                | `docker.io/mycompany/myapp:1.2.3` | `docker.io/mytenant/myapp:1.2.3`
 
+
+## Running in CI
+
+It may be useful to run `relok8s` inside a CI pipeline to automatically move a chart when there are updates.
+An example [Concourse](https://concourse-ci.org/) pipeline can be found here: [docs/example-pipeline.yaml](docs/example-pipeline.yaml)
+
 ## Development
 
-Relok8s is built with Golang 1.16.
-
-### Running tests
-
-There are three types of tests, unit tests, feature tests and external tests.
-
-Unit tests exercise the internals of the code. They can be run with:
-
-```bash
-make test-units
-```
-
-Feature tests exercise Relok8s from outside in by building and executing it as CLI. They can be run with:
-
-```bash
-make test-features
-```
-
-External tests are similar to feature tests except that they execute tests directly against external resources.
-They can report false negatives if that resource is offline or if access to that resource is limited in some way.
-However, they can also assure that Relok8s is correctly integrating with that resource.
-
-They can be run with:
-
-```bash
-make test-external
-```
-
-External tests require credentials to talk to the internal VMware Harbor registry, ask Pete if you need access.
-
-All local tests can be run with:
-
-```bash
-make test
-```
-Those are safe to run always, even without credentials setup.
-
-To run all tests, including `test-external` do:
-```bash
-make test-all
-```
+See [Development](DEVELOPMENT.md)

@@ -98,6 +98,9 @@ lint: deps-goimports
 
 
 # #### DEVOPS ####
-.PHONY: set-pipeline
+.PHONY: set-pipeline set-example-pipeline
 set-pipeline: ci/pipeline.yaml
 	fly -t tie set-pipeline --config ci/pipeline.yaml --pipeline relok8s
+
+set-example-pipeline: docs/example-pipeline.yaml
+	fly -t tie set-pipeline --config docs/example-pipeline.yaml --pipeline relok8s-example

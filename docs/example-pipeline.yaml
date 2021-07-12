@@ -1,0 +1,79 @@
+---
+resource_types:
+  - name: chartmuseum
+    type: registry-image
+    source:
+      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/cathive/concourse-chartmuseum-resource
+      tag: v1.0.0
+
+resources:
+  - name: relok8s
+    type: registry-image
+    icon: docker
+    source:
+      repository: projects.registry.vmware.com/tanzu_isv_engineering/relok8s
+      username: ((harbor-public.username))
+      password: ((harbor-public.token))
+
+  - name: source-chart
+    type: chartmuseum
+    icon: kubernetes
+    source:
+      server_url: https://harbor-repo.vmware.com/api/chartrepo/tanzu_isv_engineering/charts
+      chart_name: test-chart-product
+      basic_auth_username: ((harbor.username))
+      basic_auth_password: ((harbor.token))
+      harbor_api: true
+
+jobs:
+  - name: relocate-chart
+    plan:
+      - in_parallel:
+          - get: relok8s
+          - get: source-chart
+      - task: relocate
+        image: relok8s
+        config:
+          platform: linux
+          params:
+            REGISTRY_SERVER: harbor-repo.vmware.com
+            REGISTRY_USERNAME: ((harbor-private.username))
+            REGISTRY_PASSWORD: ((harbor-private.token))
+          inputs:
+            - name: source-chart
+          outputs:
+            - name: rewritten-chart
+          run:
+            path: bash
+            args:
+              - -exc
+              - |
+                docker-login.sh "${REGISTRY_SERVER}" "${REGISTRY_USERNAME}" "${REGISTRY_PASSWORD}"
+
+                cat > image-patterns.yaml <<EOF
+                ---
+                - "{{ .image.repository }}:{{ .image.tag }}"
+                EOF
+
+                relok8s chart move source-chart/*.tgz \
+                  --yes \
+                  --image-patterns image-patterns.yaml \
+                  --registry "${REGISTRY_SERVER}" \
+                  --repo-prefix tanzu_isv_engineering_private
+                mv *.relocated.tgz rewritten-chart/chart.tgz
+      - task: print-diff
+        image: relok8s
+        config:
+          platform: linux
+          inputs:
+            - name: source-chart
+            - name: rewritten-chart
+          run:
+            path: bash
+            args:
+              - -exc
+              - |
+                # NOTE: The leading ! is because it is an error condition if there are no differences in the two files
+                ! diff --context=3 \
+                  <(tar xzfO source-chart/*.tgz test-chart-product/values.yaml) \
+                  <(tar xzfO rewritten-chart/chart.tgz test-chart-product/values.yaml)
