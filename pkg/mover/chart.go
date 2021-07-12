@@ -91,7 +91,7 @@ func NewChartMover(chart *chart.Chart, patterns string, rules string, log Printe
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse rules: %w", err)
 	}
-	imageChanges, chartChanges, err := ComputeChanges(chart, imageChanges, rewriteRules, log)
+	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, rewriteRules, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
@@ -174,9 +174,7 @@ func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, l
 	return changes, nil
 }
 
-// ComputeChanges calculates the image and chart changes, it also checks which
-// images need to be pushed
-func ComputeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, rules *internal.RewriteRules, log Printer) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
+func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, rules *internal.RewriteRules, log Printer) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
 	var chartChanges []*internal.RewriteAction
 	imageCache := map[string]bool{}
 
