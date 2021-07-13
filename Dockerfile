@@ -4,7 +4,7 @@ LABEL maintainer="tanzu-isv-engineering@groups.vmware.com"
 
 WORKDIR /
 
-RUN yum -y install jq
+RUN yum -y install diffutils jq
 
 COPY assets/docker-login.sh /usr/local/bin/docker-login.sh
 COPY build/relok8s-linux /usr/local/bin/relok8s
