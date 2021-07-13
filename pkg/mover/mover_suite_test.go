@@ -1,4 +1,4 @@
-package cmd_test
+package mover_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestCmdPackage(t *testing.T) {
+func TestMoverPackage(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Cmd Suite")
+	RunSpecs(t, "Mover Package Suite")
 }

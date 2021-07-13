@@ -2,6 +2,8 @@ package mover
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -10,8 +12,10 @@ import (
 	. "github.com/onsi/gomega/gbytes"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal/internalfakes"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/common"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover/moverfakes"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/test"
+	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
 type TestPrinter struct {
@@ -124,7 +128,7 @@ var _ = Describe("Pull & Push Images", func() {
 					Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 			}
-			rules := &internal.RewriteRules{
+			rules := &common.RewriteRules{
 				Registry:         "harbor-repo.vmware.com",
 				RepositoryPrefix: "pwall",
 			}
@@ -206,7 +210,7 @@ var _ = Describe("Pull & Push Images", func() {
 						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 					},
 				}
-				rules := &internal.RewriteRules{
+				rules := &common.RewriteRules{
 					Registry:         "harbor-repo.vmware.com",
 					RepositoryPrefix: "pwall",
 				}
@@ -475,5 +479,41 @@ var _ = Describe("Pull & Push Images", func() {
 			target := targetOutput("path", "%s-%s-wildcardhere.tgz", "my-chart", "0.1")
 			Expect(target).To(Equal("path/my-chart-0.1-wildcardhere.tgz"))
 		})
+	})
+})
+
+const (
+	FixturesRoot = "../../test/fixtures/"
+)
+
+var _ = Describe("LoadImagePatterns", func() {
+	It("reads from given file first if present", func() {
+		imagefile := filepath.Join(FixturesRoot, "testchart.images.yaml")
+		contents, err := LoadImagePatterns(imagefile, nil)
+		Expect(err).ToNot(HaveOccurred())
+
+		expected, err := os.ReadFile(imagefile)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(contents).To(Equal(string(expected)))
+	})
+	It("reads from chart if file missing", func() {
+		chart, err := loader.Load(filepath.Join(FixturesRoot, "self-relok8ing-chart"))
+		Expect(err).ToNot(HaveOccurred())
+
+		contents, err := LoadImagePatterns("", chart)
+		Expect(err).ToNot(HaveOccurred())
+
+		embeddedPatterns := filepath.Join(FixturesRoot, "self-relok8ing-chart/.relok8s-images.yaml")
+		expected, err := os.ReadFile(embeddedPatterns)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(contents).To(Equal(string(expected)))
+	})
+	It("reads nothing when no file and the chart is not self relok8able", func() {
+		chart, err := loader.Load(filepath.Join(FixturesRoot, "testchart"))
+		Expect(err).ToNot(HaveOccurred())
+
+		contents, err := LoadImagePatterns("", chart)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(contents).To(BeEmpty())
 	})
 })

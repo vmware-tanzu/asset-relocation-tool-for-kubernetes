@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/common"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -67,17 +68,17 @@ var ChartMoveCmd = &cobra.Command{
 	RunE:    MoveChart,
 }
 
-func loadChart(cmd *cobra.Command, args []string) (*chart.Chart, error) {
+func loadChartFromArgs(args []string) (*chart.Chart, error) {
 	if len(args) == 0 || args[0] == "" {
 		return nil, fmt.Errorf("missing helm chart")
 	}
 
-	var err error
-	chart, err := loader.Load(args[0])
+	sourceChart, err := loader.Load(args[0])
 	if err != nil {
 		return nil, fmt.Errorf("failed to load helm chart at \"%s\": %w", args[0], err)
 	}
-	return chart, nil
+
+	return sourceChart, nil
 }
 
 func loadImagePatterns(chart *chart.Chart) (string, error) {
@@ -94,23 +95,44 @@ func loadImagePatterns(chart *chart.Chart) (string, error) {
 	return patterns, nil
 }
 
+func loadRules() (*common.RewriteRules, error) {
+	rules := &common.RewriteRules{}
+	if RulesFile != "" {
+		var err error
+		rules, err = common.ParseRules(RulesFile)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if RegistryRule != "" {
+		rules.Registry = RegistryRule
+	}
+
+	if RepositoryPrefixRule != "" {
+		rules.RepositoryPrefix = RepositoryPrefixRule
+	}
+
+	return rules, nil
+}
+
 func MoveChart(cmd *cobra.Command, args []string) error {
-	chart, err := loadChart(cmd, args)
+	sourceChart, err := loadChartFromArgs(args)
 	if err != nil {
 		return err
 	}
 
-	imagePatterns, err := loadImagePatterns(chart)
+	imagePatterns, err := loadImagePatterns(sourceChart)
 	if err != nil {
 		return err
 	}
 
-	rules, err := mover.LoadRules(RegistryRule, RepositoryPrefixRule, RulesFile)
+	rules, err := loadRules()
 	if err != nil {
 		return err
 	}
-	if rules == "" {
-		return fmt.Errorf("Error: at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
+	if rules.IsEmpty() {
+		return fmt.Errorf("at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
 	}
 
 	cmd.SilenceUsage = true
@@ -120,7 +142,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to move chart: %w", err)
 	}
 
-	chartMover, err := mover.NewChartMover(chart, imagePatterns, rules, cmd)
+	chartMover, err := mover.NewChartMover(sourceChart, imagePatterns, rules, cmd)
 	if err != nil {
 		return err
 	}

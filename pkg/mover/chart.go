@@ -9,6 +9,7 @@ import (
 
 	"github.com/avast/retry-go"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/common"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -62,23 +63,10 @@ func BuildRules(registryRule, repositoryPrefixRule string) string {
 	return sb.String()
 }
 
-// LoadRules from file rule settings first, or a rulesFile as a fallback
-func LoadRules(registryRule, repositoryPrefixRule, rulesFile string) (string, error) {
-	rules := BuildRules(registryRule, repositoryPrefixRule)
-	if rules == "" && rulesFile != "" {
-		contents, err := os.ReadFile(rulesFile)
-		if err != nil {
-			return "", fmt.Errorf("failed to read the rewrite rules file: %w", err)
-		}
-		return string(contents), nil
-	}
-	return rules, nil
-}
-
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
 // TODO: Can/should we make this not need a logger as a input?
-func NewChartMover(chart *chart.Chart, patterns string, rules string, log Printer) (*ChartMover, error) {
+func NewChartMover(chart *chart.Chart, patterns string, rules *common.RewriteRules, log Printer) (*ChartMover, error) {
 	imagePatterns, err := internal.ParseImagePatterns(patterns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
@@ -87,11 +75,7 @@ func NewChartMover(chart *chart.Chart, patterns string, rules string, log Printe
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
-	rewriteRules, err := internal.ParseRules(rules)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse rules: %w", err)
-	}
-	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, rewriteRules, log)
+	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, rules, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
@@ -174,7 +158,7 @@ func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, l
 	return changes, nil
 }
 
-func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, rules *internal.RewriteRules, log Printer) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
+func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, rules *common.RewriteRules, log Printer) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
 	var chartChanges []*internal.RewriteAction
 	imageCache := map[string]bool{}
 

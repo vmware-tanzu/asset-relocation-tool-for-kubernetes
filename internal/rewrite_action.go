@@ -8,6 +8,7 @@ import (
 	"github.com/divideandconquer/go-merge/merge"
 	"github.com/google/go-containerregistry/pkg/name"
 	yamlops2 "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal/yamlops"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/common"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -147,7 +148,7 @@ func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions ...*RewriteAct
 	return image, nil
 }
 
-func (t *ImageTemplate) Apply(originalImage name.Reference, rules *RewriteRules) ([]*RewriteAction, error) {
+func (t *ImageTemplate) Apply(originalImage name.Reference, rules *common.RewriteRules) ([]*RewriteAction, error) {
 	tagged := false
 	var rewrites []*RewriteAction
 
