@@ -13,6 +13,8 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 )
 
+const DefaultRetries = 3
+
 type Logger interface {
 	Printf(format string, i ...interface{})
 	Println(i ...interface{})
@@ -64,7 +66,13 @@ func NewChartMover(chart *chart.Chart, patterns string, rules *rewrite.Rules, lo
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
-	return &ChartMover{chart: chart, imageChanges: imageChanges, chartChanges: chartChanges, logger: log}, nil
+	return &ChartMover{
+		chart:        chart,
+		imageChanges: imageChanges,
+		chartChanges: chartChanges,
+		logger:       log,
+		retries:      DefaultRetries,
+	}, nil
 }
 
 // WithRetries customizes the mover push retries
