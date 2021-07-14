@@ -146,8 +146,8 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
-	chartMover.Print(cmd)
+	chartMover = chartMover.WithRetries(Retries)
+	chartMover.Print()
 
 	if !skipConfirmation {
 		cmd.Println("Would you like to proceed? (y/N)")
@@ -162,7 +162,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return chartMover.Move(outputFmt, Retries, cmd)
+	return chartMover.Move(outputFmt)
 }
 
 func ParseOutputFlag(out string) (string, error) {

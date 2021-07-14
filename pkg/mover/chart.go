@@ -23,6 +23,8 @@ type ChartMover struct {
 	chart        *chart.Chart
 	imageChanges []*internal.ImageChange
 	chartChanges []*internal.RewriteAction
+	logger       Logger
+	retries      uint
 }
 
 // Returns the chart embedded image patterns from the .relok8s-images.yaml file
@@ -49,7 +51,6 @@ func LoadImagePatterns(patternsFile string, chart *chart.Chart) (string, error) 
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
-// TODO: Can/should we make this not need a logger as a input?
 func NewChartMover(chart *chart.Chart, patterns string, rules *rewrite.Rules, log Logger) (*ChartMover, error) {
 	imagePatterns, err := internal.ParseImagePatterns(patterns)
 	if err != nil {
@@ -63,11 +64,18 @@ func NewChartMover(chart *chart.Chart, patterns string, rules *rewrite.Rules, lo
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
-	return &ChartMover{chart: chart, imageChanges: imageChanges, chartChanges: chartChanges}, nil
+	return &ChartMover{chart: chart, imageChanges: imageChanges, chartChanges: chartChanges, logger: log}, nil
 }
 
-// Print dumps the chart mover changes to the given logger
-func (rl *ChartMover) Print(log Logger) {
+// WithRetries customizes the mover push retries
+func (rl *ChartMover) WithRetries(retries uint) *ChartMover {
+	rl.retries = retries
+	return rl
+}
+
+// Print dumps the chart mover changes to the mover logger
+func (rl *ChartMover) Print() {
+	log := rl.logger
 	log.Println("\nImages to be pushed:")
 	noImagesToPush := true
 	for _, change := range rl.imageChanges {
@@ -91,9 +99,12 @@ func (rl *ChartMover) Print(log Logger) {
 	}
 }
 
-// Move executes the chart move image and chart changes
-func (rl *ChartMover) Move(outputFmt string, retries uint, log Logger) error {
-	err := pushRewrittenImages(rl.imageChanges, retries, log)
+// Move executes the chart move image and chart changes.
+// The outputFmt expects 2 place holders, usually `%s`, for the name and
+// chart version respectively.
+func (rl *ChartMover) Move(outputFmt string) error {
+	log := rl.logger
+	err := pushRewrittenImages(rl.imageChanges, rl.retries, log)
 	if err != nil {
 		return err
 	}
