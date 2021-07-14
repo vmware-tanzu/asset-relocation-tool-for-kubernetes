@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/common"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/rewrite"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
@@ -95,11 +95,11 @@ func loadImagePatterns(chart *chart.Chart) (string, error) {
 	return patterns, nil
 }
 
-func loadRules() (*common.RewriteRules, error) {
-	rules := &common.RewriteRules{}
+func loadRules() (*rewrite.Rules, error) {
+	rules := &rewrite.Rules{}
 	if RulesFile != "" {
 		var err error
-		rules, err = common.ParseRules(RulesFile)
+		rules, err = rewrite.ParseRules(RulesFile)
 		if err != nil {
 			return nil, err
 		}
