@@ -1,4 +1,4 @@
-package common_test
+package rewrite_test
 
 import (
 	"testing"
@@ -9,5 +9,5 @@ import (
 
 func TestCommonPackage(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Common Package Suite")
+	RunSpecs(t, "Rewrite Package Suite")
 }

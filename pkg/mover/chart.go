@@ -5,21 +5,17 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/avast/retry-go"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/common"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/rewrite"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
 
-type Printer interface {
-	Print(i ...interface{})
-	Println(i ...interface{})
+type Logger interface {
 	Printf(format string, i ...interface{})
-	PrintErr(i ...interface{})
-	PrintErrln(i ...interface{})
+	Println(i ...interface{})
 	PrintErrf(format string, i ...interface{})
 }
 
@@ -51,22 +47,10 @@ func LoadImagePatterns(patternsFile string, chart *chart.Chart) (string, error) 
 	return ChartPatterns(chart), nil
 }
 
-// BuildRules creates the rules spec string from registry & repo prefix settings
-func BuildRules(registryRule, repositoryPrefixRule string) string {
-	sb := &strings.Builder{}
-	if registryRule != "" {
-		fmt.Fprintf(sb, "registry: \"%s\"", registryRule)
-	}
-	if repositoryPrefixRule != "" {
-		fmt.Fprintf(sb, "repositoryPrefix: \"%s\"", repositoryPrefixRule)
-	}
-	return sb.String()
-}
-
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
 // TODO: Can/should we make this not need a logger as a input?
-func NewChartMover(chart *chart.Chart, patterns string, rules *common.RewriteRules, log Printer) (*ChartMover, error) {
+func NewChartMover(chart *chart.Chart, patterns string, rules *rewrite.Rules, log Logger) (*ChartMover, error) {
 	imagePatterns, err := internal.ParseImagePatterns(patterns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
@@ -83,7 +67,7 @@ func NewChartMover(chart *chart.Chart, patterns string, rules *common.RewriteRul
 }
 
 // Print dumps the chart mover changes to the given logger
-func (rl *ChartMover) Print(log Printer) {
+func (rl *ChartMover) Print(log Logger) {
 	log.Println("\nImages to be pushed:")
 	noImagesToPush := true
 	for _, change := range rl.imageChanges {
@@ -108,12 +92,12 @@ func (rl *ChartMover) Print(log Printer) {
 }
 
 // Move executes the chart move image and chart changes
-func (rl *ChartMover) Move(outputFmt string, retries uint, log Printer) error {
+func (rl *ChartMover) Move(outputFmt string, retries uint, log Logger) error {
 	err := pushRewrittenImages(rl.imageChanges, retries, log)
 	if err != nil {
 		return err
 	}
-	log.Print("Writing chart files... ")
+	log.Printf("Writing chart files... ")
 	err = modifyChart(rl.chart, rl.chartChanges, outputFmt)
 	if err != nil {
 		log.Println("")
@@ -123,7 +107,7 @@ func (rl *ChartMover) Move(outputFmt string, retries uint, log Printer) error {
 	return nil
 }
 
-func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, log Printer) ([]*internal.ImageChange, error) {
+func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, log Logger) ([]*internal.ImageChange, error) {
 	var changes []*internal.ImageChange
 	imageCache := map[string]*internal.ImageChange{}
 
@@ -158,7 +142,7 @@ func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, l
 	return changes, nil
 }
 
-func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, rules *common.RewriteRules, log Printer) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
+func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, rules *rewrite.Rules, log Logger) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
 	var chartChanges []*internal.RewriteAction
 	imageCache := map[string]bool{}
 
@@ -203,7 +187,7 @@ func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, ru
 	return imageChanges, chartChanges, nil
 }
 
-func pushRewrittenImages(imageChanges []*internal.ImageChange, retries uint, log Printer) error {
+func pushRewrittenImages(imageChanges []*internal.ImageChange, retries uint, log Logger) error {
 	for _, change := range imageChanges {
 		if change.ShouldPush() {
 			err := retry.Do(

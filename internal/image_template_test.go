@@ -6,7 +6,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/common"
+	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/rewrite"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/test"
 )
 
@@ -184,19 +184,19 @@ var (
 		Template: "{{ .lazy.registry }}/{{ .lazy.image }}:{{ .lazy.tag }}",
 	}
 
-	registryRule             = &common.RewriteRules{Registry: "registry.vmware.com"}
-	repositoryPrefixRule     = &common.RewriteRules{RepositoryPrefix: "my-company"}
-	repositoryRule           = &common.RewriteRules{Repository: "owner/name"}
-	tagRule                  = &common.RewriteRules{Tag: "explosive"}
-	digestRule               = &common.RewriteRules{Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
-	registryAndPrefixRule    = &common.RewriteRules{Registry: "registry.vmware.com", RepositoryPrefix: "my-company"}
-	registryAndTagRule       = &common.RewriteRules{Registry: "registry.vmware.com", Tag: "explosive"}
-	registryAndDigestRule    = &common.RewriteRules{Registry: "registry.vmware.com", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
-	registryTagAndDigestRule = &common.RewriteRules{Registry: "registry.vmware.com", Tag: "explosive", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
+	registryRule             = &rewrite.Rules{Registry: "registry.vmware.com"}
+	repositoryPrefixRule     = &rewrite.Rules{RepositoryPrefix: "my-company"}
+	repositoryRule           = &rewrite.Rules{Repository: "owner/name"}
+	tagRule                  = &rewrite.Rules{Tag: "explosive"}
+	digestRule               = &rewrite.Rules{Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
+	registryAndPrefixRule    = &rewrite.Rules{Registry: "registry.vmware.com", RepositoryPrefix: "my-company"}
+	registryAndTagRule       = &rewrite.Rules{Registry: "registry.vmware.com", Tag: "explosive"}
+	registryAndDigestRule    = &rewrite.Rules{Registry: "registry.vmware.com", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
+	registryTagAndDigestRule = &rewrite.Rules{Registry: "registry.vmware.com", Tag: "explosive", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
 )
 
 var _ = DescribeTable("Rewrite Actions",
-	func(input *TableInput, rules *common.RewriteRules, expected *TableOutput) {
+	func(input *TableInput, rules *rewrite.Rules, expected *TableOutput) {
 		var (
 			err           error
 			chart         = test.MakeChart(input.ParentChart)
