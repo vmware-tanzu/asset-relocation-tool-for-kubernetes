@@ -28,4 +28,16 @@ var _ = Describe("Chart", func() {
 			Expect(err).To(BeNil())
 		})
 	})
+
+	Describe("TargetOutput", func() {
+		It("works with default out flag", func() {
+			outFmt := "./%s-%s.relocated.tgz"
+			target := cmd.TargetOutput("path", outFmt, "my-chart", "0.1")
+			Expect(target).To(Equal("path/my-chart-0.1.relocated.tgz"))
+		})
+		It("builds custom out input as expected", func() {
+			target := cmd.TargetOutput("path", "%s-%s-wildcardhere.tgz", "my-chart", "0.1")
+			Expect(target).To(Equal("path/my-chart-0.1-wildcardhere.tgz"))
+		})
+	})
 })

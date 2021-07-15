@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"github.com/avast/retry-go"
 	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
@@ -106,16 +105,15 @@ func (cm *ChartMover) Print() {
 }
 
 // Move executes the chart move image and chart changes.
-// The outputFmt expects 2 place holders, usually `%s`, for the name and
-// chart version respectively.
-func (cm *ChartMover) Move(outputFmt string) error {
+// The result chart is saved as toChartFilename.
+func (cm *ChartMover) Move(toChartFilename string) error {
 	log := cm.logger
 	err := pushRewrittenImages(cm.imageChanges, cm.retries, log)
 	if err != nil {
 		return err
 	}
-	log.Printf("Writing chart files...\n")
-	err = modifyChart(cm.chart, cm.chartChanges, outputFmt)
+	log.Printf("Writing chart files... ")
+	err = modifyChart(cm.chart, cm.chartChanges, toChartFilename)
 	if err != nil {
 		return err
 	}
@@ -227,7 +225,7 @@ func pushRewrittenImages(imageChanges []*internal.ImageChange, retries uint, log
 	return nil
 }
 
-func modifyChart(originalChart *chart.Chart, actions []*internal.RewriteAction, targetFormat string) error {
+func modifyChart(originalChart *chart.Chart, actions []*internal.RewriteAction, toChartFilename string) error {
 	var err error
 	modifiedChart := originalChart
 	for _, action := range actions {
@@ -237,10 +235,10 @@ func modifyChart(originalChart *chart.Chart, actions []*internal.RewriteAction, 
 		}
 	}
 
-	return saveChart(modifiedChart, targetFormat)
+	return saveChart(modifiedChart, toChartFilename)
 }
 
-func saveChart(chart *chart.Chart, targetFormat string) error {
+func saveChart(chart *chart.Chart, toChartFilename string) error {
 	cwd, _ := os.Getwd()
 	tempDir, err := ioutil.TempDir(cwd, "relok8s-*")
 	if err != nil {
@@ -252,15 +250,10 @@ func saveChart(chart *chart.Chart, targetFormat string) error {
 		return err
 	}
 
-	destinationFile := targetOutput(cwd, targetFormat, chart.Name(), chart.Metadata.Version)
-	err = os.Rename(filename, destinationFile)
+	err = os.Rename(filename, toChartFilename)
 	if err != nil {
 		return err
 	}
 
 	return os.Remove(tempDir)
-}
-
-func targetOutput(cwd, targetFormat, name, version string) string {
-	return filepath.Join(cwd, fmt.Sprintf(targetFormat, name, version))
 }
