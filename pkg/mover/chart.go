@@ -17,8 +17,6 @@ const DefaultRetries = 3
 
 type Logger interface {
 	Printf(format string, i ...interface{})
-	Println(i ...interface{})
-	PrintErrf(format string, i ...interface{})
 }
 
 type ChartMover struct {
@@ -76,29 +74,29 @@ func NewChartMover(chart *chart.Chart, patterns string, rules *rewrite.Rules, lo
 }
 
 // WithRetries customizes the mover push retries
-func (rl *ChartMover) WithRetries(retries uint) *ChartMover {
-	rl.retries = retries
-	return rl
+func (cm *ChartMover) WithRetries(retries uint) *ChartMover {
+	cm.retries = retries
+	return cm
 }
 
 // Print dumps the chart mover changes to the mover logger
-func (rl *ChartMover) Print() {
-	log := rl.logger
-	log.Println("\nImages to be pushed:")
+func (cm *ChartMover) Print() {
+	log := cm.logger
+	log.Printf("\nImages to be pushed:\n")
 	noImagesToPush := true
-	for _, change := range rl.imageChanges {
+	for _, change := range cm.imageChanges {
 		if change.ShouldPush() {
 			log.Printf("  %s (%s)\n", change.RewrittenReference.Name(), change.Digest)
 			noImagesToPush = false
 		}
 	}
 	if noImagesToPush {
-		log.Printf("  no images require pushing")
+		log.Printf("  no images require pushing\n")
 	}
 
 	var chartToModify *chart.Chart
-	for _, change := range rl.chartChanges {
-		destination := change.FindChartDestination(rl.chart)
+	for _, change := range cm.chartChanges {
+		destination := change.FindChartDestination(cm.chart)
 		if chartToModify != destination {
 			chartToModify = destination
 			log.Printf("\nChanges written to %s/values.yaml:\n", chartToModify.ChartFullPath())
@@ -110,19 +108,18 @@ func (rl *ChartMover) Print() {
 // Move executes the chart move image and chart changes.
 // The outputFmt expects 2 place holders, usually `%s`, for the name and
 // chart version respectively.
-func (rl *ChartMover) Move(outputFmt string) error {
-	log := rl.logger
-	err := pushRewrittenImages(rl.imageChanges, rl.retries, log)
+func (cm *ChartMover) Move(outputFmt string) error {
+	log := cm.logger
+	err := pushRewrittenImages(cm.imageChanges, cm.retries, log)
 	if err != nil {
 		return err
 	}
-	log.Printf("Writing chart files... ")
-	err = modifyChart(rl.chart, rl.chartChanges, outputFmt)
+	log.Printf("Writing chart files...\n")
+	err = modifyChart(cm.chart, cm.chartChanges, outputFmt)
 	if err != nil {
-		log.Println("")
 		return err
 	}
-	log.Println("Done")
+	log.Printf("Done\n")
 	return nil
 }
 
@@ -142,13 +139,12 @@ func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, l
 		}
 
 		if imageCache[originalImage.Name()] == nil {
-			log.Printf("Pulling %s... ", originalImage.Name())
+			log.Printf("Pulling %s...\n", originalImage.Name())
 			image, digest, err := internal.Image.Pull(originalImage)
 			if err != nil {
-				log.Println("")
 				return nil, err
 			}
-			log.Println("Done")
+			log.Printf("Done\n")
 			change.Image = image
 			change.Digest = digest
 			imageCache[originalImage.Name()] = change
@@ -186,17 +182,16 @@ func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, ru
 				// This image has already been checked previously, so just force this one to be skipped
 				change.AlreadyPushed = true
 			} else {
-				log.Printf("Checking %s (%s)... ", rewrittenImage.Name(), change.Digest)
+				log.Printf("Checking %s (%s)...\n", rewrittenImage.Name(), change.Digest)
 				needToPush, err := internal.Image.Check(change.Digest, rewrittenImage)
 				if err != nil {
-					log.Println("")
 					return nil, nil, err
 				}
 
 				if needToPush {
-					log.Println("Push required")
+					log.Printf("Push required\n")
 				} else {
-					log.Println("Already exists")
+					log.Printf("Already exists\n")
 					change.AlreadyPushed = true
 				}
 				imageCache[rewrittenImage.Name()] = true
@@ -211,18 +206,17 @@ func pushRewrittenImages(imageChanges []*internal.ImageChange, retries uint, log
 		if change.ShouldPush() {
 			err := retry.Do(
 				func() error {
-					log.Printf("Pushing %s... ", change.RewrittenReference.Name())
+					log.Printf("Pushing %s...\n", change.RewrittenReference.Name())
 					err := internal.Image.Push(change.Image, change.RewrittenReference)
 					if err != nil {
-						log.Println("")
 						return err
 					}
-					log.Println("Done")
+					log.Printf("Done\n")
 					return nil
 				},
 				retry.Attempts(retries),
 				retry.OnRetry(func(n uint, err error) {
-					log.PrintErrf("Attempt #%d failed: %s\n", n+1, err.Error())
+					log.Printf("Attempt #%d failed: %s\n", n+1, err.Error())
 				}),
 			)
 			if err != nil {
