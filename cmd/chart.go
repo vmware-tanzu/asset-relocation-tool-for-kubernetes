@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -141,6 +142,11 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to move chart: %w", err)
 	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current working dir: %w", err)
+	}
+	destinationFile := TargetOutput(cwd, outputFmt, sourceChart.Name(), sourceChart.Metadata.Version)
 
 	chartMover, err := mover.NewChartMover(sourceChart, imagePatterns, rules, cmd)
 	if err != nil {
@@ -162,7 +168,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return chartMover.Move(outputFmt)
+	return chartMover.Move(destinationFile)
 }
 
 func ParseOutputFlag(out string) (string, error) {
@@ -188,4 +194,8 @@ func GetConfirmation(input io.Reader) (bool, error) {
 
 	}
 	return false, nil
+}
+
+func TargetOutput(cwd, targetFormat, name, version string) string {
+	return filepath.Join(cwd, fmt.Sprintf(targetFormat, name, version))
 }
