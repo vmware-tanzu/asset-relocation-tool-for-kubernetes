@@ -102,14 +102,14 @@ var _ = Describe("External tests", func() {
 		})
 
 		define.Then(`^the images are pulled$`, func() {
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Pulling harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest... Done"))
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Pulling harbor-repo.vmware.com/dockerhub-proxy-cache/library/busybox:1.33.1... Done"))
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Pulling harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest...\nDone"))
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Pulling harbor-repo.vmware.com/dockerhub-proxy-cache/library/busybox:1.33.1...\nDone"))
 		})
 
 		define.Then(`^the rewritten images are checked to see if they need to be pushed$`, func() {
-			Eventually(CommandSession.Out, time.Minute).Should(Say(fmt.Sprintf("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s \\(sha256:[a-z0-9]*\\)... Push required", customTag)))
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)... Already exists"))
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/busybox@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)... Already exists"))
+			Eventually(CommandSession.Out, time.Minute).Should(Say(fmt.Sprintf("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s \\(sha256:[a-z0-9]*\\)...\nPush required", customTag)))
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)...\nAlready exists"))
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/busybox@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)...\nAlready exists"))
 		})
 
 		define.Then(`^the command says that the rewritten image will be pushed$`, func() {
@@ -126,7 +126,7 @@ var _ = Describe("External tests", func() {
 		})
 
 		define.Then(`^the rewritten image is pushed$`, func() {
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s... Done", customTag)))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s...\nDone", customTag)))
 		})
 
 		var modifiedChartPath string
