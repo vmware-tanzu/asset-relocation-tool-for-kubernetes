@@ -1,13 +1,5 @@
 ---
 resource_types:
-  - name: gl-release
-    type: registry-image
-    source:
-      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/orangeopensource/gitlab-release-resource
-      tag: v1.0.4
-      username: ((harbor.username))
-      password: ((harbor.token))
-
   - name: chartmuseum
     type: docker-image
     source:
@@ -17,10 +9,10 @@ resource_types:
 resources:
   - name: source
     type: git
-    icon: gitlab
+    icon: github
     source:
-      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/relok8s.git
-      private_key: ((gitlab.private_key))
+      uri: git@github.com:vmware-tanzu/asset-relocation-tool-for-kubernetes.git
+      private_key: ((github.private_key))
       branch: main
       ignore_paths:
         - ci/Dockerfile
@@ -28,10 +20,10 @@ resources:
 
   - name: test-image-source
     type: git
-    icon: gitlab
+    icon: github
     source:
-      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/relok8s.git
-      private_key: ((gitlab.private_key))
+      uri: git@github.com:vmware-tanzu/asset-relocation-tool-for-kubernetes.git
+      private_key: ((github.private_key))
       branch: main
       paths:
         - ci/Dockerfile
@@ -53,20 +45,20 @@ resources:
       password: ((harbor-public.token))
 
   - name: release
-    type: gl-release
-    icon: gitlab
+    type: github-release
+    icon: github
     source:
-      repository: marketplace-partner-eng/relok8s
-      access_token: ((gitlab.access_token))
-      gitlab_api_url: https://gitlab.eng.vmware.com
+      owner: vmware-tanzu
+      repository: asset-relocation-tool-for-kubernetes
+      access_token: ((github.access_token))
 
   - name: version
     type: semver
-    icon: gitlab
+    icon: github
     source:
       driver: git
-      uri: git@gitlab.eng.vmware.com:marketplace-partner-eng/relok8s.git
-      private_key: ((gitlab.private_key))
+      uri: git@github.com:vmware-tanzu/asset-relocation-tool-for-kubernetes.git
+      private_key: ((github.private_key))
       branch: main
       file: version
       commit_message: "[ci skip] bump version to %version%"

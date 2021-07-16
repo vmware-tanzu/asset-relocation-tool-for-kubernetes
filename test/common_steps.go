@@ -24,9 +24,9 @@ var (
 var _ = BeforeSuite(func() {
 	var err error
 	ChartMoverBinaryPath, err = gexec.Build(
-		"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2",
+		"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2",
 		"-ldflags",
-		"-X gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/cmd.Version=1.2.3",
+		"-X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/cmd.Version=1.2.3",
 	)
 	Expect(err).NotTo(HaveOccurred())
 })

@@ -3,8 +3,8 @@ package rewrite_test
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/rewrite"
-	common "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/rewrite"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/rewrite"
+	common "github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/rewrite"
 )
 
 var _ = Describe("RewriteRules", func() {

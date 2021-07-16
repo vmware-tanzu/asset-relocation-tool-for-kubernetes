@@ -1,4 +1,4 @@
-module gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2
+module github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2
 
 go 1.16
 

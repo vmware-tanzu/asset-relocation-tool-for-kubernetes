@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
-	. "gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/cmd"
+	. "github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/cmd"
 )
 
 var _ = Describe("Version", func() {

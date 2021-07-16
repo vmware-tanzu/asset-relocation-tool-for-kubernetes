@@ -10,11 +10,11 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal/internalfakes"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/mover/moverfakes"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/pkg/rewrite"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/test"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal/internalfakes"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/mover/moverfakes"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/rewrite"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/test"
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
 )
 
 type FakeImageInterface struct {

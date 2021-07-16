@@ -59,7 +59,7 @@ deps: vendor/modules.txt deps-goimports deps-counterfeiter deps-ginkgo
 
 SRC = $(shell find . -name "*.go" | grep -v "_test\." )
 VERSION := $(or $(VERSION), dev)
-LDFLAGS="-X gitlab.eng.vmware.com/marketplace-partner-eng/marketplace-cli/v2/cmd.Version=$(VERSION)"
+LDFLAGS="-X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/cmd.Version=$(VERSION)"
 
 build/relok8s: $(SRC)
 	go build -o build/relok8s -ldflags ${LDFLAGS} ./main.go

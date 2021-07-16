@@ -3,7 +3,7 @@ package internal_test
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"gitlab.eng.vmware.com/marketplace-partner-eng/relok8s/v2/internal"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
 )
 
 var _ = Describe("RewriteAction", func() {
