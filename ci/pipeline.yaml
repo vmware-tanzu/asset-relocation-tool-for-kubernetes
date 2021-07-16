@@ -157,8 +157,9 @@ jobs:
       - put: release
         inputs: [build, source, version]
         params:
-          commitish: source/.git/ref
+          name: version/version
           tag: version/version
+          commitish: source/.git/ref
           globs:
             - build/*
       - put: version
