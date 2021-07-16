@@ -1,5 +1,8 @@
 package test
 
+// Copyright 2021 VMware, Inc.
+// SPDX-License-Identifier: BSD-2-Clause
+
 import (
 	"helm.sh/helm/v3/pkg/chart"
 )

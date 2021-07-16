@@ -2,6 +2,9 @@
 
 package test
 
+// Copyright 2021 VMware, Inc.
+// SPDX-License-Identifier: BSD-2-Clause
+
 import (
 	. "github.com/bunniesandbeatings/goerkin"
 	. "github.com/onsi/ginkgo"

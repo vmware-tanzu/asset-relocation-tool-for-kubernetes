@@ -2,6 +2,9 @@
 
 package test
 
+// Copyright 2021 VMware, Inc.
+// SPDX-License-Identifier: BSD-2-Clause
+
 import (
 	"fmt"
 	"io/ioutil"
@@ -108,8 +111,8 @@ var _ = Describe("External tests", func() {
 
 		define.Then(`^the rewritten images are checked to see if they need to be pushed$`, func() {
 			Eventually(CommandSession.Out, time.Minute).Should(Say(fmt.Sprintf("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s \\(sha256:[a-z0-9]*\\)...\nPush required", customTag)))
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)...\nAlready exists"))
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/busybox@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)...\nAlready exists"))
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)...\n(Already exists|Push required)"))
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/busybox@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)...\n(Already exists|Push required)"))
 		})
 
 		define.Then(`^the command says that the rewritten image will be pushed$`, func() {

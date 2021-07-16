@@ -1,3 +1,6 @@
+# Copyright 2021 VMware, Inc.
+# SPDX-License-Identifier: BSD-2-Clause
+
 .PHONY: build clean rebuild
 build: wordpress/.unarchived
 rebuild: clean build

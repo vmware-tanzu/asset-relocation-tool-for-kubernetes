@@ -1,3 +1,5 @@
+# Copyright 2021 VMware, Inc.
+# SPDX-License-Identifier: BSD-2-Clause
 FROM harbor-repo.vmware.com/dockerhub-proxy-cache/library/photon:4.0
 
 WORKDIR /

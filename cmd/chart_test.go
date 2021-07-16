@@ -1,5 +1,8 @@
 package cmd_test
 
+// Copyright 2021 VMware, Inc.
+// SPDX-License-Identifier: BSD-2-Clause
+
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
