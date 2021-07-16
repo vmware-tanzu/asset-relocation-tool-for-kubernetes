@@ -74,6 +74,17 @@ Repository Prefix   | `mytenant`                | `docker.io/mycompany/myapp:1.2
 It may be useful to run `relok8s` inside a CI pipeline to automatically move a chart when there are updates.
 An example [Concourse](https://concourse-ci.org/) pipeline can be found here: [docs/example-pipeline.yaml](docs/example-pipeline.yaml)
 
+## Building
+
+Building the tool from source is very simple with: 
+
+```bash
+$ make build
+go build -o build/relok8s -ldflags "-X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/cmd.Version=dev" ./main.go
+pwall@pwall-a01:~/src/vmware-tanzu/asset-relocation-tool-for-kubernetes $ ls ./build/relok8s 
+./build/relok8s
+```
+
 ## Development
 
 See [Development](DEVELOPMENT.md)
