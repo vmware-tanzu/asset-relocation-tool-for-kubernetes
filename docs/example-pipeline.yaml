@@ -2,11 +2,13 @@
 # SPDX-License-Identifier: BSD-2-Clause
 ---
 resource_types:
-  - name: chartmuseum
+  - name: helm-chart
     type: registry-image
     source:
-      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/cathive/concourse-chartmuseum-resource
-      tag: v1.0.0
+      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/jghiloni/helm-chart-resource
+      tag: v0.1.1
+      username: ((harbor.username))
+      password: ((harbor.token))
 
 resources:
   - name: relok8s
@@ -17,22 +19,19 @@ resources:
       username: ((harbor-public.username))
       password: ((harbor-public.token))
 
-  - name: source-chart
-    type: chartmuseum
+  - name: nginx-chart
+    type: helm-chart
     icon: kubernetes
     source:
-      server_url: https://harbor-repo.vmware.com/api/chartrepo/tanzu_isv_engineering/charts
-      chart_name: test-chart-product
-      basic_auth_username: ((harbor.username))
-      basic_auth_password: ((harbor.token))
-      harbor_api: true
+      repository_url: https://charts.bitnami.com/bitnami
+      chart: nginx
 
 jobs:
   - name: relocate-chart
     plan:
       - in_parallel:
           - get: relok8s
-          - get: source-chart
+          - get: nginx-chart
       - task: relocate
         image: relok8s
         config:
@@ -42,7 +41,7 @@ jobs:
             REGISTRY_USERNAME: ((harbor-private.username))
             REGISTRY_PASSWORD: ((harbor-private.token))
           inputs:
-            - name: source-chart
+            - name: nginx-chart
           outputs:
             - name: rewritten-chart
           run:
@@ -54,10 +53,13 @@ jobs:
 
                 cat > image-patterns.yaml <<EOF
                 ---
-                - "{{ .image.repository }}:{{ .image.tag }}"
+                - "{{ .image.registry }}/{{ .image.repository }}:{{ .image.tag }}"
+                - "{{ .cloneStaticSiteFromGit.image.registry }}/{{ .cloneStaticSiteFromGit.image.repository }}:{{ .cloneStaticSiteFromGit.image.tag }}"
+                - "{{ .ldapDaemon.image.registry }}/{{ .ldapDaemon.image.repository }}:{{ .ldapDaemon.image.tag }}"
+                - "{{ .metrics.image.registry }}/{{ .metrics.image.repository }}:{{ .metrics.image.tag }}"
                 EOF
 
-                relok8s chart move source-chart/*.tgz \
+                relok8s chart move nginx-chart/*.tgz \
                   --yes \
                   --image-patterns image-patterns.yaml \
                   --registry "${REGISTRY_SERVER}" \
@@ -68,7 +70,7 @@ jobs:
         config:
           platform: linux
           inputs:
-            - name: source-chart
+            - name: nginx-chart
             - name: rewritten-chart
           run:
             path: bash
@@ -77,5 +79,5 @@ jobs:
               - |
                 # NOTE: The leading ! is because it is an error condition if there are no differences in the two files
                 ! diff --context=3 \
-                  <(tar xzfO source-chart/*.tgz test-chart-product/values.yaml) \
-                  <(tar xzfO rewritten-chart/chart.tgz test-chart-product/values.yaml)
+                  <(tar xzfO nginx-chart/*.tgz nginx/values.yaml) \
+                  <(tar xzfO rewritten-chart/chart.tgz nginx/values.yaml)
