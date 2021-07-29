@@ -105,5 +105,5 @@ lint: deps-goimports
 set-pipeline: ci/pipeline.yaml
 	fly -t tie set-pipeline --config ci/pipeline.yaml --pipeline relok8s
 
-set-example-pipeline: docs/example-pipeline.yaml
-	fly -t tie set-pipeline --config docs/example-pipeline.yaml --pipeline relok8s-example
+set-example-pipeline: examples/concourse-pipeline/pipeline.yaml
+	fly -t tie set-pipeline --config examples/concourse-pipeline/pipeline.yaml --pipeline relok8s-example

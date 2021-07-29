@@ -5,10 +5,10 @@ resource_types:
   - name: helm-chart
     type: registry-image
     source:
-      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/jghiloni/helm-chart-resource
+      repository: jghiloni/helm-chart-resource
       tag: v0.1.1
-      username: ((harbor.username))
-      password: ((harbor.token))
+      username: ((dockerhub.username))
+      password: ((dockerhub.access_token))
 
 resources:
   - name: relok8s
@@ -16,8 +16,6 @@ resources:
     icon: docker
     source:
       repository: projects.registry.vmware.com/tanzu_isv_engineering/relok8s
-      username: ((harbor-public.username))
-      password: ((harbor-public.token))
 
   - name: nginx-chart
     type: helm-chart
@@ -32,6 +30,25 @@ jobs:
       - in_parallel:
           - get: relok8s
           - get: nginx-chart
+            trigger: true
+      - task: make-image-hints-file
+        image: relok8s
+        config:
+          platform: linux
+          outputs:
+            - name: nginx-chart-hints
+          run:
+            path: bash
+            args:
+              - -exc
+              - |
+                cat > nginx-chart-hints/image-hints.yaml <<EOF
+                ---
+                - "{{ .image.registry }}/{{ .image.repository }}:{{ .image.tag }}"
+                - "{{ .cloneStaticSiteFromGit.image.registry }}/{{ .cloneStaticSiteFromGit.image.repository }}:{{ .cloneStaticSiteFromGit.image.tag }}"
+                - "{{ .ldapDaemon.image.registry }}/{{ .ldapDaemon.image.repository }}:{{ .ldapDaemon.image.tag }}"
+                - "{{ .metrics.image.registry }}/{{ .metrics.image.repository }}:{{ .metrics.image.tag }}"
+                EOF
       - task: relocate
         image: relok8s
         config:
@@ -42,6 +59,7 @@ jobs:
             REGISTRY_PASSWORD: ((harbor-private.token))
           inputs:
             - name: nginx-chart
+            - name: nginx-chart-hints
           outputs:
             - name: rewritten-chart
           run:
@@ -51,17 +69,9 @@ jobs:
               - |
                 docker-login.sh "${REGISTRY_SERVER}" "${REGISTRY_USERNAME}" "${REGISTRY_PASSWORD}"
 
-                cat > image-patterns.yaml <<EOF
-                ---
-                - "{{ .image.registry }}/{{ .image.repository }}:{{ .image.tag }}"
-                - "{{ .cloneStaticSiteFromGit.image.registry }}/{{ .cloneStaticSiteFromGit.image.repository }}:{{ .cloneStaticSiteFromGit.image.tag }}"
-                - "{{ .ldapDaemon.image.registry }}/{{ .ldapDaemon.image.repository }}:{{ .ldapDaemon.image.tag }}"
-                - "{{ .metrics.image.registry }}/{{ .metrics.image.repository }}:{{ .metrics.image.tag }}"
-                EOF
-
                 relok8s chart move nginx-chart/*.tgz \
                   --yes \
-                  --image-patterns image-patterns.yaml \
+                  --image-patterns nginx-chart-hints/image-hints.yaml \
                   --registry "${REGISTRY_SERVER}" \
                   --repo-prefix tanzu_isv_engineering_private
                 mv *.relocated.tgz rewritten-chart/chart.tgz
