@@ -7,8 +7,8 @@ This will not go into as much detail as the [Simple Chart](../simple-chart) exam
 
 ### Helm chart
 
-In this example, we are using the [Bitnami Wordpress](https://bitnami.com/stack/mysql/wordpress) chart.
-This chart depends on the [Bitnami MariaDB]() and [Bitnami Memcached]() charts. Each chart references three images.
+In this example, we are using the [Bitnami Wordpress](https://bitnami.com/stack/wordpress/helm) chart.
+This chart depends on the [Bitnami MariaDB](https://bitnami.com/stack/mariadb/helm) and [Bitnami Memcached](https://bitnami.com/stack/memcached/helm) charts. Each chart references three images.
 
 ### Image hints file
 
