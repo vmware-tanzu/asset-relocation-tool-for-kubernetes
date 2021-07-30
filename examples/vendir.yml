@@ -1,0 +1,28 @@
+apiVersion: vendir.k14s.io/v1alpha1
+kind: Config
+directories:
+  - path: simple-chart
+    contents:
+      - path: mysql-8.7.3
+        helmChart:
+          name: mysql
+          version: "8.7.3"
+          repository:
+            url: https://charts.bitnami.com/bitnami
+      - path: mysql-8.7.3-image-hints.yaml
+        manual: {}
+      - path: README.md
+        manual: {}
+
+  - path: chart-with-subcharts
+    contents:
+      - path: wordpress-11.1.5
+        helmChart:
+          name: wordpress
+          version: "11.1.5"
+          repository:
+            url: https://charts.bitnami.com/bitnami
+      - path: wordpress-11.1.5-image-hints.yaml
+        manual: {}
+      - path: README.md
+        manual: {}

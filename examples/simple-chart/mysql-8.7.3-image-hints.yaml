@@ -1,0 +1,4 @@
+---
+- "{{ .image.registry }}/{{ .image.repository }}:{{ .image.tag }}"
+- "{{ .metrics.image.registry }}/{{ .metrics.image.repository }}:{{ .metrics.image.tag }}"
+- "{{ .volumePermissions.image.registry }}/{{ .volumePermissions.image.repository }}:{{ .volumePermissions.image.tag }}"
