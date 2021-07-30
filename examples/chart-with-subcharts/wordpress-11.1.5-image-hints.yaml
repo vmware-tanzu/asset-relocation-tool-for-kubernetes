@@ -7,3 +7,4 @@
 - "{{ .mariadb.volumePermissions.image.registry }}/{{ .mariadb.volumePermissions.image.repository }}:{{ .mariadb.volumePermissions.image.tag }}"
 - "{{ .memcached.image.registry }}/{{ .memcached.image.repository }}:{{ .memcached.image.tag }}"
 - "{{ .memcached.metrics.image.registry }}/{{ .memcached.metrics.image.repository }}:{{ .memcached.metrics.image.tag }}"
+- "{{ .memcached.volumePermissions.image.registry }}/{{ .memcached.volumePermissions.image.repository }}:{{ .memcached.volumePermissions.image.tag }}"

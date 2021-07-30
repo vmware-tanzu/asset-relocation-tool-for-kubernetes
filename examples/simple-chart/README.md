@@ -1,6 +1,6 @@
 # Simple Chart
 
-This example shows who the Asset Relocation Tool for Kubernetes can be used to relocate a simple Helm chart.
+This example shows how the Asset Relocation Tool for Kubernetes can be used to relocate a simple Helm chart.
 
 ## Inputs
 
