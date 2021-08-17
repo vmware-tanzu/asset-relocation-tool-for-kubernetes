@@ -1,7 +1,7 @@
-package internal
-
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
+
+package internal
 
 import (
 	"fmt"
@@ -76,9 +76,9 @@ func NewFromString(input string) (*ImageTemplate, error) {
 	return imageTemplate, nil
 }
 
-func ParseImagePatterns(patterns string) ([]*ImageTemplate, error) {
+func ParseImagePatterns(patternsRaw []byte) ([]*ImageTemplate, error) {
 	var templateStrings []string
-	err := yaml.Unmarshal(([]byte)(patterns), &templateStrings)
+	err := yaml.Unmarshal(patternsRaw, &templateStrings)
 	if err != nil {
 		return nil, fmt.Errorf("image pattern file is not in the correct format: %w", err)
 	}

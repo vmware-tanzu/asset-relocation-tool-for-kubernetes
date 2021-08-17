@@ -1,7 +1,7 @@
-package cmd
-
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
+
+package cmd
 
 import (
 	"os"
@@ -13,6 +13,8 @@ const AppName = "relok8s"
 
 var rootCmd = &cobra.Command{
 	Use: AppName,
+	// Do not show the Usage page on every raised error
+	SilenceUsage: true,
 }
 
 func Execute() {

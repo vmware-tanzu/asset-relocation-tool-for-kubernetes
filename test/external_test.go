@@ -1,9 +1,8 @@
+// Copyright 2021 VMware, Inc.
+// SPDX-License-Identifier: BSD-2-Clause
 // +build external
 
 package test
-
-// Copyright 2021 VMware, Inc.
-// SPDX-License-Identifier: BSD-2-Clause
 
 import (
 	"fmt"
@@ -12,7 +11,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/rewrite"
 	"helm.sh/helm/v3/pkg/chart/loader"
 
 	. "github.com/bunniesandbeatings/goerkin"
@@ -35,7 +33,6 @@ var _ = Describe("External tests", func() {
 	})
 
 	Scenario("running chart move", func() {
-		steps.Given("a rules file with a custom tag") // This is used for forcing a new tag, ensuring the target is new
 		steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering_private")
 
 		steps.And("the images are pulled")
@@ -51,29 +48,6 @@ var _ = Describe("External tests", func() {
 		DefineCommonSteps(define)
 
 		var customTag string
-
-		define.Given(`^a rules file with a custom tag$`, func() {
-			var err error
-			RulesFile, err = ioutil.TempFile("", "rulesfile-*.yaml")
-			Expect(err).ToNot(HaveOccurred())
-
-			customTag = fmt.Sprintf("%d", time.Now().Unix())
-			bytes, err := yaml.Marshal(&rewrite.Rules{
-				Tag: customTag,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
-			_, err = RulesFile.Write(bytes)
-			Expect(err).ToNot(HaveOccurred())
-
-			err = RulesFile.Close()
-			Expect(err).ToNot(HaveOccurred())
-		}, func() {
-			if RulesFile != nil {
-				os.Remove(RulesFile.Name())
-				RulesFile = nil
-			}
-		})
 
 		define.Given(`^no authorization to the remote registry$`, func() {
 			homeDir, err := os.UserHomeDir()

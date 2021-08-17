@@ -1,90 +1,163 @@
-package mover
-
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
 
+package mover
+
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 
 	"github.com/avast/retry-go"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/rewrite"
 	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
 
-const DefaultRetries = 3
+const (
+	defaultRetries        = 3
+	EmbeddedHintsFilename = ".relok8s-images.yaml"
+)
+
+var ErrImageHintsMissing = errors.New("no image hints provided`")
 
 type Logger interface {
 	Printf(format string, i ...interface{})
+	Println(i ...interface{})
+}
+
+type defaultLogger struct{}
+
+func (l *defaultLogger) Printf(format string, i ...interface{}) {
+	fmt.Printf(format, i...)
+	return
+}
+
+func (l *defaultLogger) Println(i ...interface{}) {
+	fmt.Println(i...)
+	return
 }
 
 type ChartMover struct {
-	chart        *chart.Chart
+	chart *chart.Chart
+	// Extracted metadata from the provided Helm Chart
+	ChartName    string
+	ChartVersion string
 	imageChanges []*internal.ImageChange
 	chartChanges []*internal.RewriteAction
 	logger       Logger
 	retries      uint
 }
 
-// Returns the chart embedded image patterns from the .relok8s-images.yaml file
-func ChartPatterns(chart *chart.Chart) string {
-	for _, file := range chart.Files {
-		if file.Name == ".relok8s-images.yaml" && file.Data != nil {
-			return string(file.Data)
-		}
-	}
-	return ""
+// Rewrite rules to be applied to the existing OCI images
+type OCIImageRewriteRules struct {
+	Registry         string
+	RepositoryPrefix string
 }
 
-// LoadImagePatterns from file first, or the embedded from the chart as a fallback
-func LoadImagePatterns(patternsFile string, chart *chart.Chart) (string, error) {
-	if patternsFile != "" {
-		contents, err := os.ReadFile(patternsFile)
+func loadPatterns(imageHintsFile string, chart *chart.Chart, log Logger) ([]byte, error) {
+	var patternsRaw []byte
+	var err error
+
+	if imageHintsFile != "" {
+		patternsRaw, err = loadPatternsFromFile(imageHintsFile, log)
 		if err != nil {
-			return "", fmt.Errorf("failed to read the image patterns file: %w", err)
+			return nil, err
 		}
-		return string(contents), nil
+	} else {
+		// If patterns file is not provided we try to find the patterns from inside the Chart
+		patternsRaw = loadPatternsFromChart(chart, log)
 	}
-	return ChartPatterns(chart), nil
+
+	return patternsRaw, err
+}
+
+// Returns the chart embedded image patterns from the .relok8s-images.yaml file
+func loadPatternsFromChart(chart *chart.Chart, log Logger) []byte {
+	// TODO: This is an overkill, we know the location of the file
+	// we should just check for it
+	for _, file := range chart.Files {
+		if file.Name == EmbeddedHintsFilename && file.Data != nil {
+			log.Printf("%s hints file found\n", EmbeddedHintsFilename)
+			return file.Data
+		}
+	}
+
+	return nil
+}
+
+// loadPatternsFromFile from file first, or the embedded from the chart as a fallback
+func loadPatternsFromFile(patternsFile string, log Logger) ([]byte, error) {
+	contents, err := os.ReadFile(patternsFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the image patterns file: %w", err)
+	}
+
+	log.Printf("%s hints file found\n", patternsFile)
+	return contents, nil
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
-func NewChartMover(chart *chart.Chart, patterns string, rules *rewrite.Rules, log Logger) (*ChartMover, error) {
-	imagePatterns, err := internal.ParseImagePatterns(patterns)
+func NewChartMover(chartPath string, imageHintsFile string, rules *OCIImageRewriteRules, opts ...Option) (*ChartMover, error) {
+	chart, err := loader.Load(chartPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load Helm Chart at %q: %w", chartPath, err)
+	}
+
+	c := &ChartMover{
+		chart:        chart,
+		ChartName:    chart.Name(),
+		ChartVersion: chart.Metadata.Version,
+		logger:       &defaultLogger{},
+		retries:      defaultRetries,
+	}
+
+	// Option overrides
+	for _, opt := range opts {
+		if opt != nil {
+			opt(c)
+		}
+	}
+
+	patternsRaw, err := loadPatterns(imageHintsFile, chart, c.logger)
+	if err != nil {
+		return nil, err
+	}
+
+	if patternsRaw == nil {
+		return nil, ErrImageHintsMissing
+	}
+
+	imagePatterns, err := internal.ParseImagePatterns(patternsRaw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
 	}
-	imageChanges, err := pullOriginalImages(chart, imagePatterns, log)
+
+	// TODO(miguel): Remove this operation from the constructor
+	// The constructor should be idempotent
+	imageChanges, err := pullOriginalImages(chart, imagePatterns, c.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
-	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, rules, log)
+
+	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, rules, c.logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
-	return &ChartMover{
-		chart:        chart,
-		imageChanges: imageChanges,
-		chartChanges: chartChanges,
-		logger:       log,
-		retries:      DefaultRetries,
-	}, nil
-}
 
-// WithRetries customizes the mover push retries
-func (cm *ChartMover) WithRetries(retries uint) *ChartMover {
-	cm.retries = retries
-	return cm
+	c.imageChanges = imageChanges
+	c.chartChanges = chartChanges
+
+	return c, nil
 }
 
 // Print dumps the chart mover changes to the mover logger
 func (cm *ChartMover) Print() {
 	log := cm.logger
-	log.Printf("\nImages to be pushed:\n")
+	log.Println("Images to be pushed:")
 	noImagesToPush := true
 	for _, change := range cm.imageChanges {
 		if change.ShouldPush() {
@@ -93,7 +166,7 @@ func (cm *ChartMover) Print() {
 		}
 	}
 	if noImagesToPush {
-		log.Printf("  no images require pushing\n")
+		log.Println("  no images require pushing")
 	}
 
 	var chartToModify *chart.Chart
@@ -101,7 +174,7 @@ func (cm *ChartMover) Print() {
 		destination := change.FindChartDestination(cm.chart)
 		if chartToModify != destination {
 			chartToModify = destination
-			log.Printf("\nChanges written to %s/values.yaml:\n", chartToModify.ChartFullPath())
+			log.Printf("\nChanges to be applied to %s/values.yaml:\n", chartToModify.ChartFullPath())
 		}
 		log.Printf("  %s: %s\n", change.Path, change.Value)
 	}
@@ -115,12 +188,14 @@ func (cm *ChartMover) Move(toChartFilename string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Writing chart files... ")
+
+	log.Println("Writing chart files...")
 	err = modifyChart(cm.chart, cm.chartChanges, toChartFilename)
 	if err != nil {
 		return err
 	}
-	log.Printf("Done\n")
+
+	log.Println("Done\n")
 	return nil
 }
 
@@ -145,7 +220,7 @@ func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, l
 			if err != nil {
 				return nil, err
 			}
-			log.Printf("Done\n")
+			log.Println("Done")
 			change.Image = image
 			change.Digest = digest
 			imageCache[originalImage.Name()] = change
@@ -158,13 +233,18 @@ func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, l
 	return changes, nil
 }
 
-func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, rules *rewrite.Rules, log Logger) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
+func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, registryRules *OCIImageRewriteRules, log Logger) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
 	var chartChanges []*internal.RewriteAction
 	imageCache := map[string]bool{}
 
 	for _, change := range imageChanges {
-		rules.Digest = change.Digest
-		newActions, err := change.Pattern.Apply(change.ImageReference, rules)
+		rewriteRules := internal.OCIImageLocation{
+			Registry:         registryRules.Registry,
+			RepositoryPrefix: registryRules.RepositoryPrefix,
+			Digest:           change.Digest,
+		}
+
+		newActions, err := change.Pattern.Apply(change.ImageReference, &rewriteRules)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -190,9 +270,9 @@ func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, ru
 				}
 
 				if needToPush {
-					log.Printf("Push required\n")
+					log.Println("Push required")
 				} else {
-					log.Printf("Already exists\n")
+					log.Println("Already exists")
 					change.AlreadyPushed = true
 				}
 				imageCache[rewrittenImage.Name()] = true
@@ -212,7 +292,7 @@ func pushRewrittenImages(imageChanges []*internal.ImageChange, retries uint, log
 					if err != nil {
 						return err
 					}
-					log.Printf("Done\n")
+					log.Println("Done")
 					return nil
 				},
 				retry.Attempts(retries),
@@ -259,4 +339,19 @@ func saveChart(chart *chart.Chart, toChartFilename string) error {
 	}
 
 	return os.Remove(tempDir)
+}
+
+type Option func(*ChartMover)
+
+// WithRetries customizes the mover push retries
+func WithRetries(retries uint) Option {
+	return func(c *ChartMover) {
+		c.retries = retries
+	}
+}
+
+func WithLogger(l Logger) Option {
+	return func(c *ChartMover) {
+		c.logger = l
+	}
 }

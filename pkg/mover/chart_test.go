@@ -1,7 +1,6 @@
-package mover
-
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
+package mover
 
 import (
 	"fmt"
@@ -16,7 +15,6 @@ import (
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal/internalfakes"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/mover/moverfakes"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/rewrite"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/test"
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
@@ -37,6 +35,10 @@ func (c *TestPrinter) print(i ...interface{}) {
 
 func (c *TestPrinter) Printf(format string, i ...interface{}) {
 	c.print(fmt.Sprintf(format, i...))
+}
+
+func (c *TestPrinter) Println(i ...interface{}) {
+	c.print(fmt.Sprintln(i...))
 }
 
 const testRetries = 3
@@ -113,7 +115,7 @@ var _ = Describe("Pull & Push Images", func() {
 					Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 			}
-			rules := &rewrite.Rules{
+			rules := &OCIImageRewriteRules{
 				Registry:         "harbor-repo.vmware.com",
 				RepositoryPrefix: "pwall",
 			}
@@ -195,7 +197,7 @@ var _ = Describe("Pull & Push Images", func() {
 						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 					},
 				}
-				rules := &rewrite.Rules{
+				rules := &OCIImageRewriteRules{
 					Registry:         "harbor-repo.vmware.com",
 					RepositoryPrefix: "pwall",
 				}
@@ -460,32 +462,33 @@ const (
 )
 
 var _ = Describe("LoadImagePatterns", func() {
+	logger := &defaultLogger{}
 	It("reads from given file first if present", func() {
 		imagefile := filepath.Join(FixturesRoot, "testchart.images.yaml")
-		contents, err := LoadImagePatterns(imagefile, nil)
+		contents, err := loadPatterns(imagefile, nil, logger)
 		Expect(err).ToNot(HaveOccurred())
 
 		expected, err := os.ReadFile(imagefile)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(contents).To(Equal(string(expected)))
+		Expect(contents).To(Equal(expected))
 	})
 	It("reads from chart if file missing", func() {
 		chart, err := loader.Load(filepath.Join(FixturesRoot, "self-relok8ing-chart"))
 		Expect(err).ToNot(HaveOccurred())
 
-		contents, err := LoadImagePatterns("", chart)
+		contents, err := loadPatterns("", chart, logger)
 		Expect(err).ToNot(HaveOccurred())
 
 		embeddedPatterns := filepath.Join(FixturesRoot, "self-relok8ing-chart/.relok8s-images.yaml")
 		expected, err := os.ReadFile(embeddedPatterns)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(contents).To(Equal(string(expected)))
+		Expect(contents).To(Equal(expected))
 	})
 	It("reads nothing when no file and the chart is not self relok8able", func() {
 		chart, err := loader.Load(filepath.Join(FixturesRoot, "testchart"))
 		Expect(err).ToNot(HaveOccurred())
 
-		contents, err := LoadImagePatterns("", chart)
+		contents, err := loadPatterns("", chart, logger)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(contents).To(BeEmpty())
 	})
