@@ -3,26 +3,26 @@ kind: Config
 directories:
   - path: simple-chart
     contents:
-      - path: mysql-8.7.3
+      - path: mariadb-chart
         helmChart:
-          name: mysql
-          version: "8.7.3"
+          name: mariadb
+          version: "9.4.2"
           repository:
             url: https://charts.bitnami.com/bitnami
-      - path: mysql-8.7.3-image-hints.yaml
+      - path: image-hints.yaml
         manual: {}
       - path: README.md
         manual: {}
 
   - path: chart-with-subcharts
     contents:
-      - path: wordpress-11.1.5
+      - path: wordpress-chart
         helmChart:
           name: wordpress
           version: "11.1.5"
           repository:
             url: https://charts.bitnami.com/bitnami
-      - path: wordpress-11.1.5-image-hints.yaml
+      - path: image-hints.yaml
         manual: {}
       - path: README.md
         manual: {}
