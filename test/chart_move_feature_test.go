@@ -1,9 +1,9 @@
-// Copyright 2021 VMware, Inc.
-// SPDX-License-Identifier: BSD-2-Clause
-
 // +build feature
 
 package test_test
+
+// Copyright 2021 VMware, Inc.
+// SPDX-License-Identifier: BSD-2-Clause
 
 import (
 	"time"
