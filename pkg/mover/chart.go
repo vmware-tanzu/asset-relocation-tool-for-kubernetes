@@ -21,7 +21,10 @@ const (
 	EmbeddedHintsFilename = ".relok8s-images.yaml"
 )
 
-var ErrImageHintsMissing = errors.New("no image hints provided`")
+var (
+	ErrImageHintsMissing  = errors.New("no image hints provided")
+	ErrOCIRewritesMissing = errors.New("at least one rewrite rule is required")
+)
 
 type Logger interface {
 	Printf(format string, i ...interface{})
@@ -106,6 +109,10 @@ func NewChartMover(chartPath string, imageHintsFile string, rules *OCIImageRewri
 		return nil, fmt.Errorf("failed to load Helm Chart at %q: %w", chartPath, err)
 	}
 
+	if rules.Registry == "" && rules.RepositoryPrefix == "" {
+		return nil, ErrOCIRewritesMissing
+	}
+
 	c := &ChartMover{
 		chart:        chart,
 		ChartName:    chart.Name(),
@@ -120,6 +127,8 @@ func NewChartMover(chartPath string, imageHintsFile string, rules *OCIImageRewri
 			opt(c)
 		}
 	}
+
+	c.logger.Println("\nComputing relocation...")
 
 	patternsRaw, err := loadPatterns(imageHintsFile, chart, c.logger)
 	if err != nil {

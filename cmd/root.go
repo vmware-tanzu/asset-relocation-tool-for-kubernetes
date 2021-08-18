@@ -13,8 +13,6 @@ const AppName = "relok8s"
 
 var rootCmd = &cobra.Command{
 	Use: AppName,
-	// Do not show the Usage page on every raised error
-	SilenceUsage: true,
 }
 
 func Execute() {

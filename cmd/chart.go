@@ -77,16 +77,11 @@ func newChartMoveCmd() *cobra.Command {
 }
 
 func MoveChart(cmd *cobra.Command, args []string) error {
-	if registryRule == "" && repositoryPrefixRule == "" {
-		return fmt.Errorf("at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
-	}
-
 	targetRewriteRules := &mover.OCIImageRewriteRules{
 		Registry:         registryRule,
 		RepositoryPrefix: repositoryPrefixRule,
 	}
 
-	cmd.Println("\nComputing relocation...")
 	chartMover, err := mover.NewChartMover(
 		args[0],
 		imagePatternsFile,
@@ -96,6 +91,8 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		if err == mover.ErrImageHintsMissing {
 			return fmt.Errorf("image patterns file is required. Please try again with '--image-patterns <image patterns file>' or as part of the Helm chart at [chart]/%s file", mover.EmbeddedHintsFilename)
+		} else if err == mover.ErrOCIRewritesMissing {
+			return fmt.Errorf("at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
 		}
 		return err
 	}
