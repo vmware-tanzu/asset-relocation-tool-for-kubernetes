@@ -119,12 +119,11 @@ var _ = Describe("Pull & Push Images", func() {
 				Registry:         "harbor-repo.vmware.com",
 				RepositoryPrefix: "pwall",
 			}
-			printer := NewLogger()
 
 			fakeImage.CheckReturnsOnCall(0, true, nil)  // Pretend it doesn't exist
 			fakeImage.CheckReturnsOnCall(1, false, nil) // Pretend it already exists
 
-			newChanges, actions, err := computeChanges(testchart, changes, rules, printer)
+			newChanges, actions, err := computeChanges(testchart, changes, rules)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("checking the existing images on the remote registry", func() {
@@ -173,11 +172,6 @@ var _ = Describe("Pull & Push Images", func() {
 					},
 				}))
 			})
-
-			By("outputting the progress", func() {
-				Expect(printer.Out).To(Say("Checking harbor-repo.vmware.com/pwall/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \\(sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\)...\nPush required"))
-				Expect(printer.Out).To(Say("Checking harbor-repo.vmware.com/pwall/wavefront:5.6.7 \\(sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\)...\nAlready exists"))
-			})
 		})
 
 		Context("two of the same image with different templates", func() {
@@ -201,11 +195,10 @@ var _ = Describe("Pull & Push Images", func() {
 					Registry:         "harbor-repo.vmware.com",
 					RepositoryPrefix: "pwall",
 				}
-				printer := NewLogger()
 
 				fakeImage.CheckReturns(true, nil) // Pretend it doesn't exist
 
-				newChanges, actions, err := computeChanges(testchart, changes, rules, printer)
+				newChanges, actions, err := computeChanges(testchart, changes, rules)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("checking the image once", func() {
@@ -251,10 +244,6 @@ var _ = Describe("Pull & Push Images", func() {
 						},
 					}))
 				})
-
-				By("outputting the progress", func() {
-					Expect(printer.Out).To(Say("Checking harbor-repo.vmware.com/pwall/wavefront:5.6.7 \\(sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\)...\nPush required"))
-				})
 			})
 		})
 	})
@@ -273,8 +262,7 @@ var _ = Describe("Pull & Push Images", func() {
 				NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 			}
 
-			printer := NewLogger()
-			changes, err := pullOriginalImages(testchart, patterns, printer)
+			changes, err := pullOriginalImages(testchart, patterns)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("pulling the images", func() {
@@ -292,11 +280,6 @@ var _ = Describe("Pull & Push Images", func() {
 				Expect(changes[1].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wavefront:5.6.7"))
 				Expect(changes[1].Digest).To(Equal("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 			})
-
-			By("outputting the progress", func() {
-				Expect(printer.Out).To(Say("Pulling index.docker.io/bitnami/wordpress:1.2.3...\nDone"))
-				Expect(printer.Out).To(Say("Pulling index.docker.io/bitnami/wavefront:5.6.7...\nDone"))
-			})
 		})
 
 		Context("duplicated image", func() {
@@ -310,8 +293,7 @@ var _ = Describe("Pull & Push Images", func() {
 					NewPattern("{{.secondimage.registry}}/{{.secondimage.repository}}:{{.secondimage.tag}}"),
 				}
 
-				printer := NewLogger()
-				changes, err := pullOriginalImages(testchart, patterns, printer)
+				changes, err := pullOriginalImages(testchart, patterns)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("pulling the image once", func() {
@@ -328,10 +310,6 @@ var _ = Describe("Pull & Push Images", func() {
 					Expect(changes[1].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
 					Expect(changes[1].Digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 				})
-
-				By("outputting the progress", func() {
-					Expect(printer.Out).To(Say("Pulling index.docker.io/bitnami/wordpress:1.2.3...\nDone"))
-				})
 			})
 		})
 
@@ -342,11 +320,9 @@ var _ = Describe("Pull & Push Images", func() {
 					NewPattern("{{.image.registry}}/{{.image.repository}}"),
 				}
 
-				printer := NewLogger()
-				_, err := pullOriginalImages(testchart, patterns, printer)
+				_, err := pullOriginalImages(testchart, patterns)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("image pull error"))
-				Expect(printer.Out).To(Say("Pulling index.docker.io/bitnami/wordpress:1.2.3..."))
 			})
 		})
 	})

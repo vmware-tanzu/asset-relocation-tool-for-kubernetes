@@ -135,15 +135,11 @@ func NewChartMover(chartPath string, imageHintsFile string, rules *OCIImageRewri
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
 	}
-
-	// TODO(miguel): Remove this operation from the constructor
-	// The constructor should be idempotent
-	imageChanges, err := pullOriginalImages(chart, imagePatterns, c.logger)
+	imageChanges, err := pullOriginalImages(chart, imagePatterns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
-
-	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, rules, c.logger)
+	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, rules)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
@@ -157,16 +153,14 @@ func NewChartMover(chartPath string, imageHintsFile string, rules *OCIImageRewri
 // Print dumps the chart mover changes to the mover logger
 func (cm *ChartMover) Print() {
 	log := cm.logger
-	log.Println("Images to be pushed:")
-	noImagesToPush := true
+	log.Println("Image moves:")
 	for _, change := range cm.imageChanges {
+		pushRequiredTxt := ""
 		if change.ShouldPush() {
-			log.Printf("  %s (%s)\n", change.RewrittenReference.Name(), change.Digest)
-			noImagesToPush = false
+			pushRequiredTxt = " (push required)"
 		}
-	}
-	if noImagesToPush {
-		log.Println("  no images require pushing")
+		log.Printf(" %s => %s (%s)%s\n",
+			change.ImageReference.Name(), change.RewrittenReference.Name(), change.Digest, pushRequiredTxt)
 	}
 
 	var chartToModify *chart.Chart
@@ -199,7 +193,7 @@ func (cm *ChartMover) Move(toChartFilename string) error {
 	return nil
 }
 
-func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, log Logger) ([]*internal.ImageChange, error) {
+func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
 	var changes []*internal.ImageChange
 	imageCache := map[string]*internal.ImageChange{}
 
@@ -215,12 +209,10 @@ func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, l
 		}
 
 		if imageCache[originalImage.Name()] == nil {
-			log.Printf("Pulling %s...\n", originalImage.Name())
 			image, digest, err := internal.Image.Pull(originalImage)
 			if err != nil {
 				return nil, err
 			}
-			log.Println("Done")
 			change.Image = image
 			change.Digest = digest
 			imageCache[originalImage.Name()] = change
@@ -233,7 +225,7 @@ func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate, l
 	return changes, nil
 }
 
-func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, registryRules *OCIImageRewriteRules, log Logger) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
+func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, registryRules *OCIImageRewriteRules) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
 	var chartChanges []*internal.RewriteAction
 	imageCache := map[string]bool{}
 
@@ -263,18 +255,12 @@ func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, re
 				// This image has already been checked previously, so just force this one to be skipped
 				change.AlreadyPushed = true
 			} else {
-				log.Printf("Checking %s (%s)...\n", rewrittenImage.Name(), change.Digest)
 				needToPush, err := internal.Image.Check(change.Digest, rewrittenImage)
 				if err != nil {
 					return nil, nil, err
 				}
 
-				if needToPush {
-					log.Println("Push required")
-				} else {
-					log.Println("Already exists")
-					change.AlreadyPushed = true
-				}
+				change.AlreadyPushed = !needToPush
 				imageCache[rewrittenImage.Name()] = true
 			}
 		}

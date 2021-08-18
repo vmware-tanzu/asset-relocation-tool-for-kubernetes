@@ -2,11 +2,11 @@ apiVersion: vendir.k14s.io/v1alpha1
 directories:
 - contents:
   - helmChart:
-      appVersion: 8.0.26
-      version: 8.7.3
-    path: mysql-8.7.3
+      appVersion: 10.5.12
+      version: 9.4.2
+    path: mariadb-chart
   - manual: {}
-    path: mysql-8.7.3-image-hints.yaml
+    path: image-hints.yaml
   - manual: {}
     path: README.md
   path: simple-chart
@@ -14,9 +14,9 @@ directories:
   - helmChart:
       appVersion: 5.7.2
       version: 11.1.5
-    path: wordpress-11.1.5
+    path: wordpress-chart
   - manual: {}
-    path: wordpress-11.1.5-image-hints.yaml
+    path: image-hints.yaml
   - manual: {}
     path: README.md
   path: chart-with-subcharts
