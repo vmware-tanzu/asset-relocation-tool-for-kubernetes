@@ -95,7 +95,6 @@ func loadPatternsFromFile(patternsFile string, log Logger) ([]byte, error) {
 		return nil, fmt.Errorf("failed to read the image patterns file: %w", err)
 	}
 
-	log.Printf("%s hints file found\n", patternsFile)
 	return contents, nil
 }
 
@@ -172,6 +171,7 @@ func (cm *ChartMover) Print() {
 		}
 		log.Printf("  %s: %s\n", change.Path, change.Value)
 	}
+	log.Println("")
 }
 
 // Move executes the chart move image and chart changes.
