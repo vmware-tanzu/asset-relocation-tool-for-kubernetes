@@ -86,7 +86,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		RepositoryPrefix: repositoryPrefixRule,
 	}
 
-	cmd.Println("\nComputing relocation...\n")
+	cmd.Println("\nComputing relocation...")
 	chartMover, err := mover.NewChartMover(
 		args[0],
 		imagePatternsFile,
