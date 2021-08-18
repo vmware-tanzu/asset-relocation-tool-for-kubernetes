@@ -152,7 +152,7 @@ func NewChartMover(chartPath string, imageHintsFile string, rules *OCIImageRewri
 // Print dumps the chart mover changes to the mover logger
 func (cm *ChartMover) Print() {
 	log := cm.logger
-	log.Println("Image moves:")
+	log.Println("Image relocations:")
 	for _, change := range cm.imageChanges {
 		pushRequiredTxt := ""
 		if change.ShouldPush() {
@@ -183,13 +183,12 @@ func (cm *ChartMover) Move(toChartFilename string) error {
 		return err
 	}
 
-	log.Println("Writing chart files...")
 	err = modifyChart(cm.chart, cm.chartChanges, toChartFilename)
 	if err != nil {
 		return err
 	}
 
-	log.Println("Done\n")
+	log.Println("Done")
 	return nil
 }
 
