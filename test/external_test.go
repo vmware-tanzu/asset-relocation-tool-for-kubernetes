@@ -38,8 +38,7 @@ var _ = Describe("External tests", func() {
 		steps.Given("a rules file with a custom tag") // This is used for forcing a new tag, ensuring the target is new
 		steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering_private")
 
-		steps.And("the images are pulled")
-		steps.And("the rewritten images are checked to see if they need to be pushed")
+		steps.And("the move is computed")
 		steps.Then("the command says that the rewritten image will be pushed")
 		steps.And("the command says that the rewritten images will be written to the chart")
 		steps.And("the command exits without error")
@@ -104,20 +103,13 @@ var _ = Describe("External tests", func() {
 			Eventually(CommandSession.Err, time.Minute).Should(Say("[uU]nauthorized"))
 		})
 
-		define.Then(`^the images are pulled$`, func() {
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Pulling harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest...\nDone"))
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Pulling harbor-repo.vmware.com/dockerhub-proxy-cache/library/busybox:1.33.1...\nDone"))
-		})
-
-		define.Then(`^the rewritten images are checked to see if they need to be pushed$`, func() {
-			Eventually(CommandSession.Out, time.Minute).Should(Say(fmt.Sprintf("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s \\(sha256:[a-z0-9]*\\)...\nPush required", customTag)))
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)...\n(Already exists|Push required)"))
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Checking harbor-repo.vmware.com/tanzu_isv_engineering_private/busybox@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\)...\n(Already exists|Push required)"))
+		define.Then(`^the move is computed$`, func() {
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Computing relocation...\n"))
 		})
 
 		define.Then(`^the command says that the rewritten image will be pushed$`, func() {
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Images to be pushed:"))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s \\(sha256:[a-z0-9]*\\)", customTag)))
+			Eventually(CommandSession.Out, time.Minute).Should(Say("Image moves:"))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest => harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s \\(sha256:[a-z0-9]*\\) \\(push required\\)", customTag)))
 		})
 
 		define.Then(`^the command says that the rewritten images will be written to the chart$`, func() {
