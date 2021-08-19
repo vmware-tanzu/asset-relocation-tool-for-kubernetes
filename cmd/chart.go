@@ -96,15 +96,6 @@ func loadImagePatterns(chart *chart.Chart) (string, error) {
 	return patterns, nil
 }
 
-func loadRules() (*rewrite.Rules, error) {
-	rules := &rewrite.Rules{
-		Registry:         RegistryRule,
-		RepositoryPrefix: RepositoryPrefixRule,
-	}
-
-	return rules, nil
-}
-
 func MoveChart(cmd *cobra.Command, args []string) error {
 	sourceChart, err := loadChartFromArgs(args)
 	if err != nil {
@@ -116,10 +107,11 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rules, err := loadRules()
-	if err != nil {
-		return err
+	rules := &rewrite.Rules{
+		Registry:         RegistryRule,
+		RepositoryPrefix: RepositoryPrefixRule,
 	}
+
 	if rules.IsEmpty() {
 		return fmt.Errorf("at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
 	}
