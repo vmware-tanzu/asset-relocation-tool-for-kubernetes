@@ -5,12 +5,14 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 )
 
 func init() {
 	rootCmd.AddCommand(versionCmd)
+	versionCmd.SetOut(os.Stdout)
 }
 
 var Version = "dev"

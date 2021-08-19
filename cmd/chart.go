@@ -78,13 +78,9 @@ func newChartMoveCmd() *cobra.Command {
 }
 
 func loadChartFromArgs(args []string) (*chart.Chart, error) {
-	if len(args) == 0 || args[0] == "" {
-		return nil, errors.New("missing helm chart")
-	}
-
 	sourceChart, err := loader.Load(args[0])
 	if err != nil {
-		return nil, fmt.Errorf("failed to load helm chart at \"%s\": %w", args[0], err)
+		return nil, fmt.Errorf("failed to load Helm Chart at \"%s\": %w", args[0], err)
 	}
 
 	return sourceChart, nil
