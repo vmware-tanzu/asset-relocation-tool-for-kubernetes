@@ -156,22 +156,8 @@ func (t *ImageTemplate) Apply(originalImage name.Reference, rules *rewrite.Rules
 	var rewrites []*RewriteAction
 
 	// Tag or Digest
-	if t.TagTemplate != "" {
+	if t.TagTemplate != "" || t.DigestTemplate != "" {
 		tagged = true
-		if rules.Tag != "" && rules.Tag != originalImage.Identifier() {
-			rewrites = append(rewrites, &RewriteAction{
-				Path:  t.TagTemplate,
-				Value: rules.Tag,
-			})
-		}
-	} else if t.DigestTemplate != "" {
-		tagged = true
-		if rules.Digest != "" && rules.Digest != originalImage.Identifier() {
-			rewrites = append(rewrites, &RewriteAction{
-				Path:  t.DigestTemplate,
-				Value: rules.Digest,
-			})
-		}
 	}
 
 	// Either 1) registry + repo or 2) repo
@@ -188,10 +174,6 @@ func (t *ImageTemplate) Apply(originalImage name.Reference, rules *rewrite.Rules
 	if tagged {
 		tagString = ""
 	} else {
-		if rules.Tag != "" {
-			repoModified = true
-			tagString = ":" + rules.Tag
-		}
 		if rules.Digest != "" {
 			repoModified = true
 			tagString = "@" + rules.Digest
@@ -199,10 +181,7 @@ func (t *ImageTemplate) Apply(originalImage name.Reference, rules *rewrite.Rules
 	}
 
 	repository := originalImage.Context().RepositoryStr()
-	if rules.Repository != "" {
-		repoModified = true
-		repository = rules.Repository
-	} else if strings.HasPrefix(repository, "library") {
+	if strings.HasPrefix(repository, "library") {
 		repoModified = true
 	}
 

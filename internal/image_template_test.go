@@ -187,15 +187,11 @@ var (
 		Template: "{{ .lazy.registry }}/{{ .lazy.image }}:{{ .lazy.tag }}",
 	}
 
-	registryRule             = &rewrite.Rules{Registry: "registry.vmware.com"}
-	repositoryPrefixRule     = &rewrite.Rules{RepositoryPrefix: "my-company"}
-	repositoryRule           = &rewrite.Rules{Repository: "owner/name"}
-	tagRule                  = &rewrite.Rules{Tag: "explosive"}
-	digestRule               = &rewrite.Rules{Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
-	registryAndPrefixRule    = &rewrite.Rules{Registry: "registry.vmware.com", RepositoryPrefix: "my-company"}
-	registryAndTagRule       = &rewrite.Rules{Registry: "registry.vmware.com", Tag: "explosive"}
-	registryAndDigestRule    = &rewrite.Rules{Registry: "registry.vmware.com", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
-	registryTagAndDigestRule = &rewrite.Rules{Registry: "registry.vmware.com", Tag: "explosive", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
+	registryRule          = &rewrite.Rules{Registry: "registry.vmware.com"}
+	repositoryPrefixRule  = &rewrite.Rules{RepositoryPrefix: "my-company"}
+	digestRule            = &rewrite.Rules{Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
+	registryAndPrefixRule = &rewrite.Rules{Registry: "registry.vmware.com", RepositoryPrefix: "my-company"}
+	registryAndDigestRule = &rewrite.Rules{Registry: "registry.vmware.com", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
 )
 
 var _ = DescribeTable("Rewrite Actions",
@@ -256,26 +252,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("image alone, repository only", imageAlone, repositoryRule, &TableOutput{
-		Image:          "index.docker.io/library/ubuntu:latest",
-		RewrittenImage: "index.docker.io/owner/name:latest",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "index.docker.io/owner/name:latest",
-			},
-		},
-	}),
-	Entry("image alone, tag only", imageAlone, tagRule, &TableOutput{
-		Image:          "index.docker.io/library/ubuntu:latest",
-		RewrittenImage: "index.docker.io/library/ubuntu:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "index.docker.io/library/ubuntu:explosive",
-			},
-		},
-	}),
 	Entry("image alone, digest only", imageAlone, digestRule, &TableOutput{
 		Image:          "index.docker.io/library/ubuntu:latest",
 		RewrittenImage: "index.docker.io/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -296,16 +272,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("image alone, registry and tag", imageAlone, registryAndTagRule, &TableOutput{
-		Image:          "index.docker.io/library/ubuntu:latest",
-		RewrittenImage: "registry.vmware.com/library/ubuntu:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "registry.vmware.com/library/ubuntu:explosive",
-			},
-		},
-	}),
 	Entry("image alone, registry and digest", imageAlone, registryAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/library/ubuntu:latest",
 		RewrittenImage: "registry.vmware.com/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -316,17 +282,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("image alone, registry and tag and digest", imageAlone, registryTagAndDigestRule, &TableOutput{
-		Image:          "index.docker.io/library/ubuntu:latest",
-		RewrittenImage: "registry.vmware.com/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "registry.vmware.com/library/ubuntu@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-			},
-		},
-	}),
-
 	Entry("image and tag, registry only", imageAndTag, registryRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "registry.vmware.com/petewall/amazingapp:latest",
@@ -347,26 +302,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("image and tag, repository only", imageAndTag, repositoryRule, &TableOutput{
-		Image:          "index.docker.io/petewall/amazingapp:latest",
-		RewrittenImage: "index.docker.io/owner/name:latest",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "index.docker.io/owner/name",
-			},
-		},
-	}),
-	Entry("image and tag, tag only", imageAndTag, tagRule, &TableOutput{
-		Image:          "index.docker.io/petewall/amazingapp:latest",
-		RewrittenImage: "index.docker.io/petewall/amazingapp:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".tag",
-				Value: "explosive",
-			},
-		},
-	}),
 	Entry("image and tag, digest only", imageAndTag, digestRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "index.docker.io/petewall/amazingapp:latest",
@@ -382,20 +317,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("image and tag, registry and tag", imageAndTag, registryAndTagRule, &TableOutput{
-		Image:          "index.docker.io/petewall/amazingapp:latest",
-		RewrittenImage: "registry.vmware.com/petewall/amazingapp:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "registry.vmware.com/petewall/amazingapp",
-			},
-			{
-				Path:  ".tag",
-				Value: "explosive",
-			},
-		},
-	}),
 	Entry("image and tag, registry and digest", imageAndTag, registryAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/petewall/amazingapp:latest",
 		RewrittenImage: "registry.vmware.com/petewall/amazingapp:latest",
@@ -406,21 +327,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("image and tag, registry and tag and digest", imageAndTag, registryTagAndDigestRule, &TableOutput{
-		Image:          "index.docker.io/petewall/amazingapp:latest",
-		RewrittenImage: "registry.vmware.com/petewall/amazingapp:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "registry.vmware.com/petewall/amazingapp",
-			},
-			{
-				Path:  ".tag",
-				Value: "explosive",
-			},
-		},
-	}),
-
 	Entry("registry and image, registry only", registryAndImage, registryRule, &TableOutput{
 		Image:          "quay.io/proxy/nginx:latest",
 		RewrittenImage: "registry.vmware.com/proxy/nginx:latest",
@@ -438,26 +344,6 @@ var _ = DescribeTable("Rewrite Actions",
 			{
 				Path:  ".image",
 				Value: "my-company/nginx:latest",
-			},
-		},
-	}),
-	Entry("registry and image, repository only", registryAndImage, repositoryRule, &TableOutput{
-		Image:          "quay.io/proxy/nginx:latest",
-		RewrittenImage: "quay.io/owner/name:latest",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "owner/name:latest",
-			},
-		},
-	}),
-	Entry("registry and image, tag only", registryAndImage, tagRule, &TableOutput{
-		Image:          "quay.io/proxy/nginx:latest",
-		RewrittenImage: "quay.io/proxy/nginx:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "proxy/nginx:explosive",
 			},
 		},
 	}),
@@ -485,20 +371,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("registry and image, registry and tag", registryAndImage, registryAndTagRule, &TableOutput{
-		Image:          "quay.io/proxy/nginx:latest",
-		RewrittenImage: "registry.vmware.com/proxy/nginx:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".registry",
-				Value: "registry.vmware.com",
-			},
-			{
-				Path:  ".image",
-				Value: "proxy/nginx:explosive",
-			},
-		},
-	}),
 	Entry("registry and image, registry and digest", registryAndImage, registryAndDigestRule, &TableOutput{
 		Image:          "quay.io/proxy/nginx:latest",
 		RewrittenImage: "registry.vmware.com/proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -513,21 +385,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("registry and image, registry and tag and digest", registryAndImage, registryTagAndDigestRule, &TableOutput{
-		Image:          "quay.io/proxy/nginx:latest",
-		RewrittenImage: "registry.vmware.com/proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".registry",
-				Value: "registry.vmware.com",
-			},
-			{
-				Path:  ".image",
-				Value: "proxy/nginx@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-			},
-		},
-	}),
-
 	Entry("registry, image, and tag, registry only", registryImageAndTag, registryRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/busycontainers/busybox:busiest",
@@ -545,26 +402,6 @@ var _ = DescribeTable("Rewrite Actions",
 			{
 				Path:  ".image",
 				Value: "my-company/busybox",
-			},
-		},
-	}),
-	Entry("registry, image, and tag, repository only", registryImageAndTag, repositoryRule, &TableOutput{
-		Image:          "quay.io/busycontainers/busybox:busiest",
-		RewrittenImage: "quay.io/owner/name:busiest",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "owner/name",
-			},
-		},
-	}),
-	Entry("registry, image, and tag, tag only", registryImageAndTag, tagRule, &TableOutput{
-		Image:          "quay.io/busycontainers/busybox:busiest",
-		RewrittenImage: "quay.io/busycontainers/busybox:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".tag",
-				Value: "explosive",
 			},
 		},
 	}),
@@ -587,20 +424,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("registry, image, and tag, registry and tag", registryImageAndTag, registryAndTagRule, &TableOutput{
-		Image:          "quay.io/busycontainers/busybox:busiest",
-		RewrittenImage: "registry.vmware.com/busycontainers/busybox:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".registry",
-				Value: "registry.vmware.com",
-			},
-			{
-				Path:  ".tag",
-				Value: "explosive",
-			},
-		},
-	}),
 	Entry("registry, image, and tag, registry and digest", registryImageAndTag, registryAndDigestRule, &TableOutput{
 		Image:          "quay.io/busycontainers/busybox:busiest",
 		RewrittenImage: "registry.vmware.com/busycontainers/busybox:busiest",
@@ -611,21 +434,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("registry, image, and tag, registry and tag and digest", registryImageAndTag, registryTagAndDigestRule, &TableOutput{
-		Image:          "quay.io/busycontainers/busybox:busiest",
-		RewrittenImage: "registry.vmware.com/busycontainers/busybox:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".registry",
-				Value: "registry.vmware.com",
-			},
-			{
-				Path:  ".tag",
-				Value: "explosive",
-			},
-		},
-	}),
-
 	Entry("image and digest, registry only", imageAndDigest, registryRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -645,21 +453,6 @@ var _ = DescribeTable("Rewrite Actions",
 				Value: "index.docker.io/my-company/platformio",
 			},
 		},
-	}),
-	Entry("image and digest, repository only", imageAndDigest, repositoryRule, &TableOutput{
-		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		RewrittenImage: "index.docker.io/owner/name@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "index.docker.io/owner/name",
-			},
-		},
-	}),
-	Entry("image and digest, tag only", imageAndDigest, tagRule, &TableOutput{
-		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		RewrittenImage: "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Actions:        []*internal.RewriteAction{},
 	}),
 	Entry("image and digest, digest only", imageAndDigest, digestRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -681,16 +474,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("image and digest, registry and tag", imageAndDigest, registryAndTagRule, &TableOutput{
-		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "registry.vmware.com/petewall/platformio",
-			},
-		},
-	}),
 	Entry("image and digest, registry and digest", imageAndDigest, registryAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -705,21 +488,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("image and digest, registry and tag and digest", imageAndDigest, registryTagAndDigestRule, &TableOutput{
-		Image:          "index.docker.io/petewall/platformio@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		RewrittenImage: "registry.vmware.com/petewall/platformio@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image",
-				Value: "registry.vmware.com/petewall/platformio",
-			},
-			{
-				Path:  ".digest",
-				Value: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-			},
-		},
-	}),
-
 	Entry("nested values, registry only", nestedValues, registryRule, &TableOutput{
 		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
 		RewrittenImage: "registry.vmware.com/bitnami/wordpress:1.2.3",
@@ -737,26 +505,6 @@ var _ = DescribeTable("Rewrite Actions",
 			{
 				Path:  ".image.repository",
 				Value: "my-company/wordpress",
-			},
-		},
-	}),
-	Entry("nested values, repository only", nestedValues, repositoryRule, &TableOutput{
-		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
-		RewrittenImage: "index.docker.io/owner/name:1.2.3",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image.repository",
-				Value: "owner/name",
-			},
-		},
-	}),
-	Entry("nested values, tag only", nestedValues, tagRule, &TableOutput{
-		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
-		RewrittenImage: "index.docker.io/bitnami/wordpress:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image.tag",
-				Value: "explosive",
 			},
 		},
 	}),
@@ -779,20 +527,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("nested values, registry and tag", nestedValues, registryAndTagRule, &TableOutput{
-		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
-		RewrittenImage: "registry.vmware.com/bitnami/wordpress:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image.registry",
-				Value: "registry.vmware.com",
-			},
-			{
-				Path:  ".image.tag",
-				Value: "explosive",
-			},
-		},
-	}),
 	Entry("nested values, registry and digest", nestedValues, registryAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
 		RewrittenImage: "registry.vmware.com/bitnami/wordpress:1.2.3",
@@ -803,21 +537,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("nested values, registry and tag and digest", nestedValues, registryTagAndDigestRule, &TableOutput{
-		Image:          "index.docker.io/bitnami/wordpress:1.2.3",
-		RewrittenImage: "registry.vmware.com/bitnami/wordpress:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".image.registry",
-				Value: "registry.vmware.com",
-			},
-			{
-				Path:  ".image.tag",
-				Value: "explosive",
-			},
-		},
-	}),
-
 	Entry("dependency image and digest, registry only", dependencyRegistryImageAndTag, registryRule, &TableOutput{
 		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:laziest",
@@ -835,26 +554,6 @@ var _ = DescribeTable("Rewrite Actions",
 			{
 				Path:  ".lazy.image",
 				Value: "my-company/lazybox",
-			},
-		},
-	}),
-	Entry("dependency image and digest, repository only", dependencyRegistryImageAndTag, repositoryRule, &TableOutput{
-		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
-		RewrittenImage: "index.docker.io/owner/name:laziest",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".lazy.image",
-				Value: "owner/name",
-			},
-		},
-	}),
-	Entry("dependency image and digest, tag only", dependencyRegistryImageAndTag, tagRule, &TableOutput{
-		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
-		RewrittenImage: "index.docker.io/lazycontainers/lazybox:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".lazy.tag",
-				Value: "explosive",
 			},
 		},
 	}),
@@ -877,20 +576,6 @@ var _ = DescribeTable("Rewrite Actions",
 			},
 		},
 	}),
-	Entry("dependency image and digest, registry and tag", dependencyRegistryImageAndTag, registryAndTagRule, &TableOutput{
-		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
-		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".lazy.registry",
-				Value: "registry.vmware.com",
-			},
-			{
-				Path:  ".lazy.tag",
-				Value: "explosive",
-			},
-		},
-	}),
 	Entry("dependency image and digest, registry and digest", dependencyRegistryImageAndTag, registryAndDigestRule, &TableOutput{
 		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:laziest",
@@ -898,20 +583,6 @@ var _ = DescribeTable("Rewrite Actions",
 			{
 				Path:  ".lazy.registry",
 				Value: "registry.vmware.com",
-			},
-		},
-	}),
-	Entry("dependency image and digest, registry and tag and digest", dependencyRegistryImageAndTag, registryTagAndDigestRule, &TableOutput{
-		Image:          "index.docker.io/lazycontainers/lazybox:laziest",
-		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:explosive",
-		Actions: []*internal.RewriteAction{
-			{
-				Path:  ".lazy.registry",
-				Value: "registry.vmware.com",
-			},
-			{
-				Path:  ".lazy.tag",
-				Value: "explosive",
 			},
 		},
 	}),

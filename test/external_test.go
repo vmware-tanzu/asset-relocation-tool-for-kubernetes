@@ -1,43 +1,40 @@
+// Copyright 2021 VMware, Inc.
+// SPDX-License-Identifier: BSD-2-Clause
+
 // +build external
 
 package test
 
-// Copyright 2021 VMware, Inc.
-// SPDX-License-Identifier: BSD-2-Clause
-
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/rewrite"
 	"helm.sh/helm/v3/pkg/chart/loader"
 
 	. "github.com/bunniesandbeatings/goerkin"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
-	"gopkg.in/yaml.v2"
 )
 
 var _ = Describe("External tests", func() {
 	steps := NewSteps()
+	// Using a custom repo prefix in every test run
+	customRepoPrefix := fmt.Sprintf("%s/ci-tests/%d", "tanzu_isv_engineering_private", time.Now().Unix())
 
 	Context("Unauthorized", func() {
 		Scenario("running chart move", func() {
 			steps.Given("no authorization to the remote registry")
-			steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering_private")
+			steps.When(fmt.Sprintf("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix %s", customRepoPrefix))
 			steps.Then("the command exits with an error")
 			steps.And("the error message says it failed to pull because it was not authorized")
 		})
 	})
 
 	Scenario("running chart move", func() {
-		steps.Given("a rules file with a custom tag") // This is used for forcing a new tag, ensuring the target is new
-		steps.When("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix tanzu_isv_engineering_private")
-
+		steps.When(fmt.Sprintf("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix %s", customRepoPrefix))
 		steps.And("the move is computed")
 		steps.Then("the command says that the rewritten image will be pushed")
 		steps.And("the command says that the rewritten images will be written to the chart")
@@ -48,31 +45,6 @@ var _ = Describe("External tests", func() {
 
 	steps.Define(func(define Definitions) {
 		DefineCommonSteps(define)
-
-		var customTag string
-
-		define.Given(`^a rules file with a custom tag$`, func() {
-			var err error
-			RulesFile, err = ioutil.TempFile("", "rulesfile-*.yaml")
-			Expect(err).ToNot(HaveOccurred())
-
-			customTag = fmt.Sprintf("%d", time.Now().Unix())
-			bytes, err := yaml.Marshal(&rewrite.Rules{
-				Tag: customTag,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
-			_, err = RulesFile.Write(bytes)
-			Expect(err).ToNot(HaveOccurred())
-
-			err = RulesFile.Close()
-			Expect(err).ToNot(HaveOccurred())
-		}, func() {
-			if RulesFile != nil {
-				os.Remove(RulesFile.Name())
-				RulesFile = nil
-			}
-		})
 
 		define.Given(`^no authorization to the remote registry$`, func() {
 			homeDir, err := os.UserHomeDir()
@@ -109,19 +81,18 @@ var _ = Describe("External tests", func() {
 
 		define.Then(`^the command says that the rewritten image will be pushed$`, func() {
 			Eventually(CommandSession.Out, time.Minute).Should(Say("Image moves:"))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest => harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s \\(sha256:[a-z0-9]*\\) \\(push required\\)", customTag)))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest => harbor-repo.vmware.com/%s/tiny:tiniest \\(sha256:[a-z0-9]*\\) \\(push required\\)", customRepoPrefix)))
 		})
 
 		define.Then(`^the command says that the rewritten images will be written to the chart$`, func() {
 			Eventually(CommandSession.Out).Should(Say("Changes written to testchart/values.yaml:"))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .image.tag: %s", customTag)))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .image.repository: harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny")))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .sameImageButNoTagRequirement.image: harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny@sha256:[a-z0-9]*")))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .singleImageReference.image: harbor-repo.vmware.com/tanzu_isv_engineering_private/busybox@sha256:[a-z0-9]*")))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .image.repository: harbor-repo.vmware.com/%s/tiny", customRepoPrefix)))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .sameImageButNoTagRequirement.image: harbor-repo.vmware.com/%s/tiny@sha256:[a-z0-9]*", customRepoPrefix)))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .singleImageReference.image: harbor-repo.vmware.com/%s/busybox@sha256:[a-z0-9]*", customRepoPrefix)))
 		})
 
 		define.Then(`^the rewritten image is pushed$`, func() {
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:%s...\nDone", customTag)))
+			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/%s/tiny:tiniest...\nDone", customRepoPrefix)))
 		})
 
 		var modifiedChartPath string
@@ -133,19 +104,17 @@ var _ = Describe("External tests", func() {
 			modifiedChart, err := loader.Load(modifiedChartPath)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(modifiedChart.Values["image"]).To(HaveKeyWithValue("repository", "harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny"))
-
-			Expect(modifiedChart.Values["image"]).To(HaveKeyWithValue("tag", customTag))
+			Expect(modifiedChart.Values["image"]).To(HaveKeyWithValue("repository", fmt.Sprintf("harbor-repo.vmware.com/%s/tiny", customRepoPrefix)))
 
 			imageMap, ok := modifiedChart.Values["sameImageButNoTagRequirement"].(map[string]interface{})
 			Expect(ok).To(BeTrue())
 			Expect(imageMap).To(HaveKey("image"))
-			Expect(imageMap["image"]).To(ContainSubstring("harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny@sha256:"))
+			Expect(imageMap["image"]).To(ContainSubstring(fmt.Sprintf("harbor-repo.vmware.com/%s/tiny@sha256:", customRepoPrefix)))
 
 			imageMap, ok = modifiedChart.Values["singleImageReference"].(map[string]interface{})
 			Expect(ok).To(BeTrue())
 			Expect(imageMap).To(HaveKey("image"))
-			Expect(imageMap["image"]).To(ContainSubstring("harbor-repo.vmware.com/tanzu_isv_engineering_private/busybox@sha256:"))
+			Expect(imageMap["image"]).To(ContainSubstring(fmt.Sprintf("harbor-repo.vmware.com/%s/busybox@sha256:", customRepoPrefix)))
 		}, func() {
 			if modifiedChartPath != "" {
 				os.Remove(modifiedChartPath)
