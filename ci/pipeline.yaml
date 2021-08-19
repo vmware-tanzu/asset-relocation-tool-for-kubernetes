@@ -10,6 +10,14 @@ resource_types:
       username: ((harbor.username))
       password: ((harbor.token))
 
+  - name: pull-request
+    type: docker-image
+    source:
+      repository: harbor-repo.vmware.com/dockerhub-proxy-cache/teliaoss/github-pr-resource
+      tag: v0.23.0
+      username: ((harbor.username))
+      password: ((harbor.token))
+
 resources:
   - name: source
     type: git
@@ -21,6 +29,14 @@ resources:
       ignore_paths:
         - ci/Dockerfile
         - ci/pipeline.yaml
+
+  - name: pull-requests
+    type: pull-request
+    icon: github
+    check_every: 1m
+    source:
+      repository: vmware-tanzu/asset-relocation-tool-for-kubernetes
+      access_token: ((github.access_token))
 
   - name: test-image-source
     type: git
@@ -233,3 +249,53 @@ jobs:
                 ! diff --context=3 \
                   <(tar xzfO nginx-chart/*.tgz nginx/values.yaml) \
                   <(tar xzfO rewritten-chart/chart.tgz nginx/values.yaml)
+
+
+  - name: test-pull-request
+    serial: true
+    plan:
+      - in_parallel:
+        - get: test-image
+          passed:
+            - build-test-image
+        - get: source
+          resource: pull-requests
+          trigger: true
+          version: every
+          params:
+            integration_tool: rebase
+      - put: pull-requests
+        inputs: detect
+        params:
+          path: source
+          status: pending
+      - do:
+        - task: run-unit-tests
+          image: test-image
+          file: source/ci/tasks/test.yaml
+          params:
+            MAKE_TARGET: test-units
+        - task: run-feature-tests
+          image: test-image
+          file: source/ci/tasks/test.yaml
+          params:
+            MAKE_TARGET: test-features
+        - task: run-external-tests
+          image: test-image
+          file: source/ci/tasks/test.yaml
+          params:
+            MAKE_TARGET: test-external
+            REGISTRY_SERVER: harbor-repo.vmware.com
+            REGISTRY_USERNAME: ((harbor-private.username))
+            REGISTRY_PASSWORD: ((harbor-private.token))
+        on_failure:
+          put: pull-requests
+          inputs: detect
+          params:
+            path: source
+            status: failure
+      - put: pull-requests
+        inputs: detect
+        params:
+          path: source
+          status: success
