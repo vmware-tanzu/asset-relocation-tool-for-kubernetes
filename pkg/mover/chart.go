@@ -15,10 +15,23 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 )
 
-const DefaultRetries = 3
+const defaultRetries = 3
 
 type Logger interface {
 	Printf(format string, i ...interface{})
+	Println(i ...interface{})
+}
+
+type defaultLogger struct{}
+
+func (l *defaultLogger) Printf(format string, i ...interface{}) {
+	fmt.Printf(format, i...)
+	return
+}
+
+func (l *defaultLogger) Println(i ...interface{}) {
+	fmt.Println(i...)
+	return
 }
 
 type ChartMover struct {
@@ -53,26 +66,39 @@ func LoadImagePatterns(patternsFile string, chart *chart.Chart) (string, error) 
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
-func NewChartMover(chart *chart.Chart, patterns string, rules *rewrite.Rules, log Logger) (*ChartMover, error) {
+func NewChartMover(chart *chart.Chart, patterns string, rules *rewrite.Rules, opts ...Option) (*ChartMover, error) {
+	c := &ChartMover{
+		chart:   chart,
+		logger:  &defaultLogger{},
+		retries: defaultRetries,
+	}
+
+	// Option overrides
+	for _, opt := range opts {
+		if opt != nil {
+			opt(c)
+		}
+	}
+
 	imagePatterns, err := internal.ParseImagePatterns(patterns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
 	}
+
 	imageChanges, err := pullOriginalImages(chart, imagePatterns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
+
 	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, rules)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
-	return &ChartMover{
-		chart:        chart,
-		imageChanges: imageChanges,
-		chartChanges: chartChanges,
-		logger:       log,
-		retries:      DefaultRetries,
-	}, nil
+
+	c.imageChanges = imageChanges
+	c.chartChanges = chartChanges
+
+	return c, nil
 }
 
 // WithRetries customizes the mover push retries
@@ -84,7 +110,7 @@ func (cm *ChartMover) WithRetries(retries uint) *ChartMover {
 // Print dumps the chart mover changes to the mover logger
 func (cm *ChartMover) Print() {
 	log := cm.logger
-	log.Printf("\nImage moves:\n")
+	log.Println("Image moves:")
 	for _, change := range cm.imageChanges {
 		pushRequiredTxt := ""
 		if change.ShouldPush() {
@@ -113,12 +139,12 @@ func (cm *ChartMover) Move(toChartFilename string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Writing chart files... ")
+	log.Println("Writing chart files... ")
 	err = modifyChart(cm.chart, cm.chartChanges, toChartFilename)
 	if err != nil {
 		return err
 	}
-	log.Printf("Done\n")
+	log.Println("Done")
 	return nil
 }
 
@@ -184,10 +210,7 @@ func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, ru
 					return nil, nil, err
 				}
 
-				if needToPush {
-				} else {
-					change.AlreadyPushed = true
-				}
+				change.AlreadyPushed = !needToPush
 				imageCache[rewrittenImage.Name()] = true
 			}
 		}
@@ -205,7 +228,7 @@ func pushRewrittenImages(imageChanges []*internal.ImageChange, retries uint, log
 					if err != nil {
 						return err
 					}
-					log.Printf("Done\n")
+					log.Println("Done")
 					return nil
 				},
 				retry.Attempts(retries),
@@ -252,4 +275,20 @@ func saveChart(chart *chart.Chart, toChartFilename string) error {
 	}
 
 	return os.Remove(tempDir)
+}
+
+type Option func(*ChartMover)
+
+// WithRetries defines how many times to retry the push operation
+func WithRetries(retries uint) Option {
+	return func(c *ChartMover) {
+		c.retries = retries
+	}
+}
+
+// WithLogger sets a custom Logger interface
+func WithLogger(l Logger) Option {
+	return func(c *ChartMover) {
+		c.logger = l
+	}
 }
