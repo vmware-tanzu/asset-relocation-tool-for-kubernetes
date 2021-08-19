@@ -42,8 +42,6 @@ github.com/go-logr/logr
 # github.com/gogo/protobuf v1.3.1
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/sortkeys
-# github.com/golang/protobuf v1.5.2
-## explicit
 # github.com/google/go-containerregistry v0.5.1
 ## explicit
 github.com/google/go-containerregistry/internal/and
@@ -68,8 +66,6 @@ github.com/google/gofuzz
 github.com/inconshreveable/mousetrap
 # github.com/json-iterator/go v1.1.10
 github.com/json-iterator/go
-# github.com/maxbrunsfeld/counterfeiter/v6 v6.4.1
-## explicit
 # github.com/mitchellh/copystructure v1.0.0
 github.com/mitchellh/copystructure
 # github.com/mitchellh/reflectwalk v1.0.0
@@ -185,8 +181,6 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
-# golang.org/x/tools v0.1.4
-## explicit
 # gopkg.in/check.v1 v1.0.0-20200902074654-038fdea0a05b
 ## explicit
 # gopkg.in/inf.v0 v0.9.1

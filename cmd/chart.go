@@ -29,7 +29,6 @@ var (
 
 	ImagePatternsFile string
 
-	RulesFile            string
 	RegistryRule         string
 	RepositoryPrefixRule string
 
@@ -53,8 +52,6 @@ func init() {
 	_ = ChartMoveCmd.MarkFlagRequired("images")
 	ChartMoveCmd.Flags().BoolVarP(&skipConfirmation, "yes", "y", false, "Proceed without prompting for confirmation")
 
-	ChartMoveCmd.Flags().StringVar(&RulesFile, "rules", "", "File containing rewrite rules")
-	_ = ChartMoveCmd.Flags().MarkHidden("rules")
 	ChartMoveCmd.Flags().StringVar(&RegistryRule, "registry", "", "Image registry rewrite rule")
 	ChartMoveCmd.Flags().StringVar(&RepositoryPrefixRule, "repo-prefix", "", "Image repository prefix rule")
 
@@ -99,27 +96,6 @@ func loadImagePatterns(chart *chart.Chart) (string, error) {
 	return patterns, nil
 }
 
-func loadRules() (*rewrite.Rules, error) {
-	rules := &rewrite.Rules{}
-	if RulesFile != "" {
-		var err error
-		rules, err = rewrite.ParseRules(RulesFile)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if RegistryRule != "" {
-		rules.Registry = RegistryRule
-	}
-
-	if RepositoryPrefixRule != "" {
-		rules.RepositoryPrefix = RepositoryPrefixRule
-	}
-
-	return rules, nil
-}
-
 func MoveChart(cmd *cobra.Command, args []string) error {
 	sourceChart, err := loadChartFromArgs(args)
 	if err != nil {
@@ -131,10 +107,11 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rules, err := loadRules()
-	if err != nil {
-		return err
+	rules := &rewrite.Rules{
+		Registry:         RegistryRule,
+		RepositoryPrefix: RepositoryPrefixRule,
 	}
+
 	if rules.IsEmpty() {
 		return fmt.Errorf("at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
 	}
