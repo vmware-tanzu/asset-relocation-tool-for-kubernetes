@@ -35,10 +35,10 @@ var (
 	output string
 
 	// errMissingOutPlaceHolder if out flag is missing the wildcard * placeholder
-	errMissingOutPlaceHolder = fmt.Errorf("missing '*' placeholder in --out flag")
+	errMissingOutPlaceHolder = errors.New("missing '*' placeholder in --out flag")
 
 	// errBadExtension when the out flag does not use a expected file extension
-	errBadExtension = fmt.Errorf("bad extension (expected .tgz)")
+	errBadExtension = errors.New("bad extension (expected .tgz)")
 )
 
 func init() {
@@ -54,7 +54,7 @@ func newChartMoveCmd() *cobra.Command {
 		Short:   "Relocates a Helm Chart along with their associated container images",
 		Long:    "It takes the provided Helm Chart, resolves and repushes all the dependent images, providing as output a modified Helm Chart (and subcharts) pointing to the new location of the images.",
 		Example: "move my-chart --image-patterns my-image-hints.yaml --registry my-registry.company.com ",
-		RunE:    MoveChart,
+		RunE:    moveChart,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return errors.New("requires a chart argument")
@@ -79,7 +79,7 @@ func newChartMoveCmd() *cobra.Command {
 
 func loadChartFromArgs(args []string) (*chart.Chart, error) {
 	if len(args) == 0 || args[0] == "" {
-		return nil, fmt.Errorf("missing helm chart")
+		return nil, errors.New("missing helm chart")
 	}
 
 	sourceChart, err := loader.Load(args[0])
@@ -96,7 +96,7 @@ func loadImagePatterns(chart *chart.Chart) (string, error) {
 		return "", fmt.Errorf("failed to read image pattern file: %w", err)
 	}
 	if patterns == "" {
-		return patterns, fmt.Errorf("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
+		return patterns, errors.New("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
 	}
 	if imagePatternsFile == "" {
 		log.Println("Using embedded image patterns file.")
@@ -104,7 +104,7 @@ func loadImagePatterns(chart *chart.Chart) (string, error) {
 	return patterns, nil
 }
 
-func MoveChart(cmd *cobra.Command, args []string) error {
+func moveChart(cmd *cobra.Command, args []string) error {
 	sourceChart, err := loadChartFromArgs(args)
 	if err != nil {
 		return err
@@ -116,7 +116,7 @@ func MoveChart(cmd *cobra.Command, args []string) error {
 	}
 
 	if registryRule == "" && repositoryPrefixRule == "" {
-		return fmt.Errorf("at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
+		return errors.New("at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
 	}
 
 	targetRewriteRules := &mover.RewriteRules{
