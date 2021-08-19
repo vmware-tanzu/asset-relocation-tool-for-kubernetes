@@ -11,11 +11,15 @@ import (
 	"github.com/divideandconquer/go-merge/merge"
 	"github.com/google/go-containerregistry/pkg/name"
 	yamlops2 "github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal/yamlops"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/rewrite"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
 
+type OCIImageLocation struct {
+	Registry         string
+	RepositoryPrefix string
+	Digest           string
+}
 type RewriteAction struct {
 	Path  string `json:"path"`
 	Value string `json:"value"`
@@ -151,7 +155,7 @@ func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions ...*RewriteAct
 	return image, nil
 }
 
-func (t *ImageTemplate) Apply(originalImage name.Reference, rules *rewrite.Rules) ([]*RewriteAction, error) {
+func (t *ImageTemplate) Apply(originalImage name.Reference, rules *OCIImageLocation) ([]*RewriteAction, error) {
 	var rewrites []*RewriteAction
 
 	newRegistry := originalImage.Context().Registry.Name()
