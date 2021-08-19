@@ -44,6 +44,8 @@ var (
 func init() {
 	chartCmd := &cobra.Command{Use: "chart"}
 	chartCmd.AddCommand(newChartMoveCmd())
+	// TODO(miguel): Revisit this override since it seems required only for testing
+	chartCmd.SetOut(os.Stdout)
 
 	rootCmd.AddCommand(chartCmd)
 }
