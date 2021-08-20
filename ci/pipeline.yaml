@@ -254,12 +254,12 @@ jobs:
   - name: test-pull-request
     serial: true
     plan:
+      - put: pull-requests
+        inputs: detect
+        params:
+          path: source
+          status: pending
       - in_parallel:
-        - put: pull-requests
-          inputs: detect
-          params:
-            path: source
-            status: pending
         - get: test-image
           passed:
             - build-test-image
