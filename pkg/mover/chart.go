@@ -1,7 +1,7 @@
-package mover
-
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
+
+package mover
 
 import (
 	"fmt"
@@ -10,12 +10,17 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/rewrite"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
 
-const defaultRetries = 3
+// Number of retries for pull/push operations
+const DefaultRetries = 3
+
+type RewriteRules struct {
+	Registry         string
+	RepositoryPrefix string
+}
 
 type Logger interface {
 	Printf(format string, i ...interface{})
@@ -66,11 +71,11 @@ func LoadImagePatterns(patternsFile string, chart *chart.Chart) (string, error) 
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
-func NewChartMover(chart *chart.Chart, patterns string, rules *rewrite.Rules, opts ...Option) (*ChartMover, error) {
+func NewChartMover(chart *chart.Chart, patterns string, rules *RewriteRules, opts ...Option) (*ChartMover, error) {
 	c := &ChartMover{
 		chart:   chart,
 		logger:  &defaultLogger{},
-		retries: defaultRetries,
+		retries: DefaultRetries,
 	}
 
 	// Option overrides
@@ -180,13 +185,18 @@ func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate) (
 	return changes, nil
 }
 
-func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, rules *rewrite.Rules) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
+func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, registryRules *RewriteRules) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
 	var chartChanges []*internal.RewriteAction
 	imageCache := map[string]bool{}
 
 	for _, change := range imageChanges {
-		rules.Digest = change.Digest
-		newActions, err := change.Pattern.Apply(change.ImageReference, rules)
+		rewriteRules := &internal.OCIImageLocation{
+			Registry:         registryRules.Registry,
+			RepositoryPrefix: registryRules.RepositoryPrefix,
+			Digest:           change.Digest,
+		}
+
+		newActions, err := change.Pattern.Apply(change.ImageReference, rewriteRules)
 		if err != nil {
 			return nil, nil, err
 		}

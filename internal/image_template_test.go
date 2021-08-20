@@ -9,7 +9,6 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/rewrite"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/test"
 )
 
@@ -187,15 +186,15 @@ var (
 		Template: "{{ .lazy.registry }}/{{ .lazy.image }}:{{ .lazy.tag }}",
 	}
 
-	registryRule          = &rewrite.Rules{Registry: "registry.vmware.com"}
-	repositoryPrefixRule  = &rewrite.Rules{RepositoryPrefix: "my-company"}
-	digestRule            = &rewrite.Rules{Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
-	registryAndPrefixRule = &rewrite.Rules{Registry: "registry.vmware.com", RepositoryPrefix: "my-company"}
-	registryAndDigestRule = &rewrite.Rules{Registry: "registry.vmware.com", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
+	registryRule          = &internal.OCIImageLocation{Registry: "registry.vmware.com"}
+	repositoryPrefixRule  = &internal.OCIImageLocation{RepositoryPrefix: "my-company"}
+	digestRule            = &internal.OCIImageLocation{Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
+	registryAndPrefixRule = &internal.OCIImageLocation{Registry: "registry.vmware.com", RepositoryPrefix: "my-company"}
+	registryAndDigestRule = &internal.OCIImageLocation{Registry: "registry.vmware.com", Digest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}
 )
 
 var _ = DescribeTable("Rewrite Actions",
-	func(input *TableInput, rules *rewrite.Rules, expected *TableOutput) {
+	func(input *TableInput, rules *internal.OCIImageLocation, expected *TableOutput) {
 		var (
 			err           error
 			chart         = test.MakeChart(input.ParentChart)

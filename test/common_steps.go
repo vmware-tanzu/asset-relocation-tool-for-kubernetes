@@ -6,7 +6,6 @@ package test
 // SPDX-License-Identifier: BSD-2-Clause
 
 import (
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -21,7 +20,6 @@ import (
 var (
 	ChartMoverBinaryPath string
 	CommandSession       *gexec.Session
-	RulesFile            *os.File
 )
 
 var _ = BeforeSuite(func() {
@@ -41,9 +39,6 @@ var _ = AfterSuite(func() {
 func DefineCommonSteps(define goerkin.Definitions) {
 	define.When(`^running relok8s (.*)$`, func(argString string) {
 		args := strings.Split(argString, " ")
-		if RulesFile != nil {
-			args = append(args, "--rules", RulesFile.Name())
-		}
 		command := exec.Command(ChartMoverBinaryPath, args...)
 		var err error
 		CommandSession, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)

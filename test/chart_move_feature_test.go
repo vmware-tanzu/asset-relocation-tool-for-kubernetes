@@ -88,15 +88,15 @@ var _ = Describe("relok8s chart move command", func() {
 		test.DefineCommonSteps(define)
 
 		define.Then(`^it says the chart is missing$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: missing helm chart"))
+			Expect(test.CommandSession.Err).To(Say("Error: requires a chart argument"))
 		})
 
 		define.Then(`^it says the chart does not exist$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: failed to load helm chart at \"fixtures/does-not-exist\": stat fixtures/does-not-exist: no such file or directory"))
+			Expect(test.CommandSession.Err).To(Say("Error: failed to load Helm Chart at \"fixtures/does-not-exist\": stat fixtures/does-not-exist: no such file or directory"))
 		})
 
 		define.Then(`^it says the chart is missing a critical file$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: failed to load helm chart at \"fixtures/empty-directory\": Chart.yaml file is missing"))
+			Expect(test.CommandSession.Err).To(Say("Error: failed to load Helm Chart at \"fixtures/empty-directory\": Chart.yaml file is missing"))
 		})
 
 		define.Then(`^it says the image patterns file is missing$`, func() {
