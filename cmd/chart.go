@@ -133,11 +133,15 @@ func moveChart(cmd *cobra.Command, args []string) error {
 	destinationFile := targetOutput(cwd, outputFmt, sourceChart.Name(), sourceChart.Metadata.Version)
 
 	cmd.Println("Computing relocation...")
-	chartMover, err := mover.NewChartMover(sourceChart, imagePatterns, targetRewriteRules, cmd)
+	chartMover, err := mover.NewChartMover(
+		sourceChart,
+		imagePatterns,
+		targetRewriteRules,
+		mover.WithRetries(retries), mover.WithLogger(cmd),
+	)
 	if err != nil {
 		return err
 	}
-	chartMover = chartMover.WithRetries(retries)
 	chartMover.Print()
 
 	if !skipConfirmation {

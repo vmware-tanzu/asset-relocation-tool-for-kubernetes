@@ -1,7 +1,7 @@
-package mover_test
-
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
+
+package mover_test
 
 import (
 	"testing"

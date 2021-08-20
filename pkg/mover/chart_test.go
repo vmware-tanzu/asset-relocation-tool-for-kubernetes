@@ -1,7 +1,7 @@
-package mover
-
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
+
+package mover
 
 import (
 	"fmt"
@@ -20,22 +20,26 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
-type TestPrinter struct {
-	Out *Buffer
+type testPrinter struct {
+	out *Buffer
 }
 
-func NewLogger() *TestPrinter {
-	return &TestPrinter{
-		Out: NewBuffer(),
+func newLogger() *testPrinter {
+	return &testPrinter{
+		out: NewBuffer(),
 	}
 }
 
-func (c *TestPrinter) print(i ...interface{}) {
-	_, _ = fmt.Fprint(c.Out, i...)
+func (c *testPrinter) print(i ...interface{}) {
+	_, _ = fmt.Fprint(c.out, i...)
 }
 
-func (c *TestPrinter) Printf(format string, i ...interface{}) {
+func (c *testPrinter) Printf(format string, i ...interface{}) {
 	c.print(fmt.Sprintf(format, i...))
+}
+
+func (c *testPrinter) Println(i ...interface{}) {
+	c.print(fmt.Sprintln(i...))
 }
 
 const testRetries = 3
@@ -68,7 +72,7 @@ var testchart = test.MakeChart(&test.ChartSeed{
 	},
 })
 
-func NewPattern(input string) *internal.ImageTemplate {
+func newPattern(input string) *internal.ImageTemplate {
 	template, err := internal.NewFromString(input)
 	Expect(err).ToNot(HaveOccurred())
 	return template
@@ -76,7 +80,7 @@ func NewPattern(input string) *internal.ImageTemplate {
 
 //go:generate counterfeiter github.com/google/go-containerregistry/pkg/v1.Image
 
-func MakeImage(digest string) *moverfakes.FakeImage {
+func makeImage(digest string) *moverfakes.FakeImage {
 	image := &moverfakes.FakeImage{}
 	image.DigestReturns(v1.NewHash(digest))
 	return image
@@ -100,15 +104,15 @@ var _ = Describe("Pull & Push Images", func() {
 		It("checks if the rewritten images are present", func() {
 			changes := []*internal.ImageChange{
 				{
-					Pattern:        NewPattern("{{.image.registry}}/{{.image.repository}}"),
+					Pattern:        newPattern("{{.image.registry}}/{{.image.repository}}"),
 					ImageReference: name.MustParseReference("index.docker.io/bitnami/wordpress:1.2.3"),
-					Image:          MakeImage("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+					Image:          makeImage("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 					Digest:         "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 				{
-					Pattern:        NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
+					Pattern:        newPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 					ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
-					Image:          MakeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+					Image:          makeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 					Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 			}
@@ -176,15 +180,15 @@ var _ = Describe("Pull & Push Images", func() {
 
 				changes := []*internal.ImageChange{
 					{
-						Pattern:        NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
+						Pattern:        newPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 						ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
-						Image:          MakeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+						Image:          makeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 					},
 					{
-						Pattern:        NewPattern("{{.observabilitytoo.image.registry}}/{{.observabilitytoo.image.repository}}:{{.observabilitytoo.image.tag}}"),
+						Pattern:        newPattern("{{.observabilitytoo.image.registry}}/{{.observabilitytoo.image.repository}}:{{.observabilitytoo.image.tag}}"),
 						ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
-						Image:          MakeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+						Image:          makeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 					},
 				}
@@ -248,15 +252,15 @@ var _ = Describe("Pull & Push Images", func() {
 	Describe("pullOriginalImages", func() {
 		It("creates a change list for each image in the pattern list", func() {
 			digest1 := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-			image1 := MakeImage(digest1)
+			image1 := makeImage(digest1)
 			digest2 := "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-			image2 := MakeImage(digest2)
+			image2 := makeImage(digest2)
 			fakeImage.PullReturnsOnCall(0, image1, digest1, nil)
 			fakeImage.PullReturnsOnCall(1, image2, digest2, nil)
 
 			patterns := []*internal.ImageTemplate{
-				NewPattern("{{.image.registry}}/{{.image.repository}}"),
-				NewPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
+				newPattern("{{.image.registry}}/{{.image.repository}}"),
+				newPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 			}
 
 			changes, err := pullOriginalImages(testchart, patterns)
@@ -282,12 +286,12 @@ var _ = Describe("Pull & Push Images", func() {
 		Context("duplicated image", func() {
 			It("only pulls once", func() {
 				digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-				image := MakeImage(digest)
+				image := makeImage(digest)
 				fakeImage.PullReturns(image, digest, nil)
 
 				patterns := []*internal.ImageTemplate{
-					NewPattern("{{.image.registry}}/{{.image.repository}}"),
-					NewPattern("{{.secondimage.registry}}/{{.secondimage.repository}}:{{.secondimage.tag}}"),
+					newPattern("{{.image.registry}}/{{.image.repository}}"),
+					newPattern("{{.secondimage.registry}}/{{.secondimage.repository}}:{{.secondimage.tag}}"),
 				}
 
 				changes, err := pullOriginalImages(testchart, patterns)
@@ -314,7 +318,7 @@ var _ = Describe("Pull & Push Images", func() {
 			It("returns the error", func() {
 				fakeImage.PullReturns(nil, "", fmt.Errorf("image pull error"))
 				patterns := []*internal.ImageTemplate{
-					NewPattern("{{.image.registry}}/{{.image.repository}}"),
+					newPattern("{{.image.registry}}/{{.image.repository}}"),
 				}
 
 				_, err := pullOriginalImages(testchart, patterns)
@@ -331,13 +335,13 @@ var _ = Describe("Pull & Push Images", func() {
 				{
 					ImageReference:     name.MustParseReference("acme/busybox:1.2.3"),
 					RewrittenReference: name.MustParseReference("harbor-repo.vmware.com/pwall/busybox:1.2.3"),
-					Image:              MakeImage("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+					Image:              makeImage("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 				},
 			}
 		})
 
 		It("pushes the images", func() {
-			printer := NewLogger()
+			printer := newLogger()
 			err := pushRewrittenImages(images, testRetries, printer)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -349,14 +353,14 @@ var _ = Describe("Pull & Push Images", func() {
 			})
 
 			By("logging the process", func() {
-				Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\nDone"))
+				Expect(printer.out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\nDone"))
 			})
 		})
 
 		Context("rewritten image is the same", func() {
 			It("does not push the image", func() {
 				images[0].RewrittenReference = images[0].ImageReference
-				printer := NewLogger()
+				printer := newLogger()
 				err := pushRewrittenImages(images, testRetries, printer)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -369,7 +373,7 @@ var _ = Describe("Pull & Push Images", func() {
 		Context("image has already been pushed", func() {
 			It("does not push the image", func() {
 				images[0].AlreadyPushed = true
-				printer := NewLogger()
+				printer := newLogger()
 				err := pushRewrittenImages(images, testRetries, printer)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -386,7 +390,7 @@ var _ = Describe("Pull & Push Images", func() {
 			})
 
 			It("retries and passes", func() {
-				printer := NewLogger()
+				printer := newLogger()
 				err := pushRewrittenImages(images, testRetries, printer)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -395,9 +399,9 @@ var _ = Describe("Pull & Push Images", func() {
 				})
 
 				By("logging the process", func() {
-					Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\n"))
-					Expect(printer.Out).To(Say("Attempt #1 failed: push failed"))
-					Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\nDone"))
+					Expect(printer.out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\n"))
+					Expect(printer.out).To(Say("Attempt #1 failed: push failed"))
+					Expect(printer.out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\nDone"))
 				})
 			})
 		})
@@ -408,7 +412,7 @@ var _ = Describe("Pull & Push Images", func() {
 			})
 
 			It("returns an error", func() {
-				printer := NewLogger()
+				printer := newLogger()
 				err := pushRewrittenImages(images, testRetries, printer)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("All attempts fail:\n#1: push failed\n#2: push failed\n#3: push failed"))
@@ -418,12 +422,12 @@ var _ = Describe("Pull & Push Images", func() {
 				})
 
 				By("logging the process", func() {
-					Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\n"))
-					Expect(printer.Out).To(Say("Attempt #1 failed: push failed"))
-					Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\n"))
-					Expect(printer.Out).To(Say("Attempt #2 failed: push failed"))
-					Expect(printer.Out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\n"))
-					Expect(printer.Out).To(Say("Attempt #3 failed: push failed"))
+					Expect(printer.out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\n"))
+					Expect(printer.out).To(Say("Attempt #1 failed: push failed"))
+					Expect(printer.out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\n"))
+					Expect(printer.out).To(Say("Attempt #2 failed: push failed"))
+					Expect(printer.out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox:1.2.3...\n"))
+					Expect(printer.out).To(Say("Attempt #3 failed: push failed"))
 				})
 			})
 		})
@@ -431,12 +435,12 @@ var _ = Describe("Pull & Push Images", func() {
 })
 
 const (
-	FixturesRoot = "../../test/fixtures/"
+	fixturesRoot = "../../test/fixtures/"
 )
 
 var _ = Describe("LoadImagePatterns", func() {
 	It("reads from given file first if present", func() {
-		imagefile := filepath.Join(FixturesRoot, "testchart.images.yaml")
+		imagefile := filepath.Join(fixturesRoot, "testchart.images.yaml")
 		contents, err := LoadImagePatterns(imagefile, nil)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -445,19 +449,19 @@ var _ = Describe("LoadImagePatterns", func() {
 		Expect(contents).To(Equal(string(expected)))
 	})
 	It("reads from chart if file missing", func() {
-		chart, err := loader.Load(filepath.Join(FixturesRoot, "self-relok8ing-chart"))
+		chart, err := loader.Load(filepath.Join(fixturesRoot, "self-relok8ing-chart"))
 		Expect(err).ToNot(HaveOccurred())
 
 		contents, err := LoadImagePatterns("", chart)
 		Expect(err).ToNot(HaveOccurred())
 
-		embeddedPatterns := filepath.Join(FixturesRoot, "self-relok8ing-chart/.relok8s-images.yaml")
+		embeddedPatterns := filepath.Join(fixturesRoot, "self-relok8ing-chart/.relok8s-images.yaml")
 		expected, err := os.ReadFile(embeddedPatterns)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(contents).To(Equal(string(expected)))
 	})
 	It("reads nothing when no file and the chart is not self relok8able", func() {
-		chart, err := loader.Load(filepath.Join(FixturesRoot, "testchart"))
+		chart, err := loader.Load(filepath.Join(fixturesRoot, "testchart"))
 		Expect(err).ToNot(HaveOccurred())
 
 		contents, err := LoadImagePatterns("", chart)
