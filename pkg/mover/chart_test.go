@@ -16,7 +16,6 @@ import (
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal/internalfakes"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/mover/moverfakes"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/rewrite"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/test"
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
@@ -113,7 +112,7 @@ var _ = Describe("Pull & Push Images", func() {
 					Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 			}
-			rules := &rewrite.Rules{
+			rules := &RewriteRules{
 				Registry:         "harbor-repo.vmware.com",
 				RepositoryPrefix: "pwall",
 			}
@@ -189,7 +188,7 @@ var _ = Describe("Pull & Push Images", func() {
 						Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 					},
 				}
-				rules := &rewrite.Rules{
+				rules := &RewriteRules{
 					Registry:         "harbor-repo.vmware.com",
 					RepositoryPrefix: "pwall",
 				}
