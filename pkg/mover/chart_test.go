@@ -439,32 +439,34 @@ const (
 )
 
 var _ = Describe("LoadImagePatterns", func() {
+	logger := &defaultLogger{}
+
 	It("reads from given file first if present", func() {
 		imagefile := filepath.Join(fixturesRoot, "testchart.images.yaml")
-		contents, err := LoadImagePatterns(imagefile, nil)
+		contents, err := loadPatterns(imagefile, nil, logger)
 		Expect(err).ToNot(HaveOccurred())
 
 		expected, err := os.ReadFile(imagefile)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(contents).To(Equal(string(expected)))
+		Expect(contents).To(Equal(expected))
 	})
 	It("reads from chart if file missing", func() {
 		chart, err := loader.Load(filepath.Join(fixturesRoot, "self-relok8ing-chart"))
 		Expect(err).ToNot(HaveOccurred())
 
-		contents, err := LoadImagePatterns("", chart)
+		contents, err := loadPatterns("", chart, logger)
 		Expect(err).ToNot(HaveOccurred())
 
 		embeddedPatterns := filepath.Join(fixturesRoot, "self-relok8ing-chart/.relok8s-images.yaml")
 		expected, err := os.ReadFile(embeddedPatterns)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(contents).To(Equal(string(expected)))
+		Expect(contents).To(Equal(expected))
 	})
 	It("reads nothing when no file and the chart is not self relok8able", func() {
 		chart, err := loader.Load(filepath.Join(fixturesRoot, "testchart"))
 		Expect(err).ToNot(HaveOccurred())
 
-		contents, err := LoadImagePatterns("", chart)
+		contents, err := loadPatterns("", chart, logger)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(contents).To(BeEmpty())
 	})

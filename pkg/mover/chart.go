@@ -4,6 +4,7 @@
 package mover
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -11,11 +12,20 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
 	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
 
 // Number of retries for pull/push operations
-const DefaultRetries = 3
+const (
+	DefaultRetries        = 3
+	EmbeddedHintsFilename = ".relok8s-images.yaml"
+)
+
+var (
+	ErrImageHintsMissing  = errors.New("no image hints provided")
+	ErrOCIRewritesMissing = errors.New("at least one rewrite rule is required")
+)
 
 type RewriteRules struct {
 	Registry         string
@@ -38,42 +48,35 @@ func (l *defaultLogger) Println(i ...interface{}) {
 }
 
 type ChartMover struct {
-	chart        *chart.Chart
+	chart *chart.Chart
+	// Extracted metadata from the provided Helm Chart
+	ChartName    string
+	ChartVersion string
+
 	imageChanges []*internal.ImageChange
 	chartChanges []*internal.RewriteAction
 	logger       Logger
 	retries      uint
 }
 
-// Returns the chart embedded image patterns from the .relok8s-images.yaml file
-func ChartPatterns(chart *chart.Chart) string {
-	for _, file := range chart.Files {
-		if file.Name == ".relok8s-images.yaml" && file.Data != nil {
-			return string(file.Data)
-		}
-	}
-	return ""
-}
-
-// LoadImagePatterns from file first, or the embedded from the chart as a fallback
-func LoadImagePatterns(patternsFile string, chart *chart.Chart) (string, error) {
-	if patternsFile != "" {
-		contents, err := os.ReadFile(patternsFile)
-		if err != nil {
-			return "", fmt.Errorf("failed to read the image patterns file: %w", err)
-		}
-		return string(contents), nil
-	}
-	return ChartPatterns(chart), nil
-}
-
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
-func NewChartMover(chart *chart.Chart, patterns string, rules *RewriteRules, opts ...Option) (*ChartMover, error) {
+func NewChartMover(chartPath string, imageHintsFile string, rules *RewriteRules, opts ...Option) (*ChartMover, error) {
+	chart, err := loader.Load(chartPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load Helm Chart at %q: %w", chartPath, err)
+	}
+
+	if rules.Registry == "" && rules.RepositoryPrefix == "" {
+		return nil, ErrOCIRewritesMissing
+	}
+
 	c := &ChartMover{
-		chart:   chart,
-		logger:  &defaultLogger{},
-		retries: DefaultRetries,
+		chart:        chart,
+		ChartName:    chart.Name(),
+		ChartVersion: chart.Metadata.Version,
+		logger:       &defaultLogger{},
+		retries:      DefaultRetries,
 	}
 
 	// Option overrides
@@ -83,7 +86,16 @@ func NewChartMover(chart *chart.Chart, patterns string, rules *RewriteRules, opt
 		}
 	}
 
-	imagePatterns, err := internal.ParseImagePatterns(patterns)
+	patternsRaw, err := loadPatterns(imageHintsFile, chart, c.logger)
+	if err != nil {
+		return nil, err
+	}
+
+	if patternsRaw == nil {
+		return nil, ErrImageHintsMissing
+	}
+
+	imagePatterns, err := internal.ParseImagePatterns(patternsRaw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
 	}
@@ -283,6 +295,47 @@ func saveChart(chart *chart.Chart, toChartFilename string) error {
 	}
 
 	return os.Remove(tempDir)
+}
+
+// load patterns from either a hints file or an existing EmbeddedHintsFilename
+func loadPatterns(imageHintsFile string, chart *chart.Chart, log Logger) ([]byte, error) {
+	var patternsRaw []byte
+	var err error
+
+	if imageHintsFile != "" {
+		patternsRaw, err = loadPatternsFromFile(imageHintsFile, log)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// If patterns file is not provided we try to find the patterns from inside the Chart
+		patternsRaw = loadPatternsFromChart(chart, log)
+	}
+
+	return patternsRaw, err
+}
+
+func loadPatternsFromChart(chart *chart.Chart, log Logger) []byte {
+	// TODO: This is an overkill, we know the location of the file
+	// we should just check for it
+	for _, file := range chart.Files {
+		if file.Name == EmbeddedHintsFilename && file.Data != nil {
+			log.Printf("%s hints file found\n", EmbeddedHintsFilename)
+			return file.Data
+		}
+	}
+
+	return nil
+}
+
+// loadPatternsFromFile from file first, or the embedded from the chart as a fallback
+func loadPatternsFromFile(patternsFile string, log Logger) ([]byte, error) {
+	contents, err := os.ReadFile(patternsFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the image patterns file: %w", err)
+	}
+
+	return contents, nil
 }
 
 type Option func(*ChartMover)
