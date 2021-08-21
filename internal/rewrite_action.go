@@ -1,7 +1,7 @@
-package internal
-
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
+
+package internal
 
 import (
 	"bytes"
@@ -49,7 +49,7 @@ func (a *RewriteAction) ToMap() map[string]interface{} {
 	var node ValuesMap
 	var value interface{} = a.Value
 
-	for i := len(keys) - 1; i >= 0; i -= 1 {
+	for i := len(keys) - 1; i >= 0; i-- {
 		key := keys[i]
 		node = make(ValuesMap)
 		node[key] = value
@@ -171,7 +171,7 @@ func (t *ImageTemplate) Apply(originalImage name.Reference, rules *OCIImageLocat
 		newRepository = fmt.Sprintf("%s/%s", rules.RepositoryPrefix, imageName)
 	}
 
-	// Append the image digest unless the tag or digest are explicitely encoded in the template
+	// Append the image digest unless the tag or digest are explicitly encoded in the template
 	if t.TagTemplate == "" && t.DigestTemplate == "" && rules.Digest != "" {
 		newRepository = fmt.Sprintf("%s@%s", newRepository, rules.Digest)
 	}
@@ -196,7 +196,7 @@ func (t *ImageTemplate) Apply(originalImage name.Reference, rules *OCIImageLocat
 	if t.RepositoryTemplate != "" && newRepository != "" {
 		rewrites = append(rewrites, &RewriteAction{
 			Path:  t.RepositoryTemplate,
-			Value: fmt.Sprintf("%s", newRepository),
+			Value: newRepository,
 		})
 	}
 

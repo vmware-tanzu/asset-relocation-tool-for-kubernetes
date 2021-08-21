@@ -31,12 +31,10 @@ type defaultLogger struct{}
 
 func (l *defaultLogger) Printf(format string, i ...interface{}) {
 	fmt.Printf(format, i...)
-	return
 }
 
 func (l *defaultLogger) Println(i ...interface{}) {
 	fmt.Println(i...)
-	return
 }
 
 type ChartMover struct {
