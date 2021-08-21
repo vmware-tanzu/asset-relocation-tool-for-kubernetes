@@ -106,6 +106,9 @@ test-all: test test-external
 
 # https://golangci-lint.run/usage/install/#local-installation
 lint: deps-golangci-lint
+	golangci-lint run --new-from-rev=origin/main
+
+lint-all: deps-golangci-lint
 	golangci-lint run
 
 
