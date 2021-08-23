@@ -2,3 +2,5 @@
 - "{{ .image.repository }}:{{ .image.tag }}"
 - "{{ .sameImageButNoTagRequirement.image }}"
 - "{{ .singleImageReference.image }}"
+# Subchart
+- "{{ .subchart.image.name }}:{{ .subchart.image.tag }}"

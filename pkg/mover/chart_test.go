@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"testing"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -471,3 +472,23 @@ var _ = Describe("LoadImagePatterns", func() {
 		Expect(contents).To(BeEmpty())
 	})
 })
+
+func TestNamespacedPath(t *testing.T) {
+	tests := []struct {
+		inputPath  string
+		chartName  string
+		outputPath string
+	}{
+		{".image.registry", "app1", ".image.registry"},
+		{".app1.image.registry", "app1", ".image.registry"},
+		{".fooapp1.image.registry", "app1", ".fooapp1.image.registry"},
+		{".image.app1.registry", "app1", ".image.app1.registry"},
+		{".app2.image.registry", "app1", ".app2.image.registry"},
+	}
+
+	for _, tc := range tests {
+		if got, want := namespacedPath(tc.inputPath, tc.chartName), tc.outputPath; got != want {
+			t.Errorf("got=%s; want=%s", got, want)
+		}
+	}
+}

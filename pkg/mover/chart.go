@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 
 	"github.com/avast/retry-go"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
@@ -108,6 +109,8 @@ func NewChartMover(chartPath string, imageHintsFile string, rules *RewriteRules,
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
 	}
 
+	c.logger.Println("Computing relocation...\n")
+
 	imageChanges, err := pullOriginalImages(chart, imagePatterns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
@@ -135,13 +138,13 @@ func (cm *ChartMover) WithRetries(retries uint) *ChartMover {
 // the expected rewrites in the Helm Chart.
 func (cm *ChartMover) Print() {
 	log := cm.logger
-	log.Println("Image moves:")
+	log.Println("Image copies:")
 	for _, change := range cm.imageChanges {
-		pushRequiredTxt := ""
+		pushRequiredTxt := "already exists"
 		if change.ShouldPush() {
-			pushRequiredTxt = " (push required)"
+			pushRequiredTxt = "push required"
 		}
-		log.Printf(" %s => %s (%s)%s\n",
+		log.Printf(" %s => %s (%s) (%s)\n",
 			change.ImageReference.Name(), change.RewrittenReference.Name(), change.Digest, pushRequiredTxt)
 	}
 
@@ -150,10 +153,19 @@ func (cm *ChartMover) Print() {
 		destination := change.FindChartDestination(cm.chart)
 		if chartToModify != destination {
 			chartToModify = destination
-			log.Printf("\nChanges written to %s/values.yaml:\n", chartToModify.ChartFullPath())
+			log.Printf("\nChanges to be applied to %s/values.yaml:\n", chartToModify.ChartFullPath())
 		}
-		log.Printf("  %s: %s\n", change.Path, change.Value)
+
+		// Remove chart name from the path since we are already indicating what values.yaml file we are changing
+		log.Printf("  %s: %s\n", namespacedPath(change.Path, chartToModify.Name()), change.Value)
 	}
+}
+
+// namespacedPath removes the chartName from the beginning of the full path
+// i.e .mariadb.image.registry => .image.registry if the chartName is mariadb
+func namespacedPath(fullpath, chartName string) string {
+	re := regexp.MustCompile(fmt.Sprintf("^.%s.", chartName))
+	return re.ReplaceAllString(fullpath, ".")
 }
 
 /*
@@ -167,16 +179,20 @@ Move executes the Chart relocation which includes
 */
 func (cm *ChartMover) Move(toChartFilename string) error {
 	log := cm.logger
+
+	log.Printf("Relocating %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
+
 	err := pushRewrittenImages(cm.imageChanges, cm.retries, log)
 	if err != nil {
 		return err
 	}
-	log.Println("Writing chart files... ")
 	err = modifyChart(cm.chart, cm.chartChanges, toChartFilename)
 	if err != nil {
 		return err
 	}
+
 	log.Println("Done")
+	log.Println(toChartFilename)
 	return nil
 }
 
