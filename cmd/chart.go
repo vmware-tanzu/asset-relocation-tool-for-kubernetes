@@ -125,7 +125,12 @@ func moveChart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get current working dir: %w", err)
 	}
 
-	destinationFile := targetOutput(cwd, outputFmt, chartMover.ChartName, chartMover.ChartVersion)
+	chartMetadata, err := chartMover.ChartMetadata()
+	if err != nil {
+		return err
+	}
+
+	destinationFile := targetOutput(cwd, outputFmt, chartMetadata.Name, chartMetadata.Version)
 
 	return chartMover.Move(destinationFile)
 }

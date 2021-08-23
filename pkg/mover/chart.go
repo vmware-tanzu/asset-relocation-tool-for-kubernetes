@@ -16,22 +16,29 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 )
 
-// Number of retries for pull/push operations
 const (
-	DefaultRetries        = 3
+	// EmbeddedHintsFilename to be present in the Helm Chart rootpath
 	EmbeddedHintsFilename = ".relok8s-images.yaml"
+	// DefaultRetries indicates the default number of retries for pull/push operations
+	DefaultRetries = 3
 )
 
 var (
-	ErrImageHintsMissing  = errors.New("no image hints provided")
+	// ErrImageHintsMissing indicates that neither the hints file was provided nor found in the Helm chart
+	ErrImageHintsMissing = errors.New("no image hints provided")
+	// ErrOCIRewritesMissing indicates that no rewrite rules have been provided
 	ErrOCIRewritesMissing = errors.New("at least one rewrite rule is required")
 )
 
+// RewriteRules indicate What kind of target registry overrides we want to apply to the found images
 type RewriteRules struct {
-	Registry         string
+	// Registry overrides the registry part of the image FQDN, i.e myregistry.io
+	Registry string
+	// RepositoryPrefix will override the image path by being prepended before the image name
 	RepositoryPrefix string
 }
 
+// Logger represents an interface used to output moving information
 type Logger interface {
 	Printf(format string, i ...interface{})
 	Println(i ...interface{})
@@ -47,16 +54,19 @@ func (l *defaultLogger) Println(i ...interface{}) {
 	fmt.Println(i...)
 }
 
+// ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
 type ChartMover struct {
-	chart *chart.Chart
-	// Extracted metadata from the provided Helm Chart
-	ChartName    string
-	ChartVersion string
-
+	chart        *chart.Chart
 	imageChanges []*internal.ImageChange
 	chartChanges []*internal.RewriteAction
 	logger       Logger
 	retries      uint
+}
+
+// ChartMetadata exposes metadata about the Helm Chart to be relocated
+type ChartMetadata struct {
+	Name    string
+	Version string
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
@@ -72,11 +82,9 @@ func NewChartMover(chartPath string, imageHintsFile string, rules *RewriteRules,
 	}
 
 	c := &ChartMover{
-		chart:        chart,
-		ChartName:    chart.Name(),
-		ChartVersion: chart.Metadata.Version,
-		logger:       &defaultLogger{},
-		retries:      DefaultRetries,
+		chart:   chart,
+		logger:  &defaultLogger{},
+		retries: DefaultRetries,
 	}
 
 	// Option overrides
@@ -116,13 +124,15 @@ func NewChartMover(chartPath string, imageHintsFile string, rules *RewriteRules,
 	return c, nil
 }
 
-// WithRetries customizes the mover push retries
+// WithRetries sets how many times to retry push operations
 func (cm *ChartMover) WithRetries(retries uint) *ChartMover {
 	cm.retries = retries
 	return cm
 }
 
-// Print dumps the chart mover changes to the mover logger
+// Print shows the changes expected to be performed during relocation,
+// including the new location of the Helm Chart Images as well as
+// the expected rewrites in the Helm Chart.
 func (cm *ChartMover) Print() {
 	log := cm.logger
 	log.Println("Image moves:")
@@ -146,8 +156,15 @@ func (cm *ChartMover) Print() {
 	}
 }
 
-// Move executes the chart move image and chart changes.
-// The result chart is saved as toChartFilename.
+/*
+Move executes the Chart relocation which includes
+
+1 - Push all the images to their new locations
+
+2 - Rewrite the Helm Chart and its subcharts
+
+3 - Repackage the Helm chart as toChartFilename
+*/
 func (cm *ChartMover) Move(toChartFilename string) error {
 	log := cm.logger
 	err := pushRewrittenImages(cm.imageChanges, cm.retries, log)
@@ -161,6 +178,18 @@ func (cm *ChartMover) Move(toChartFilename string) error {
 	}
 	log.Println("Done")
 	return nil
+}
+
+// ChartMetadata returns information from the Helm Chart ready to be relocated
+func (cm *ChartMover) ChartMetadata() (*ChartMetadata, error) {
+	if cm.chart == nil {
+		return nil, errors.New("Helm Chart not loaded")
+	}
+
+	return &ChartMetadata{
+		Name:    cm.chart.Name(),
+		Version: cm.chart.Metadata.Version,
+	}, nil
 }
 
 func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
@@ -338,6 +367,7 @@ func loadPatternsFromFile(patternsFile string, log Logger) ([]byte, error) {
 	return contents, nil
 }
 
+// Option adds optional functionality to NewChartMover constructor
 type Option func(*ChartMover)
 
 // WithRetries defines how many times to retry the push operation

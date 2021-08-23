@@ -12,6 +12,7 @@ linters:
     - dupl
     - gofmt
     - goimports
+    # golint replacement
     - revive
     - gosimple
     - govet
