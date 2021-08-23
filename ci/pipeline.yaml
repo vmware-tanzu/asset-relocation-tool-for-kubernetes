@@ -254,11 +254,6 @@ jobs:
   - name: test-pull-request
     serial: true
     plan:
-      - put: pull-requests
-        inputs: detect
-        params:
-          path: source
-          status: pending
       - in_parallel:
         - get: test-image
           passed:
@@ -269,6 +264,12 @@ jobs:
           version: every
           params:
             integration_tool: rebase
+          on_success:
+            put: pull-requests
+            inputs: detect
+            params:
+              path: source
+              status: pending
           on_failure:
             put: pull-requests
             inputs: detect
