@@ -76,9 +76,9 @@ func NewFromString(input string) (*ImageTemplate, error) {
 	return imageTemplate, nil
 }
 
-func ParseImagePatterns(patterns string) ([]*ImageTemplate, error) {
+func ParseImagePatterns(patterns []byte) ([]*ImageTemplate, error) {
 	var templateStrings []string
-	err := yaml.Unmarshal(([]byte)(patterns), &templateStrings)
+	err := yaml.Unmarshal(patterns, &templateStrings)
 	if err != nil {
 		return nil, fmt.Errorf("image pattern file is not in the correct format: %w", err)
 	}

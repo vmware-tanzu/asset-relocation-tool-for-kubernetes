@@ -71,7 +71,7 @@ var _ = Describe("relok8s chart move command", func() {
 	})
 
 	Scenario("missing image patterns file", func() {
-		steps.When("running relok8s chart move fixtures/wordpress-11.0.4.tgz")
+		steps.When("running relok8s chart move fixtures/wordpress-11.0.4.tgz --repo-prefix cyberdyne-corp")
 		steps.Then("the command exits with an error")
 		steps.And("it says the image patterns file is missing")
 		steps.And("it prints the usage")

@@ -8,15 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/mover"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
 const (
@@ -79,69 +76,30 @@ func newChartMoveCmd() *cobra.Command {
 	return cmd
 }
 
-func loadChartFromArgs(args []string) (*chart.Chart, error) {
-	sourceChart, err := loader.Load(args[0])
-	if err != nil {
-		return nil, fmt.Errorf("failed to load Helm Chart at \"%s\": %w", args[0], err)
-	}
-
-	return sourceChart, nil
-}
-
-func loadImagePatterns(chart *chart.Chart) (string, error) {
-	patterns, err := mover.LoadImagePatterns(imagePatternsFile, chart)
-	if err != nil {
-		return "", fmt.Errorf("failed to read image pattern file: %w", err)
-	}
-	if patterns == "" {
-		return patterns, errors.New("image patterns file is required. Please try again with '--image-patterns <image patterns file>'")
-	}
-	if imagePatternsFile == "" {
-		log.Println("Using embedded image patterns file.")
-	}
-	return patterns, nil
-}
-
 func moveChart(cmd *cobra.Command, args []string) error {
-	sourceChart, err := loadChartFromArgs(args)
-	if err != nil {
-		return err
-	}
-
-	imagePatterns, err := loadImagePatterns(sourceChart)
-	if err != nil {
-		return err
-	}
-
-	if registryRule == "" && repositoryPrefixRule == "" {
-		return errors.New("at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
-	}
-
 	targetRewriteRules := &mover.RewriteRules{
 		Registry:         registryRule,
 		RepositoryPrefix: repositoryPrefixRule,
 	}
 
-	outputFmt, err := parseOutputFlag(output)
-	if err != nil {
-		return fmt.Errorf("failed to move chart: %w", err)
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current working dir: %w", err)
-	}
-	destinationFile := targetOutput(cwd, outputFmt, sourceChart.Name(), sourceChart.Metadata.Version)
-
 	cmd.Println("Computing relocation...")
+
 	chartMover, err := mover.NewChartMover(
-		sourceChart,
-		imagePatterns,
+		args[0],
+		imagePatternsFile,
 		targetRewriteRules,
 		mover.WithRetries(retries), mover.WithLogger(cmd),
 	)
 	if err != nil {
+		if err == mover.ErrImageHintsMissing {
+			return fmt.Errorf("image patterns file is required. Please try again with '--image-patterns <image patterns file>' or as part of the Helm chart at [chart]/%s file", mover.EmbeddedHintsFilename)
+		} else if err == mover.ErrOCIRewritesMissing {
+			return fmt.Errorf("at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
+		}
+
 		return err
 	}
+
 	chartMover.Print()
 
 	if !skipConfirmation {
@@ -156,6 +114,23 @@ func moveChart(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 	}
+
+	outputFmt, err := parseOutputFlag(output)
+	if err != nil {
+		return fmt.Errorf("failed to move chart: %w", err)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current working dir: %w", err)
+	}
+
+	chartMetadata, err := chartMover.ChartMetadata()
+	if err != nil {
+		return err
+	}
+
+	destinationFile := targetOutput(cwd, outputFmt, chartMetadata.Name, chartMetadata.Version)
 
 	return chartMover.Move(destinationFile)
 }
