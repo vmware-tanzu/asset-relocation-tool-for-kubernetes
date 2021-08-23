@@ -1,7 +1,7 @@
-package internal
-
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
+
+package internal
 
 import (
 	"fmt"
@@ -49,9 +49,9 @@ func (i *ImageImpl) Check(digest string, imageReference name.Reference) (bool, e
 
 	if remoteDigest != digest {
 		return false, fmt.Errorf("remote image \"%s\" already exists with a different digest: %s. Will not overwrite", imageReference.Name(), remoteDigest)
-	} else {
-		return false, nil
 	}
+
+	return false, nil
 }
 
 func (i *ImageImpl) Push(image v1.Image, dest name.Reference) error {

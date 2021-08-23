@@ -1,0 +1,35 @@
+run:
+  timeout: 10m
+  build-tags:
+    - feature
+    - external
+
+linters:
+  disable-all: true
+  enable:
+    - goheader
+    - deadcode
+    - dupl
+    - gofmt
+    - goimports
+    - revive
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - structcheck
+    - unused
+    - varcheck
+    - staticcheck
+    
+linters-settings:
+  gofmt:
+    simplify: true
+  dupl:
+    threshold: 400
+  goheader:
+    values:
+      regexp:
+        copyright-year: 2021
+    template-path: code-header-template.txt

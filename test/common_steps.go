@@ -1,9 +1,9 @@
+// Copyright 2021 VMware, Inc.
+// SPDX-License-Identifier: BSD-2-Clause
+
 // +build feature external
 
 package test
-
-// Copyright 2021 VMware, Inc.
-// SPDX-License-Identifier: BSD-2-Clause
 
 import (
 	"os/exec"
@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/bunniesandbeatings/goerkin"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	. "github.com/onsi/gomega/gbytes"
+	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 )
 
@@ -22,17 +22,17 @@ var (
 	CommandSession       *gexec.Session
 )
 
-var _ = BeforeSuite(func() {
+var _ = ginkgo.BeforeSuite(func() {
 	var err error
 	ChartMoverBinaryPath, err = gexec.Build(
 		"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2",
 		"-ldflags",
 		"-X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/cmd.Version=1.2.3",
 	)
-	Expect(err).NotTo(HaveOccurred())
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 })
 
-var _ = AfterSuite(func() {
+var _ = ginkgo.AfterSuite(func() {
 	gexec.CleanupBuildArtifacts()
 })
 
@@ -41,20 +41,20 @@ func DefineCommonSteps(define goerkin.Definitions) {
 		args := strings.Split(argString, " ")
 		command := exec.Command(ChartMoverBinaryPath, args...)
 		var err error
-		CommandSession, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
-		Expect(err).NotTo(HaveOccurred())
+		CommandSession, err = gexec.Start(command, ginkgo.GinkgoWriter, ginkgo.GinkgoWriter)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	})
 
 	define.Then(`^the command exits without error$`, func() {
-		Eventually(CommandSession, time.Minute).Should(gexec.Exit(0))
+		gomega.Eventually(CommandSession, time.Minute).Should(gexec.Exit(0))
 	})
 
 	define.Then(`^the command exits with an error$`, func() {
-		Eventually(CommandSession, time.Minute).Should(gexec.Exit(1))
+		gomega.Eventually(CommandSession, time.Minute).Should(gexec.Exit(1))
 	})
 
 	define.Then(`^it prints the usage$`, func() {
-		Expect(CommandSession.Err).To(Say("Usage:"))
-		Expect(CommandSession.Err).To(Say("relok8s chart move <chart> \\[flags\\]"))
+		gomega.Expect(CommandSession.Err).To(gbytes.Say("Usage:"))
+		gomega.Expect(CommandSession.Err).To(gbytes.Say("relok8s chart move <chart> \\[flags\\]"))
 	})
 }

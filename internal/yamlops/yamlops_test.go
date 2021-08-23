@@ -1,7 +1,7 @@
-package yamlops_test
-
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
+
+package yamlops_test
 
 import (
 	"strings"
@@ -84,7 +84,7 @@ func TestUpdateMap(t *testing.T) {
 			"a:\n  foo: new\nb:\n  foo: old",
 		},
 		{
-			"doesn't update map with non-existant path",
+			"doesn't update map with non-existent path",
 			"a:\n  foo: a foo",
 			".b",
 			nil,

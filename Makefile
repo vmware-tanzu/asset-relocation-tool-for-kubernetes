@@ -25,20 +25,28 @@ endif
 HAS_COUNTERFEITER := $(shell command -v counterfeiter;)
 HAS_GINKGO := $(shell command -v ginkgo;)
 HAS_GO_IMPORTS := $(shell command -v goimports;)
+HAS_GOLANGCI_LINT := $(shell command -v golangci-lint;)
 
+# If go get is run from inside the project directory it will add the dependencies
+# to the go.mod file. To avoid that we import from another directory
 deps-goimports: deps-go-binary
 ifndef HAS_GO_IMPORTS
-	go get -u golang.org/x/tools/cmd/goimports
+	cd /; go get -u golang.org/x/tools/cmd/goimports
 endif
 
 deps-counterfeiter: deps-go-binary
 ifndef HAS_COUNTERFEITER
-	go get -u github.com/maxbrunsfeld/counterfeiter/v6
+	cd /; go get -u github.com/maxbrunsfeld/counterfeiter/v6
 endif
 
 deps-ginkgo: deps-go-binary
 ifndef HAS_GINKGO
-	go get -u github.com/onsi/ginkgo/ginkgo github.com/onsi/gomega
+	cd /; go get github.com/onsi/ginkgo/ginkgo github.com/onsi/gomega
+endif
+
+deps-golangci-lint: deps-go-binary deps-goimports
+ifndef HAS_GOLANGCI_LINT
+	cd /; go get github.com/golangci/golangci-lint/cmd/golangci-lint
 endif
 
 # #### CLEAN ####
@@ -96,9 +104,9 @@ test: deps lint test-units test-features
 
 test-all: test test-external
 
-lint: deps-goimports
-	git ls-files | grep -v '^vendor/' | grep '.go$$' | xargs goimports -l -w
-
+# https://golangci-lint.run/usage/install/#local-installation
+lint: deps-golangci-lint
+	golangci-lint run
 
 # #### DEVOPS ####
 .PHONY: set-pipeline set-example-pipeline
