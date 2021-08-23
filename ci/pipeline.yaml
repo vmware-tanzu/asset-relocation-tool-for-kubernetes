@@ -264,11 +264,19 @@ jobs:
           version: every
           params:
             integration_tool: rebase
-      - put: pull-requests
-        inputs: detect
-        params:
-          path: source
-          status: pending
+          on_success:
+            put: pull-requests
+            inputs: detect
+            params:
+              path: source
+              status: pending
+          on_failure:
+            put: pull-requests
+            inputs: detect
+            params:
+              path: source
+              context: merge-conflict
+              status: failure
       - do:
         - task: run-unit-tests
           image: test-image
