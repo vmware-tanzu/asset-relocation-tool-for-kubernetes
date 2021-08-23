@@ -1,9 +1,14 @@
+// Copyright 2021 VMware, Inc.
+// SPDX-License-Identifier: BSD-2-Clause
+
 package mover
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Package level documentation
-func Example() error {
+func Example() {
 	// Initialize the Mover action
 	chartMover, err := NewChartMover(
 		// The Helm Chart can be provided in either tarball or directory form
@@ -18,28 +23,22 @@ func Example() error {
 		},
 	)
 	if err != nil {
-		if err == ErrImageHintsMissing {
-			return fmt.Errorf("image patterns file is required", EmbeddedHintsFilename)
-		} else if err == ErrOCIRewritesMissing {
-			return fmt.Errorf("at least one rewrite rule must be given")
-		}
-
-		return err
+		fmt.Println(err)
+		return
 	}
 
-	// Next we just need to call Move providing the destinatin path of the rewritten Helm Chart
+	// Next we just need to call Move providing the destination path of the rewritten Helm Chart
 	// i.e chartMover.Move("./helm-chart-relocated.tgz")
 	// Additionally, some extra metadata about the provided Helm Chart can be retrieved.
 	// Useful to generate custom destination filepaths
 	chartMetadata, err := chartMover.ChartMetadata()
 	if err != nil {
-		return err
+		fmt.Println(err)
+		return
 	}
 
 	// i.e ./mariadb-7.5.relocated.tgz
 	destinationPath := fmt.Sprintf("./%s-%s.relocated.tgz", chartMetadata.Name, chartMetadata.Version)
 	// Perform the push, rewrite and repackage of the Helm Chart
 	chartMover.Move(destinationPath)
-
-	return nil
 }
