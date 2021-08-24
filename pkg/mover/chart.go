@@ -11,7 +11,7 @@ import (
 	"regexp"
 
 	"github.com/avast/retry-go"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
