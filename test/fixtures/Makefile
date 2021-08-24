@@ -2,16 +2,12 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 .PHONY: build clean rebuild
-build: wordpress/.unarchived
+build: wordpress/Chart.yaml
 rebuild: clean build
 clean:
-	rm -rf wordpress-11.0.4.tgz wordpress
+	rm -rf wordpress-11.0.4.tgz
 
-wordpress-11.0.4.tgz:
+wordpress/Chart.yaml:
 	helm repo add bitnami https://charts.bitnami.com/bitnami
 	helm pull bitnami/wordpress --version 11.0.4
-
-wordpress/.unarchived: wordpress-11.0.4.tgz
 	tar zxvf wordpress-11.0.4.tgz
-	touch wordpress/.unarchived
-
