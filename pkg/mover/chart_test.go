@@ -14,10 +14,10 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal/internalfakes"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/mover/moverfakes"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/test"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal/internalfakes"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/pkg/mover/moverfakes"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/test"
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
 

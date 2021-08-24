@@ -4,7 +4,7 @@
 package main
 
 import (
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/cmd"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/cmd"
 )
 
 func main() {

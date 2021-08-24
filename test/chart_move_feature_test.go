@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/test"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/test"
 )
 
 var _ = Describe("relok8s chart move command", func() {

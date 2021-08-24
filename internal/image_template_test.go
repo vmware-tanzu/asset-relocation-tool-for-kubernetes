@@ -8,8 +8,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/test"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/test"
 )
 
 var _ = Describe("internal.NewFromString", func() {

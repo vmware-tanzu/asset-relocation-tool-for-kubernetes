@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/pkg/mover"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/pkg/mover"
 )
 
 const (

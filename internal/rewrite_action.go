@@ -10,7 +10,7 @@ import (
 
 	"github.com/divideandconquer/go-merge/merge"
 	"github.com/google/go-containerregistry/pkg/name"
-	yamlops2 "github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal/yamlops"
+	yamlops2 "github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal/yamlops"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 )

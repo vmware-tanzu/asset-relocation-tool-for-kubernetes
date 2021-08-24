@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"testing"
 
-	yamlops2 "github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/internal/yamlops"
+	yamlops2 "github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal/yamlops"
 	"gopkg.in/yaml.v3"
 )
 

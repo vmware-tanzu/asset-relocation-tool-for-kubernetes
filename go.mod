@@ -1,4 +1,4 @@
-module github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2
+module github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes
 
 go 1.16
 

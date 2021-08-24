@@ -25,9 +25,9 @@ var (
 var _ = ginkgo.BeforeSuite(func() {
 	var err error
 	ChartMoverBinaryPath, err = gexec.Build(
-		"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2",
+		"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes",
 		"-ldflags",
-		"-X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/cmd.Version=1.2.3",
+		"-X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/cmd.Version=1.2.3",
 	)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 })

@@ -80,7 +80,7 @@ Building the tool from source is very simple with:
 
 ```bash
 $ make build
-go build -o build/relok8s -ldflags "-X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/v2/cmd.Version=dev" ./main.go
+go build -o build/relok8s -ldflags "-X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/cmd.Version=dev" ./main.go
 pwall@pwall-a01:~/src/vmware-tanzu/asset-relocation-tool-for-kubernetes $ ls ./build/relok8s 
 ./build/relok8s
 ```
