@@ -158,46 +158,63 @@ func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions ...*RewriteAct
 func (t *ImageTemplate) Apply(originalImage name.Reference, rules *OCIImageLocation) ([]*RewriteAction, error) {
 	var rewrites []*RewriteAction
 
-	newRegistry := originalImage.Context().Registry.Name()
+	if t.DigestTemplate != "" {
+		if rules.Digest != "" && rules.Digest != originalImage.Identifier() {
+			rewrites = append(rewrites, &RewriteAction{
+				Path:  t.DigestTemplate,
+				Value: rules.Digest,
+			})
+		}
+	}
+
+	registry := originalImage.Context().Registry.Name()
 	if rules.Registry != "" {
-		newRegistry = rules.Registry
+		registry = rules.Registry
 	}
 
-	// Repository path should contain the repositoryPrefix + imageName
-	var newRepository string
+	repositoryChanged := false
+	tagString := strings.ReplaceAll(originalImage.Name(), originalImage.Context().Name(), "")
+	if t.TagTemplate != "" || t.DigestTemplate != "" {
+		tagString = ""
+	} else {
+		if rules.Digest != "" {
+			repositoryChanged = true
+			tagString = "@" + rules.Digest
+		}
+	}
+
+	repository := originalImage.Context().RepositoryStr()
+	if strings.HasPrefix(repository, "library") {
+		repositoryChanged = true
+	}
+
 	if rules.RepositoryPrefix != "" {
-		repoParts := strings.Split(originalImage.Context().RepositoryStr(), "/")
-		imageName := repoParts[len(repoParts)-1]
-		newRepository = fmt.Sprintf("%s/%s", rules.RepositoryPrefix, imageName)
+		repositoryChanged = true
+		repoParts := strings.Split(repository, "/")
+		repository = rules.RepositoryPrefix + "/" + repoParts[len(repoParts)-1]
 	}
 
-	// Append the image digest unless the tag or digest are explicitly encoded in the template
-	if t.TagTemplate == "" && t.DigestTemplate == "" && rules.Digest != "" {
-		newRepository = fmt.Sprintf("%s@%s", newRepository, rules.Digest)
-	}
+	if t.RegistryAndRepositoryTemplate != "" {
+		if rules.Registry != "" || repositoryChanged {
+			rewrites = append(rewrites, &RewriteAction{
+				Path:  t.RegistryAndRepositoryTemplate,
+				Value: fmt.Sprintf("%s/%s%s", registry, repository, tagString),
+			})
+		}
+	} else {
+		if rules.Registry != "" {
+			rewrites = append(rewrites, &RewriteAction{
+				Path:  t.RegistryTemplate,
+				Value: registry,
+			})
+		}
 
-	// The registry and the repository as encoded in a single template placeholder
-	if t.RegistryAndRepositoryTemplate != "" && newRegistry != "" && newRepository != "" {
-		rewrites = append(rewrites, &RewriteAction{
-			Path:  t.RegistryAndRepositoryTemplate,
-			Value: fmt.Sprintf("%s/%s", newRegistry, newRepository),
-		})
-	}
-
-	// Explicitly override the registry
-	if t.RegistryTemplate != "" && newRegistry != "" {
-		rewrites = append(rewrites, &RewriteAction{
-			Path:  t.RegistryTemplate,
-			Value: newRegistry,
-		})
-	}
-
-	// Explicitly override the repository
-	if t.RepositoryTemplate != "" && newRepository != "" {
-		rewrites = append(rewrites, &RewriteAction{
-			Path:  t.RepositoryTemplate,
-			Value: newRepository,
-		})
+		if repositoryChanged {
+			rewrites = append(rewrites, &RewriteAction{
+				Path:  t.RepositoryTemplate,
+				Value: fmt.Sprintf("%s%s", repository, tagString),
+			})
+		}
 	}
 
 	return rewrites, nil
