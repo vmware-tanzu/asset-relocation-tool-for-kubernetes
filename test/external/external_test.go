@@ -1,9 +1,7 @@
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
 
-// +build external
-
-package test
+package external_test
 
 import (
 	"fmt"
@@ -11,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/test"
 	"helm.sh/helm/v3/pkg/chart/loader"
 
 	. "github.com/bunniesandbeatings/goerkin"
@@ -27,14 +26,14 @@ var _ = Describe("External tests", func() {
 	Context("Unauthorized", func() {
 		Scenario("running chart move", func() {
 			steps.Given("no authorization to the remote registry")
-			steps.When(fmt.Sprintf("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix %s", customRepoPrefix))
+			steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --repo-prefix %s", customRepoPrefix))
 			steps.Then("the command exits with an error")
 			steps.And("the error message says it failed to pull because it was not authorized")
 		})
 	})
 
 	Scenario("running chart move", func() {
-		steps.When(fmt.Sprintf("running relok8s chart move -y fixtures/testchart --image-patterns fixtures/testchart.images.yaml --repo-prefix %s", customRepoPrefix))
+		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --repo-prefix %s", customRepoPrefix))
 		steps.And("the move is computed")
 		steps.Then("the command says that the rewritten image will be pushed")
 		steps.And("the command says that the rewritten images will be written to the chart and subchart")
@@ -46,7 +45,7 @@ var _ = Describe("External tests", func() {
 	})
 
 	steps.Define(func(define Definitions) {
-		DefineCommonSteps(define)
+		test.DefineCommonSteps(define)
 
 		define.Given(`^no authorization to the remote registry$`, func() {
 			homeDir, err := os.UserHomeDir()
@@ -74,34 +73,34 @@ var _ = Describe("External tests", func() {
 		})
 
 		define.Then(`^the error message says it failed to pull because it was not authorized$`, func() {
-			Eventually(CommandSession.Err, time.Minute).Should(Say("[uU]nauthorized"))
+			Eventually(test.CommandSession.Err, time.Minute).Should(Say("[uU]nauthorized"))
 		})
 
 		define.Then(`^the move is computed$`, func() {
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Computing relocation...\n"))
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Computing relocation...\n"))
 		})
 
 		define.Then(`^the command says that the rewritten image will be pushed$`, func() {
-			Eventually(CommandSession.Out, time.Minute).Should(Say("Image copies:"))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest => harbor-repo.vmware.com/%s/tiny:tiniest \\(sha256:[a-z0-9]*\\) \\(push required\\)", customRepoPrefix)))
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Image copies:"))
+			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest => harbor-repo.vmware.com/%s/tiny:tiniest \\(sha256:[a-z0-9]*\\) \\(push required\\)", customRepoPrefix)))
 		})
 
 		define.Then(`^the command says that the rewritten images will be written to the chart and subchart$`, func() {
-			Eventually(CommandSession.Out).Should(Say("Changes to be applied to testchart/values.yaml:"))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .image.repository: harbor-repo.vmware.com/%s/tiny", customRepoPrefix)))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .sameImageButNoTagRequirement.image: harbor-repo.vmware.com/%s/tiny@sha256:[a-z0-9]*", customRepoPrefix)))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .singleImageReference.image: harbor-repo.vmware.com/%s/busybox@sha256:[a-z0-9]*", customRepoPrefix)))
+			Eventually(test.CommandSession.Out).Should(Say("Changes to be applied to testchart/values.yaml:"))
+			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("  .image.repository: harbor-repo.vmware.com/%s/tiny", customRepoPrefix)))
+			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("  .sameImageButNoTagRequirement.image: harbor-repo.vmware.com/%s/tiny@sha256:[a-z0-9]*", customRepoPrefix)))
+			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("  .singleImageReference.image: harbor-repo.vmware.com/%s/busybox@sha256:[a-z0-9]*", customRepoPrefix)))
 			// Subchart
-			Eventually(CommandSession.Out).Should(Say("Changes to be applied to testchart/charts/subchart/values.yaml:"))
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("  .image.name: harbor-repo.vmware.com/%s/tiny", customRepoPrefix)))
+			Eventually(test.CommandSession.Out).Should(Say("Changes to be applied to testchart/charts/subchart/values.yaml:"))
+			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("  .image.name: harbor-repo.vmware.com/%s/tiny", customRepoPrefix)))
 		})
 
 		define.Then(`^the rewritten image is pushed$`, func() {
-			Eventually(CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/%s/tiny:tiniest...\nDone", customRepoPrefix)))
+			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/%s/tiny:tiniest...\nDone", customRepoPrefix)))
 		})
 
 		define.Then(`^the chart name and version is shown before relocation$`, func() {
-			Eventually(CommandSession.Out).Should(Say("Relocating testchart@0.1.0..."))
+			Eventually(test.CommandSession.Out).Should(Say("Relocating testchart@0.1.0..."))
 		})
 
 		define.Then(`^the location of the chart is shown$`, func() {
@@ -109,7 +108,7 @@ var _ = Describe("External tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			modifiedChartPath := filepath.Join(cwd, "testchart-0.1.0.relocated.tgz")
 
-			Eventually(CommandSession.Out).Should(Say(modifiedChartPath))
+			Eventually(test.CommandSession.Out).Should(Say(modifiedChartPath))
 		})
 
 		var modifiedChartPath string
@@ -140,7 +139,7 @@ var _ = Describe("External tests", func() {
 			Expect(imageMap["image"]).To(ContainSubstring(fmt.Sprintf("harbor-repo.vmware.com/%s/busybox@sha256:", customRepoPrefix)))
 		}, func() {
 			if modifiedChartPath != "" {
-				os.Remove(modifiedChartPath)
+				_ = os.Remove(modifiedChartPath)
 				modifiedChartPath = ""
 			}
 		})

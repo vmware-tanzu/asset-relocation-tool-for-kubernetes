@@ -1,9 +1,7 @@
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
 
-// +build feature
-
-package test_test
+package features_test
 
 import (
 	"time"
@@ -20,7 +18,7 @@ var _ = Describe("relok8s chart move command", func() {
 
 	// TODO: Excluding these scenarios until we have a fake docker daemon
 	XScenario("directory based helm chart", func() {
-		steps.When("running relok8s chart move -y fixtures/wordpress --image-patterns fixtures/wordpress-11.0.4.images.yaml --registry harbor-repo.vmware.com --repo-prefix pwall")
+		steps.When("running relok8s chart move -y ../fixtures/wordpress --image-patterns ../fixtures/wordpress-11.0.4.images.yaml --registry harbor-repo.vmware.com --repo-prefix pwall")
 		steps.Then("the original images are pulled")
 		steps.And("the command says what images will be pushed")
 		steps.And("the command says what changes will be made to the chart")
@@ -30,7 +28,7 @@ var _ = Describe("relok8s chart move command", func() {
 	})
 
 	XScenario("tgz based helm chart", func() {
-		steps.When("running relok8s chart move -y fixtures/wordpress-11.0.4.tgz --image-patterns fixtures/wordpress-11.0.4.images.yaml --registry harbor-repo.vmware.com --repo-prefix pwall")
+		steps.When("running relok8s chart move -y ../fixtures/wordpress-11.0.4.tgz --image-patterns ../fixtures/wordpress-11.0.4.images.yaml --registry harbor-repo.vmware.com --repo-prefix pwall")
 		steps.Then("the original images are pulled")
 		steps.And("the command says what images will be pushed")
 		steps.And("the command says what changes will be made to the chart")
@@ -40,7 +38,7 @@ var _ = Describe("relok8s chart move command", func() {
 	})
 
 	XScenario("can abort before changes are made", func() {
-		steps.When("running relok8s chart move fixtures/wordpress-11.0.4.tgz --image-patterns fixtures/wordpress-11.0.4.images.yaml --registry harbor-repo.vmware.com --repo-prefix pwall")
+		steps.When("running relok8s chart move ../fixtures/wordpress-11.0.4.tgz --image-patterns ../fixtures/wordpress-11.0.4.images.yaml --registry harbor-repo.vmware.com --repo-prefix pwall")
 		steps.Then("the original images are pulled")
 		steps.And("the command says what images will be pushed")
 		steps.And("the command says what changes will be made to the chart")
@@ -57,28 +55,28 @@ var _ = Describe("relok8s chart move command", func() {
 	})
 
 	Scenario("helm chart does not exist", func() {
-		steps.When("running relok8s chart move fixtures/does-not-exist")
+		steps.When("running relok8s chart move ../fixtures/does-not-exist")
 		steps.Then("the command exits with an error")
 		steps.And("it says the chart does not exist")
 		steps.And("it prints the usage")
 	})
 
 	Scenario("helm chart is empty directory", func() {
-		steps.When("running relok8s chart move fixtures/empty-directory")
+		steps.When("running relok8s chart move ../fixtures/empty-directory")
 		steps.Then("the command exits with an error")
 		steps.And("it says the chart is missing a critical file")
 		steps.And("it prints the usage")
 	})
 
 	Scenario("missing image patterns file", func() {
-		steps.When("running relok8s chart move fixtures/wordpress-11.0.4.tgz --repo-prefix cyberdyne-corp")
+		steps.When("running relok8s chart move ../fixtures/wordpress-11.0.4.tgz --repo-prefix cyberdyne-corp")
 		steps.Then("the command exits with an error")
 		steps.And("it says the image patterns file is missing")
 		steps.And("it prints the usage")
 	})
 
 	Scenario("no rules are given", func() {
-		steps.When("running relok8s chart move fixtures/wordpress-11.0.4.tgz --image-patterns fixtures/wordpress-11.0.4.images.yaml")
+		steps.When("running relok8s chart move ../fixtures/wordpress-11.0.4.tgz --image-patterns ../fixtures/wordpress-11.0.4.images.yaml")
 		steps.Then("the command exits with an error")
 		steps.And("it says that the rules are missing")
 		steps.And("it prints the usage")
@@ -92,11 +90,11 @@ var _ = Describe("relok8s chart move command", func() {
 		})
 
 		define.Then(`^it says the chart does not exist$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: failed to load Helm Chart at \"fixtures/does-not-exist\": stat fixtures/does-not-exist: no such file or directory"))
+			Expect(test.CommandSession.Err).To(Say("Error: failed to load Helm Chart at \"../fixtures/does-not-exist\": stat ../fixtures/does-not-exist: no such file or directory"))
 		})
 
 		define.Then(`^it says the chart is missing a critical file$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: failed to load Helm Chart at \"fixtures/empty-directory\": Chart.yaml file is missing"))
+			Expect(test.CommandSession.Err).To(Say("Error: failed to load Helm Chart at \"../fixtures/empty-directory\": Chart.yaml file is missing"))
 		})
 
 		define.Then(`^it says the image patterns file is missing$`, func() {
