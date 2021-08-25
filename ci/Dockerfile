@@ -8,10 +8,13 @@ WORKDIR /
 RUN yum -y install build-essential coreutils gawk gcc git go jq make
 ENV PATH="/root/go/bin:${PATH}"
 
+ARG GOLANGCI_LINT_VERSION="v1.42.0"
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin ${GOLANGCI_LINT_VERSION}
+
 # Install go packages used for building and testing
-RUN go get -u golang.org/x/tools/cmd/goimports \
-    github.com/maxbrunsfeld/counterfeiter/v6 \
-    github.com/onsi/ginkgo/ginkgo github.com/onsi/gomega
+RUN go get -u github.com/maxbrunsfeld/counterfeiter/v6 \
+    github.com/onsi/ginkgo/ginkgo \
+    github.com/onsi/gomega
 
 # Install Helm
 RUN curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
