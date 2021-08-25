@@ -89,10 +89,10 @@ test-fixtures:
 	make --directory test/fixtures
 
 test-features: deps test-fixtures
-	ginkgo -r -tags=feature test
+	ginkgo -r test/features
 
 test-external: deps test-fixtures
-	ginkgo -r -tags=external test
+	ginkgo -r test/external
 
 test: deps lint test-units test-features
 

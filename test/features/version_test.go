@@ -1,15 +1,14 @@
 // Copyright 2021 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
 
-// +build feature
-
-package test
+package features_test
 
 import (
 	. "github.com/bunniesandbeatings/goerkin"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/test"
 )
 
 var _ = Describe("Report version", func() {
@@ -22,10 +21,10 @@ var _ = Describe("Report version", func() {
 	})
 
 	steps.Define(func(define Definitions) {
-		DefineCommonSteps(define)
+		test.DefineCommonSteps(define)
 
 		define.Then(`^the version is printed$`, func() {
-			Eventually(CommandSession.Out).Should(Say("relok8s version: 1.2.3"))
+			Eventually(test.CommandSession.Out).Should(Say("relok8s version: 1.2.3"))
 		})
 	})
 })
