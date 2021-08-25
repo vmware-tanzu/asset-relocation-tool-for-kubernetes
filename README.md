@@ -37,15 +37,18 @@ It can contain dependent charts.
 
 ### Image Patterns File
 
-The Asset Relocation Tool for Kubernetes requires an image patterns file. This file determines the list of images encoded in the helm chart.
+The Asset Relocation Tool for Kubernetes requires an image patterns file.
+This file determines the list of images encoded in the Helm chart.
 
 ```yaml
 ---
 - "{{ .image }}:{{ .tag }}",
 - "{{ .proxy.image }}:{{ .proxy.tag }}",
+- "{{ .dependent-chart.image.repository }}@{{ .dependent-chart.image.digest }}",
 ```
 
-This file is a list of strings, which can be evaluated like a template to reference the fully detailed image path.
+This file is a list of strings which reference the fully detailed image path.
+To reference images encoded inside a dependent chart, the first key should be the dependent chart's name.
 
 ### Rules
 

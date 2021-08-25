@@ -439,8 +439,26 @@ const (
 	fixturesRoot = "../../test/fixtures/"
 )
 
+type FakeLogger struct {
+	Output *Buffer
+}
+
+func (l *FakeLogger) Printf(format string, i ...interface{}) {
+	_, _ = fmt.Fprintf(l.Output, format, i...)
+}
+
+func (l *FakeLogger) Println(i ...interface{}) {
+	_, _ = fmt.Fprintln(l.Output, i...)
+}
+
 var _ = Describe("LoadImagePatterns", func() {
-	logger := &defaultLogger{}
+	var logger *FakeLogger
+
+	BeforeEach(func() {
+		logger = &FakeLogger{
+			Output: NewBuffer(),
+		}
+	})
 
 	It("reads from given file first if present", func() {
 		imagefile := filepath.Join(fixturesRoot, "testchart.images.yaml")
@@ -462,6 +480,8 @@ var _ = Describe("LoadImagePatterns", func() {
 		expected, err := os.ReadFile(embeddedPatterns)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(contents).To(Equal(expected))
+
+		Expect(logger.Output).Should(Say(".relok8s-images.yaml hints file found"))
 	})
 	It("reads nothing when no file and the chart is not self relok8able", func() {
 		chart, err := loader.Load(filepath.Join(fixturesRoot, "testchart"))
