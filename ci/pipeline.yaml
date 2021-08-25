@@ -110,6 +110,11 @@ jobs:
             trigger: true
           - get: source
             trigger: true
+      - task: run-lint
+        image: test-image
+        file: source/ci/tasks/test.yaml
+        params:
+          MAKE_TARGET: lint
       - task: run-unit-tests
         image: test-image
         file: source/ci/tasks/test.yaml
@@ -278,6 +283,11 @@ jobs:
               context: merge-conflict
               status: failure
       - do:
+        - task: run-lint
+          image: test-image
+          file: source/ci/tasks/test.yaml
+          params:
+            MAKE_TARGET: lint
         - task: run-unit-tests
           image: test-image
           file: source/ci/tasks/test.yaml

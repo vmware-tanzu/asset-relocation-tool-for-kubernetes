@@ -7,7 +7,7 @@ default: build
 
 
 # #### GO Binary Management ####
-.PHONY: deps-go-binary deps-goimports deps-counterfeiter deps-ginkgo
+.PHONY: deps-go-binary deps-counterfeiter deps-ginkgo deps-golangci-lint
 
 GO_VERSION := $(shell go version)
 GO_VERSION_REQUIRED = go1.16
@@ -24,16 +24,10 @@ endif
 
 HAS_COUNTERFEITER := $(shell command -v counterfeiter;)
 HAS_GINKGO := $(shell command -v ginkgo;)
-HAS_GO_IMPORTS := $(shell command -v goimports;)
 HAS_GOLANGCI_LINT := $(shell command -v golangci-lint;)
 
 # If go get is run from inside the project directory it will add the dependencies
 # to the go.mod file. To avoid that we import from another directory
-deps-goimports: deps-go-binary
-ifndef HAS_GO_IMPORTS
-	cd /; go get -u golang.org/x/tools/cmd/goimports
-endif
-
 deps-counterfeiter: deps-go-binary
 ifndef HAS_COUNTERFEITER
 	cd /; go get -u github.com/maxbrunsfeld/counterfeiter/v6
@@ -44,7 +38,7 @@ ifndef HAS_GINKGO
 	cd /; go get github.com/onsi/ginkgo/ginkgo github.com/onsi/gomega
 endif
 
-deps-golangci-lint: deps-go-binary deps-goimports
+deps-golangci-lint: deps-go-binary
 ifndef HAS_GOLANGCI_LINT
 	cd /; go get github.com/golangci/golangci-lint/cmd/golangci-lint
 endif
@@ -62,7 +56,7 @@ clean: deps-go-binary
 vendor/modules.txt: go.mod
 	go mod vendor
 
-deps: vendor/modules.txt deps-goimports deps-counterfeiter deps-ginkgo
+deps: vendor/modules.txt deps-counterfeiter deps-ginkgo
 
 
 # #### BUILD ####
