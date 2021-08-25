@@ -118,13 +118,17 @@ func GetChartValues(chart *chart.Chart) (int, []byte) {
 type ValuesMap map[string]interface{}
 
 func BuildValuesMap(chart *chart.Chart, rewriteActions []*RewriteAction) map[string]interface{} {
+	values := chart.Values
+	if values == nil {
+		values = map[string]interface{}{}
+	}
+
 	// Add values for chart dependencies
 	for _, dependency := range chart.Dependencies() {
-		chart.Values[dependency.Name()] = merge.Merge(dependency.Values, chart.Values[dependency.Name()])
+		values[dependency.Name()] = merge.Merge(dependency.Values, values[dependency.Name()])
 	}
 
 	// Apply rewrite actions
-	values := chart.Values
 	for _, action := range rewriteActions {
 		actionMap := action.ToMap()
 		result := merge.Merge(values, actionMap)

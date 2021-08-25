@@ -32,23 +32,32 @@ var _ = Describe("internal.NewFromString", func() {
 			imageTemplate, err := internal.NewFromString("{{ .image }}")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(imageTemplate.Raw).To(Equal("{{ .image }}"))
-			Expect(imageTemplate.RegistryTemplate).To(Equal(""))
-			Expect(imageTemplate.RepositoryTemplate).To(Equal(""))
+			Expect(imageTemplate.RegistryTemplate).To(BeEmpty())
+			Expect(imageTemplate.RepositoryTemplate).To(BeEmpty())
 			Expect(imageTemplate.RegistryAndRepositoryTemplate).To(Equal(".image"))
-			Expect(imageTemplate.TagTemplate).To(Equal(""))
-			Expect(imageTemplate.DigestTemplate).To(Equal(""))
-		})
+			Expect(imageTemplate.TagTemplate).To(BeEmpty())
+			Expect(imageTemplate.DigestTemplate).To(BeEmpty())
 
+			By("translating the template into index format", func() {
+				Expect(imageTemplate.Template.Name()).To(Equal("{{ index . \"image\" }}"))
+			})
+		})
 	})
 	Context("Image and tag", func() {
-		imageTemplate, err := internal.NewFromString("{{ .image }}:{{ .tag }}")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(imageTemplate.Raw).To(Equal("{{ .image }}:{{ .tag }}"))
-		Expect(imageTemplate.RegistryTemplate).To(Equal(""))
-		Expect(imageTemplate.RepositoryTemplate).To(Equal(""))
-		Expect(imageTemplate.RegistryAndRepositoryTemplate).To(Equal(".image"))
-		Expect(imageTemplate.TagTemplate).To(Equal(".tag"))
-		Expect(imageTemplate.DigestTemplate).To(Equal(""))
+		It("parses successfully", func() {
+			imageTemplate, err := internal.NewFromString("{{ .image }}:{{ .tag }}")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(imageTemplate.Raw).To(Equal("{{ .image }}:{{ .tag }}"))
+			Expect(imageTemplate.RegistryTemplate).To(BeEmpty())
+			Expect(imageTemplate.RepositoryTemplate).To(BeEmpty())
+			Expect(imageTemplate.RegistryAndRepositoryTemplate).To(Equal(".image"))
+			Expect(imageTemplate.TagTemplate).To(Equal(".tag"))
+			Expect(imageTemplate.DigestTemplate).To(BeEmpty())
+
+			By("translating the template into index format", func() {
+				Expect(imageTemplate.Template.Name()).To(Equal("{{ index . \"image\" }}:{{ index . \"tag\" }}"))
+			})
+		})
 	})
 	Context("Image and multiple tags", func() {
 		It("returns an error", func() {
@@ -58,14 +67,20 @@ var _ = Describe("internal.NewFromString", func() {
 		})
 	})
 	Context("Image and digest", func() {
-		imageTemplate, err := internal.NewFromString("{{ .image }}@{{ .digest }}")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(imageTemplate.Raw).To(Equal("{{ .image }}@{{ .digest }}"))
-		Expect(imageTemplate.RegistryTemplate).To(Equal(""))
-		Expect(imageTemplate.RepositoryTemplate).To(Equal(""))
-		Expect(imageTemplate.RegistryAndRepositoryTemplate).To(Equal(".image"))
-		Expect(imageTemplate.TagTemplate).To(Equal(""))
-		Expect(imageTemplate.DigestTemplate).To(Equal(".digest"))
+		It("parses successfully", func() {
+			imageTemplate, err := internal.NewFromString("{{ .image }}@{{ .digest }}")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(imageTemplate.Raw).To(Equal("{{ .image }}@{{ .digest }}"))
+			Expect(imageTemplate.RegistryTemplate).To(BeEmpty())
+			Expect(imageTemplate.RepositoryTemplate).To(BeEmpty())
+			Expect(imageTemplate.RegistryAndRepositoryTemplate).To(Equal(".image"))
+			Expect(imageTemplate.TagTemplate).To(BeEmpty())
+			Expect(imageTemplate.DigestTemplate).To(Equal(".digest"))
+
+			By("translating the template into index format", func() {
+				Expect(imageTemplate.Template.Name()).To(Equal("{{ index . \"image\" }}@{{ index . \"digest\" }}"))
+			})
+		})
 	})
 	Context("Image and multiple digests", func() {
 		It("returns an error", func() {
@@ -73,17 +88,22 @@ var _ = Describe("internal.NewFromString", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("failed to parse image template \"{{ .image }}@{{ .digest1 }}@{{ .digest2 }}\": too many digest template matches"))
 		})
-
 	})
 	Context("registry, image, and tag", func() {
-		imageTemplate, err := internal.NewFromString("{{ .registry }}/{{ .image }}:{{ .tag }}")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(imageTemplate.Raw).To(Equal("{{ .registry }}/{{ .image }}:{{ .tag }}"))
-		Expect(imageTemplate.RegistryTemplate).To(Equal(".registry"))
-		Expect(imageTemplate.RepositoryTemplate).To(Equal(".image"))
-		Expect(imageTemplate.RegistryAndRepositoryTemplate).To(Equal(""))
-		Expect(imageTemplate.TagTemplate).To(Equal(".tag"))
-		Expect(imageTemplate.DigestTemplate).To(Equal(""))
+		It("parses successfully", func() {
+			imageTemplate, err := internal.NewFromString("{{ .registry }}/{{ .image }}:{{ .tag }}")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(imageTemplate.Raw).To(Equal("{{ .registry }}/{{ .image }}:{{ .tag }}"))
+			Expect(imageTemplate.RegistryTemplate).To(Equal(".registry"))
+			Expect(imageTemplate.RepositoryTemplate).To(Equal(".image"))
+			Expect(imageTemplate.RegistryAndRepositoryTemplate).To(BeEmpty())
+			Expect(imageTemplate.TagTemplate).To(Equal(".tag"))
+			Expect(imageTemplate.DigestTemplate).To(BeEmpty())
+
+			By("translating the template into index format", func() {
+				Expect(imageTemplate.Template.Name()).To(Equal("{{ index . \"registry\" }}/{{ index . \"image\" }}:{{ index . \"tag\" }}"))
+			})
+		})
 	})
 	Context("Too many templates", func() {
 		It("returns an error", func() {
@@ -91,7 +111,22 @@ var _ = Describe("internal.NewFromString", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("failed to parse image template \"{{ .a }}/{{ .b }}/{{ .c }}/{{ .d }}\": more fragments than expected"))
 		})
+	})
+	Context("Subchart with dashes", func() {
+		It("parses successfully", func() {
+			imageTemplate, err := internal.NewFromString("{{ .sub-chart.image.registry }}/{{ .sub-chart.image.repository }}:{{ .sub-chart.image.tag }}")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(imageTemplate.Raw).To(Equal("{{ .sub-chart.image.registry }}/{{ .sub-chart.image.repository }}:{{ .sub-chart.image.tag }}"))
+			Expect(imageTemplate.RegistryTemplate).To(Equal(".sub-chart.image.registry"))
+			Expect(imageTemplate.RepositoryTemplate).To(Equal(".sub-chart.image.repository"))
+			Expect(imageTemplate.RegistryAndRepositoryTemplate).To(BeEmpty())
+			Expect(imageTemplate.TagTemplate).To(Equal(".sub-chart.image.tag"))
+			Expect(imageTemplate.DigestTemplate).To(BeEmpty())
 
+			By("translating the template into index format", func() {
+				Expect(imageTemplate.Template.Name()).To(Equal("{{ index . \"sub-chart\" \"image\" \"registry\" }}/{{ index . \"sub-chart\" \"image\" \"repository\" }}:{{ index . \"sub-chart\" \"image\" \"tag\" }}"))
+			})
+		})
 	})
 })
 
@@ -174,7 +209,7 @@ var (
 			},
 			Dependencies: []*test.ChartSeed{
 				{
-					Name: "lazy",
+					Name: "lazy-chart",
 					Values: map[string]interface{}{
 						"registry": "index.docker.io",
 						"image":    "lazycontainers/lazybox",
@@ -183,7 +218,7 @@ var (
 				},
 			},
 		},
-		Template: "{{ .lazy.registry }}/{{ .lazy.image }}:{{ .lazy.tag }}",
+		Template: "{{ .lazy-chart.registry }}/{{ .lazy-chart.image }}:{{ .lazy-chart.tag }}",
 	}
 
 	registryRule          = &internal.OCIImageLocation{Registry: "registry.vmware.com"}
@@ -541,7 +576,7 @@ var _ = DescribeTable("Rewrite Actions",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:laziest",
 		Actions: []*internal.RewriteAction{
 			{
-				Path:  ".lazy.registry",
+				Path:  ".lazy-chart.registry",
 				Value: "registry.vmware.com",
 			},
 		},
@@ -551,7 +586,7 @@ var _ = DescribeTable("Rewrite Actions",
 		RewrittenImage: "index.docker.io/my-company/lazybox:laziest",
 		Actions: []*internal.RewriteAction{
 			{
-				Path:  ".lazy.image",
+				Path:  ".lazy-chart.image",
 				Value: "my-company/lazybox",
 			},
 		},
@@ -566,11 +601,11 @@ var _ = DescribeTable("Rewrite Actions",
 		RewrittenImage: "registry.vmware.com/my-company/lazybox:laziest",
 		Actions: []*internal.RewriteAction{
 			{
-				Path:  ".lazy.registry",
+				Path:  ".lazy-chart.registry",
 				Value: "registry.vmware.com",
 			},
 			{
-				Path:  ".lazy.image",
+				Path:  ".lazy-chart.image",
 				Value: "my-company/lazybox",
 			},
 		},
@@ -580,7 +615,7 @@ var _ = DescribeTable("Rewrite Actions",
 		RewrittenImage: "registry.vmware.com/lazycontainers/lazybox:laziest",
 		Actions: []*internal.RewriteAction{
 			{
-				Path:  ".lazy.registry",
+				Path:  ".lazy-chart.registry",
 				Value: "registry.vmware.com",
 			},
 		},

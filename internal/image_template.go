@@ -6,6 +6,7 @@ package internal
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"text/template"
 
 	"gopkg.in/yaml.v2"
@@ -33,8 +34,25 @@ func (t *ImageTemplate) String() string {
 	return t.Raw
 }
 
+func prepTemplateString(input string) string {
+	output := ""
+	matches := TemplateRegex.FindAllStringSubmatchIndex(input, -1)
+	start := 0
+	for _, match := range matches {
+		output += input[start:match[2]] + "index ."
+		parts := strings.Split(input[match[2]+1:match[3]], ".")
+		for _, part := range parts {
+			output += " \"" + part + "\""
+		}
+		start = match[3]
+	}
+	output += input[start:]
+	return output
+}
+
 func NewFromString(input string) (*ImageTemplate, error) {
-	temp, err := template.New(input).Parse(input)
+	preppedInput := prepTemplateString(input)
+	temp, err := template.New(preppedInput).Parse(preppedInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image template \"%s\": %w", input, err)
 	}
