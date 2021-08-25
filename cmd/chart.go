@@ -64,7 +64,7 @@ func newChartMoveCmd() *cobra.Command {
 
 	f := cmd.Flags()
 	// TODO(miguel): Change to image-hints
-	f.StringVarP(&imagePatternsFile, "image-patterns", "i", "", "dile with image patterns")
+	f.StringVarP(&imagePatternsFile, "image-patterns", "i", "", "file with image patterns")
 	f.BoolVarP(&skipConfirmation, "yes", "y", false, "Proceed without prompting for confirmation")
 
 	f.StringVar(&registryRule, "registry", "", "hostname of the registry used to push the new images")
