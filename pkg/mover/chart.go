@@ -31,6 +31,19 @@ var (
 	ErrOCIRewritesMissing = errors.New("at least one rewrite rule is required")
 )
 
+type ChartLoadingError struct {
+	Path  string
+	Inner error
+}
+
+func (e *ChartLoadingError) Error() string {
+	return fmt.Sprintf("failed to load Helm Chart at %q: %s", e.Path, e.Inner.Error())
+}
+
+func (e *ChartLoadingError) Unwrap() error {
+	return e.Inner
+}
+
 // RewriteRules indicate What kind of target registry overrides we want to apply to the found images
 type RewriteRules struct {
 	// Registry overrides the registry part of the image FQDN, i.e myregistry.io
@@ -75,7 +88,7 @@ type ChartMetadata struct {
 func NewChartMover(chartPath string, imageHintsFile string, rules *RewriteRules, opts ...Option) (*ChartMover, error) {
 	chart, err := loader.Load(chartPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load Helm Chart at %q: %w", chartPath, err)
+		return nil, &ChartLoadingError{Path: chartPath, Inner: err}
 	}
 
 	if rules.Registry == "" && rules.RepositoryPrefix == "" {

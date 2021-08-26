@@ -89,12 +89,16 @@ func moveChart(cmd *cobra.Command, args []string) error {
 		mover.WithRetries(retries), mover.WithLogger(cmd),
 	)
 	if err != nil {
-		if err == mover.ErrImageHintsMissing {
+		var loadingError *mover.ChartLoadingError
+		if errors.As(err, &loadingError) {
+			return loadingError
+		} else if err == mover.ErrImageHintsMissing {
 			return fmt.Errorf("image patterns file is required. Please try again with '--image-patterns <image patterns file>' or as part of the Helm chart at [chart]/%s file", mover.EmbeddedHintsFilename)
 		} else if err == mover.ErrOCIRewritesMissing {
 			return fmt.Errorf("at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")
 		}
 
+		cmd.SilenceUsage = true
 		return err
 	}
 
