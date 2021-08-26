@@ -5,7 +5,7 @@
 build: wordpress/.unarchived
 rebuild: clean build
 clean:
-	rm -rf wordpress-11.0.4.tgz wordpress
+	rm -rf wordpress
 
 wordpress-11.0.4.tgz:
 	helm repo add bitnami https://charts.bitnami.com/bitnami
