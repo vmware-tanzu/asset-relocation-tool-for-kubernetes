@@ -261,10 +261,9 @@ func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, re
 		rewriteRules := &internal.OCIImageLocation{
 			Registry:         registryRules.Registry,
 			RepositoryPrefix: registryRules.RepositoryPrefix,
-			Digest:           change.Digest,
 		}
 
-		newActions, err := change.Pattern.Apply(change.ImageReference, rewriteRules)
+		newActions, err := change.Pattern.Apply(change.ImageReference.Context(), change.Digest, rewriteRules)
 		if err != nil {
 			return nil, nil, err
 		}
