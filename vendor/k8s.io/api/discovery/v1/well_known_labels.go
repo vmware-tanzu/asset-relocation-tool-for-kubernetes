@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1
 
 const (
 	// LabelServiceName is used to indicate the name of a Kubernetes service.
@@ -25,4 +25,8 @@ const (
 	// same cluster. It is highly recommended to configure this label for all
 	// EndpointSlices.
 	LabelManagedBy = "endpointslice.kubernetes.io/managed-by"
+	// LabelSkipMirror can be set to true on an Endpoints resource to indicate
+	// that the EndpointSliceMirroring controller should not mirror this
+	// resource with EndpointSlices.
+	LabelSkipMirror = "endpointslice.kubernetes.io/skip-mirror"
 )
