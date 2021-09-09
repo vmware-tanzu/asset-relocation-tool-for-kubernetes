@@ -40,5 +40,9 @@ func Example() {
 	// i.e ./mariadb-7.5.relocated.tgz
 	destinationPath := fmt.Sprintf("./%s-%s.relocated.tgz", chartMetadata.Name, chartMetadata.Version)
 	// Perform the push, rewrite and repackage of the Helm Chart
-	chartMover.Move(destinationPath)
+	err = chartMover.Move(destinationPath)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 }
