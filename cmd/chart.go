@@ -91,9 +91,11 @@ func moveChart(cmd *cobra.Command, args []string) error {
 	}
 
 	chartMover, err := mover.NewChartMover(
-		args[0],
-		imagePatternsFile,
-		targetRewriteRules,
+		&mover.ChartMoveRequest{
+			Chart:          args[0],
+			ImageHintsFile: imagePatternsFile,
+			Rules:          *targetRewriteRules,
+		},
 		mover.WithRetries(retries), mover.WithLogger(cmd),
 	)
 	if err != nil {

@@ -11,15 +11,17 @@ import (
 func Example() {
 	// Initialize the Mover action
 	chartMover, err := NewChartMover(
-		// The Helm Chart can be provided in either tarball or directory form
-		"./helm_chart.tgz",
-		// path to file containing rules such as // {{.image.registry}}:{{.image.tag}}
-		"./image-hints.yaml",
-		// Where to push and how to rewrite the found images
-		// i.e docker.io/bitnami/mariadb => myregistry.com/myteam/mariadb
-		&RewriteRules{
-			Registry:         "myregistry.com",
-			RepositoryPrefix: "/myteam",
+		&ChartMoveRequest{
+			// The Helm Chart can be provided in either tarball or directory form
+			Chart: "./helm_chart.tgz",
+			// path to file containing rules such as // {{.image.registry}}:{{.image.tag}}
+			ImageHintsFile: "./image-hints.yaml",
+			// Where to push and how to rewrite the found images
+			// i.e docker.io/bitnami/mariadb => myregistry.com/myteam/mariadb
+			Rules: RewriteRules{
+				Registry:         "myregistry.com",
+				RepositoryPrefix: "/myteam",
+			},
 		},
 	)
 	if err != nil {

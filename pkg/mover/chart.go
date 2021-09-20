@@ -60,8 +60,30 @@ func (l *defaultLogger) Println(i ...interface{}) {
 	fmt.Println(i...)
 }
 
+// ChartMetadata exposes metadata about the Helm Chart to be relocated
+type ChartMetadata struct {
+	Name    string
+	Version string
+}
+
+// RegistryCredentials to access a registry
+type RegistryCredentials struct {
+	Username, Password string
+	// add other credentials field/options as needed
+}
+
+// ChartMoveRequest defines a chart move
+type ChartMoveRequest struct {
+	Chart          string
+	ImageHintsFile string
+	Rules          RewriteRules
+	FromCreds      RegistryCredentials
+	ToCreds        RegistryCredentials
+}
+
 // ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
 type ChartMover struct {
+	request      ChartMoveRequest
 	chart        *chart.Chart
 	imageChanges []*internal.ImageChange
 	chartChanges []*internal.RewriteAction
@@ -69,25 +91,20 @@ type ChartMover struct {
 	retries      uint
 }
 
-// ChartMetadata exposes metadata about the Helm Chart to be relocated
-type ChartMetadata struct {
-	Name    string
-	Version string
-}
-
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
-func NewChartMover(chartPath string, imageHintsFile string, rules *RewriteRules, opts ...Option) (*ChartMover, error) {
-	chart, err := loader.Load(chartPath)
+func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
+	chart, err := loader.Load(req.Chart)
 	if err != nil {
-		return nil, &ChartLoadingError{Path: chartPath, Inner: err}
+		return nil, &ChartLoadingError{Path: req.Chart, Inner: err}
 	}
 
-	if rules.Registry == "" && rules.RepositoryPrefix == "" {
+	if req.Rules.Registry == "" && req.Rules.RepositoryPrefix == "" {
 		return nil, ErrOCIRewritesMissing
 	}
 
 	c := &ChartMover{
+		request: *req,
 		chart:   chart,
 		logger:  &defaultLogger{},
 		retries: DefaultRetries,
@@ -100,7 +117,7 @@ func NewChartMover(chartPath string, imageHintsFile string, rules *RewriteRules,
 		}
 	}
 
-	patternsRaw, err := loadPatterns(imageHintsFile, chart, c.logger)
+	patternsRaw, err := loadPatterns(req.ImageHintsFile, chart, c.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +138,7 @@ func NewChartMover(chartPath string, imageHintsFile string, rules *RewriteRules,
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
 
-	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, rules)
+	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, &req.Rules)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
