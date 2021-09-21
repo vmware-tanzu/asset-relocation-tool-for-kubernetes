@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -89,10 +90,16 @@ func moveChart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	outputFmt, err := parseOutputFlag(output)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("Could not get current path: %w", err)
+	}
+
+	outFmt, err := parseOutputFlag(output)
 	if err != nil {
 		return fmt.Errorf("failed to move chart: %w", err)
 	}
+	outputPathFmt := filepath.Join(cwd, outFmt)
 
 	chartMover, err := mover.NewChartMover(
 		&mover.ChartMoveRequest{
@@ -101,7 +108,7 @@ func moveChart(cmd *cobra.Command, args []string) error {
 				ImageHintsFile: imagePatternsFile,
 			},
 			Target: mover.ChartTarget{
-				Chart: outputFmt,
+				Chart: outputPathFmt,
 			},
 			Rules: *targetRewriteRules,
 		},

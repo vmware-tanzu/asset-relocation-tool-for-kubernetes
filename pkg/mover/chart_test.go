@@ -440,24 +440,14 @@ var _ = Describe("Pull & Push Images", func() {
 	})
 
 	Describe("targetOutput", func() {
-		BeforeEach(func() {
-			basePathFn = func() (string, error) {
-				return "path", nil
-			}
-		})
-		AfterEach(func() {
-			basePathFn = os.Getwd
-		})
 		It("works with default out flag", func() {
-			outFmt := "./%s-%s.relocated.tgz"
-			target, err := targetOutput(outFmt, "my-chart", "0.1")
-			Expect(err).To(BeNil())
-			Expect(target).To(Equal("path/my-chart-0.1.relocated.tgz"))
+			outFmt := "/path/%s-%s.relocated.tgz"
+			target := targetOutput(outFmt, "my-chart", "0.1")
+			Expect(target).To(Equal("/path/my-chart-0.1.relocated.tgz"))
 		})
 		It("builds custom out input as expected", func() {
-			target, err := targetOutput("%s-%s-wildcardhere.tgz", "my-chart", "0.1")
-			Expect(err).To(BeNil())
-			Expect(target).To(Equal("path/my-chart-0.1-wildcardhere.tgz"))
+			target := targetOutput("/path/%s-%s-wildcardhere.tgz", "my-chart", "0.1")
+			Expect(target).To(Equal("/path/my-chart-0.1-wildcardhere.tgz"))
 		})
 	})
 })

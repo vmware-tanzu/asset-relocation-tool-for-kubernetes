@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"regexp"
 
 	"github.com/avast/retry-go"
@@ -31,8 +30,6 @@ var (
 	// ErrOCIRewritesMissing indicates that no rewrite rules have been provided
 	ErrOCIRewritesMissing = errors.New("at least one rewrite rule is required")
 )
-
-var basePathFn = os.Getwd
 
 type ChartLoadingError struct {
 	Path  string
@@ -221,10 +218,7 @@ func (cm *ChartMover) Move() error {
 	if err != nil {
 		return err
 	}
-	destination, err := targetOutput(cm.request.Target.Chart, chartMetadata.Name, chartMetadata.Version)
-	if err != nil {
-		return err
-	}
+	destination := targetOutput(cm.request.Target.Chart, chartMetadata.Name, chartMetadata.Version)
 
 	log.Printf("Relocating %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
 
@@ -444,10 +438,6 @@ func WithLogger(l Logger) Option {
 	}
 }
 
-func targetOutput(targetFormat, name, version string) (string, error) {
-	cwd, err := basePathFn()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(cwd, fmt.Sprintf(targetFormat, name, version)), nil
+func targetOutput(targetFormat, name, version string) string {
+	return fmt.Sprintf(targetFormat, name, version)
 }
