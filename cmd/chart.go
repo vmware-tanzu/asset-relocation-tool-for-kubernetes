@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -75,7 +74,7 @@ func newChartMoveCmd() *cobra.Command {
 	f.StringVar(&repositoryPrefixRule, "repo-prefix", "", "path prefix to be used when relocating the container images")
 
 	f.UintVar(&retries, "retries", defaultRetries, "number of times to retry push operations")
-	f.StringVar(&output, "out", "./*.relocated.tgz", "output chart name produced")
+	f.StringVar(&output, "out", "*.relocated.tgz", "output chart name produced, from current dir")
 
 	return cmd
 }
@@ -90,11 +89,21 @@ func moveChart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	outputFmt, err := parseOutputFlag(output)
+	if err != nil {
+		return fmt.Errorf("failed to move chart: %w", err)
+	}
+
 	chartMover, err := mover.NewChartMover(
 		&mover.ChartMoveRequest{
-			Chart:          args[0],
-			ImageHintsFile: imagePatternsFile,
-			Rules:          *targetRewriteRules,
+			Source: mover.ChartSource{
+				Chart:          args[0],
+				ImageHintsFile: imagePatternsFile,
+			},
+			Target: mover.ChartTarget{
+				Chart: outputFmt,
+			},
+			Rules: *targetRewriteRules,
 		},
 		mover.WithRetries(retries), mover.WithLogger(cmd),
 	)
@@ -127,24 +136,7 @@ func moveChart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	outputFmt, err := parseOutputFlag(output)
-	if err != nil {
-		return fmt.Errorf("failed to move chart: %w", err)
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current working dir: %w", err)
-	}
-
-	chartMetadata, err := chartMover.ChartMetadata()
-	if err != nil {
-		return err
-	}
-
-	destinationFile := targetOutput(cwd, outputFmt, chartMetadata.Name, chartMetadata.Version)
-
-	return chartMover.Move(destinationFile)
+	return chartMover.Move()
 }
 
 func parseOutputFlag(out string) (string, error) {
@@ -170,8 +162,4 @@ func getConfirmation(input io.Reader) (bool, error) {
 
 	}
 	return false, nil
-}
-
-func targetOutput(cwd, targetFormat, name, version string) string {
-	return filepath.Join(cwd, fmt.Sprintf(targetFormat, name, version))
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/avast/retry-go"
@@ -30,6 +31,8 @@ var (
 	// ErrOCIRewritesMissing indicates that no rewrite rules have been provided
 	ErrOCIRewritesMissing = errors.New("at least one rewrite rule is required")
 )
+
+var basePathFn = os.Getwd
 
 type ChartLoadingError struct {
 	Path  string
@@ -72,12 +75,23 @@ type RegistryCredentials struct {
 	// add other credentials field/options as needed
 }
 
-// ChartMoveRequest defines a chart move
-type ChartMoveRequest struct {
+// MoveSource of the chart move
+type ChartSource struct {
 	Chart          string
 	ImageHintsFile string
-	Rules          RewriteRules
-	Credentials    map[string]RegistryCredentials
+}
+
+// ChartTarget of the chart move
+type ChartTarget struct {
+	Chart string
+}
+
+// ChartMoveRequest defines a chart move
+type ChartMoveRequest struct {
+	Source      ChartSource
+	Target      ChartTarget
+	Rules       RewriteRules
+	Credentials map[string]RegistryCredentials
 }
 
 // ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
@@ -94,9 +108,9 @@ type ChartMover struct {
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
 func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
-	chart, err := loader.Load(req.Chart)
+	chart, err := loader.Load(req.Source.Chart)
 	if err != nil {
-		return nil, &ChartLoadingError{Path: req.Chart, Inner: err}
+		return nil, &ChartLoadingError{Path: req.Source.Chart, Inner: err}
 	}
 
 	if req.Rules.Registry == "" && req.Rules.RepositoryPrefix == "" {
@@ -118,7 +132,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		}
 	}
 
-	patternsRaw, err := loadPatterns(req.ImageHintsFile, chart, cm.logger)
+	patternsRaw, err := loadPatterns(req.Source.ImageHintsFile, chart, cm.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -200,27 +214,35 @@ Move executes the Chart relocation which includes
 
 3 - Repackage the Helm chart as toChartFilename
 */
-func (cm *ChartMover) Move(toChartFilename string) error {
+func (cm *ChartMover) Move() error {
 	log := cm.logger
 
-	log.Printf("Relocating %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
-
-	err := cm.pushRewrittenImages(cm.imageChanges)
+	chartMetadata, err := cm.chartMetadata()
 	if err != nil {
 		return err
 	}
-	err = modifyChart(cm.chart, cm.chartChanges, toChartFilename)
+	destination, err := targetOutput(cm.request.Target.Chart, chartMetadata.Name, chartMetadata.Version)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Relocating %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
+
+	err = cm.pushRewrittenImages(cm.imageChanges)
+	if err != nil {
+		return err
+	}
+	err = modifyChart(cm.chart, cm.chartChanges, destination)
 	if err != nil {
 		return err
 	}
 
 	log.Println("Done")
-	log.Println(toChartFilename)
+	log.Println(destination)
 	return nil
 }
 
-// ChartMetadata returns information from the Helm Chart ready to be relocated
-func (cm *ChartMover) ChartMetadata() (*ChartMetadata, error) {
+func (cm *ChartMover) chartMetadata() (*ChartMetadata, error) {
 	if cm.chart == nil {
 		return nil, errors.New("Helm Chart not loaded")
 	}
@@ -420,4 +442,12 @@ func WithLogger(l Logger) Option {
 	return func(c *ChartMover) {
 		c.logger = l
 	}
+}
+
+func targetOutput(targetFormat, name, version string) (string, error) {
+	cwd, err := basePathFn()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(cwd, fmt.Sprintf(targetFormat, name, version)), nil
 }
