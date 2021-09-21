@@ -19,12 +19,16 @@ type ImageInterface interface {
 	Push(image v1.Image, dest name.Reference) error
 }
 
-type ImageImpl struct{}
+type ImageImpl struct {
+	keychain authn.Keychain
+}
 
-var Image ImageInterface = &ImageImpl{}
+func NewImage(keychain authn.Keychain) *ImageImpl {
+	return &ImageImpl{keychain: keychain}
+}
 
 func (i *ImageImpl) Pull(imageReference name.Reference) (v1.Image, string, error) {
-	image, err := remote.Image(imageReference, remote.WithAuthFromKeychain(authn.DefaultKeychain))
+	image, err := remote.Image(imageReference, remote.WithAuthFromKeychain(i.keychain))
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to pull image %s: %w", imageReference.Name(), err)
 	}
@@ -55,7 +59,7 @@ func (i *ImageImpl) Check(digest string, imageReference name.Reference) (bool, e
 }
 
 func (i *ImageImpl) Push(image v1.Image, dest name.Reference) error {
-	err := remote.Write(dest, image, remote.WithAuthFromKeychain(authn.DefaultKeychain))
+	err := remote.Write(dest, image, remote.WithAuthFromKeychain(i.keychain))
 	if err != nil {
 		return fmt.Errorf("failed to push image %s: %w", dest.Name(), err)
 	}

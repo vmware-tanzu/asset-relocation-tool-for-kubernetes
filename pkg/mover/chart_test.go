@@ -89,16 +89,10 @@ func makeImage(digest string) *moverfakes.FakeImage {
 
 var _ = Describe("Pull & Push Images", func() {
 	var (
-		fakeImage     *internalfakes.FakeImageInterface
-		originalImage internal.ImageInterface
+		fakeImage *internalfakes.FakeImageInterface
 	)
 	BeforeEach(func() {
-		originalImage = internal.Image
 		fakeImage = &internalfakes.FakeImageInterface{}
-		internal.Image = fakeImage
-	})
-	AfterEach(func() {
-		internal.Image = originalImage
 	})
 
 	Describe("ComputeChanges", func() {
@@ -125,7 +119,8 @@ var _ = Describe("Pull & Push Images", func() {
 			fakeImage.CheckReturnsOnCall(0, true, nil)  // Pretend it doesn't exist
 			fakeImage.CheckReturnsOnCall(1, false, nil) // Pretend it already exists
 
-			newChanges, actions, err := computeChanges(testchart, changes, rules)
+			cm := &ChartMover{chart: testchart, image: fakeImage}
+			newChanges, actions, err := cm.computeChanges(changes, rules)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("checking the existing images on the remote registry", func() {
@@ -200,7 +195,8 @@ var _ = Describe("Pull & Push Images", func() {
 
 				fakeImage.CheckReturns(true, nil) // Pretend it doesn't exist
 
-				newChanges, actions, err := computeChanges(testchart, changes, rules)
+				cm := &ChartMover{chart: testchart, image: fakeImage}
+				newChanges, actions, err := cm.computeChanges(changes, rules)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("checking the image once", func() {
@@ -264,7 +260,8 @@ var _ = Describe("Pull & Push Images", func() {
 				newPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 			}
 
-			changes, err := pullOriginalImages(testchart, patterns)
+			cm := &ChartMover{chart: testchart, image: fakeImage}
+			changes, err := cm.pullOriginalImages(patterns)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("pulling the images", func() {
@@ -295,7 +292,8 @@ var _ = Describe("Pull & Push Images", func() {
 					newPattern("{{.secondimage.registry}}/{{.secondimage.repository}}:{{.secondimage.tag}}"),
 				}
 
-				changes, err := pullOriginalImages(testchart, patterns)
+				cm := &ChartMover{chart: testchart, image: fakeImage}
+				changes, err := cm.pullOriginalImages(patterns)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("pulling the image once", func() {
@@ -322,7 +320,8 @@ var _ = Describe("Pull & Push Images", func() {
 					newPattern("{{.image.registry}}/{{.image.repository}}"),
 				}
 
-				_, err := pullOriginalImages(testchart, patterns)
+				cm := &ChartMover{chart: testchart, image: fakeImage}
+				_, err := cm.pullOriginalImages(patterns)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("image pull error"))
 			})
@@ -343,7 +342,8 @@ var _ = Describe("Pull & Push Images", func() {
 
 		It("pushes the images", func() {
 			printer := newLogger()
-			err := pushRewrittenImages(images, testRetries, printer)
+			cm := &ChartMover{chart: testchart, image: fakeImage, logger: printer, retries: testRetries}
+			err := cm.pushRewrittenImages(images)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("pushing the image", func() {
@@ -362,7 +362,9 @@ var _ = Describe("Pull & Push Images", func() {
 			It("does not push the image", func() {
 				images[0].RewrittenReference = images[0].ImageReference
 				printer := newLogger()
-				err := pushRewrittenImages(images, testRetries, printer)
+
+				cm := &ChartMover{chart: testchart, image: fakeImage, logger: printer, retries: testRetries}
+				err := cm.pushRewrittenImages(images)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("not pushing the image", func() {
@@ -375,7 +377,8 @@ var _ = Describe("Pull & Push Images", func() {
 			It("does not push the image", func() {
 				images[0].AlreadyPushed = true
 				printer := newLogger()
-				err := pushRewrittenImages(images, testRetries, printer)
+				cm := &ChartMover{chart: testchart, image: fakeImage, logger: printer, retries: testRetries}
+				err := cm.pushRewrittenImages(images)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("not pushing the image", func() {
@@ -392,7 +395,8 @@ var _ = Describe("Pull & Push Images", func() {
 
 			It("retries and passes", func() {
 				printer := newLogger()
-				err := pushRewrittenImages(images, testRetries, printer)
+				cm := &ChartMover{chart: testchart, image: fakeImage, logger: printer, retries: testRetries}
+				err := cm.pushRewrittenImages(images)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("trying to push the image twice", func() {
@@ -414,7 +418,8 @@ var _ = Describe("Pull & Push Images", func() {
 
 			It("returns an error", func() {
 				printer := newLogger()
-				err := pushRewrittenImages(images, testRetries, printer)
+				cm := &ChartMover{chart: testchart, image: fakeImage, logger: printer, retries: testRetries}
+				err := cm.pushRewrittenImages(images)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("All attempts fail:\n#1: push failed\n#2: push failed\n#3: push failed"))
 

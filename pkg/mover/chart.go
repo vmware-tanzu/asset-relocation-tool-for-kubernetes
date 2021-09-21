@@ -77,8 +77,7 @@ type ChartMoveRequest struct {
 	Chart          string
 	ImageHintsFile string
 	Rules          RewriteRules
-	FromCreds      RegistryCredentials
-	ToCreds        RegistryCredentials
+	Credentials    map[string]RegistryCredentials
 }
 
 // ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
@@ -87,6 +86,7 @@ type ChartMover struct {
 	chart        *chart.Chart
 	imageChanges []*internal.ImageChange
 	chartChanges []*internal.RewriteAction
+	image        internal.ImageInterface
 	logger       Logger
 	retries      uint
 }
@@ -103,21 +103,22 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, ErrOCIRewritesMissing
 	}
 
-	c := &ChartMover{
+	cm := &ChartMover{
 		request: *req,
 		chart:   chart,
 		logger:  &defaultLogger{},
 		retries: DefaultRetries,
+		image:   internal.NewImage(&authnKeychain{req.Credentials}),
 	}
 
 	// Option overrides
 	for _, opt := range opts {
 		if opt != nil {
-			opt(c)
+			opt(cm)
 		}
 	}
 
-	patternsRaw, err := loadPatterns(req.ImageHintsFile, chart, c.logger)
+	patternsRaw, err := loadPatterns(req.ImageHintsFile, chart, cm.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -131,22 +132,22 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
 	}
 
-	c.logger.Println("Computing relocation...\n")
+	cm.logger.Println("Computing relocation...\n")
 
-	imageChanges, err := pullOriginalImages(chart, imagePatterns)
+	imageChanges, err := cm.pullOriginalImages(imagePatterns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
 
-	imageChanges, chartChanges, err := computeChanges(chart, imageChanges, &req.Rules)
+	imageChanges, chartChanges, err := cm.computeChanges(imageChanges, &req.Rules)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
 
-	c.imageChanges = imageChanges
-	c.chartChanges = chartChanges
+	cm.imageChanges = imageChanges
+	cm.chartChanges = chartChanges
 
-	return c, nil
+	return cm, nil
 }
 
 // WithRetries sets how many times to retry push operations
@@ -204,7 +205,7 @@ func (cm *ChartMover) Move(toChartFilename string) error {
 
 	log.Printf("Relocating %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
 
-	err := pushRewrittenImages(cm.imageChanges, cm.retries, log)
+	err := cm.pushRewrittenImages(cm.imageChanges)
 	if err != nil {
 		return err
 	}
@@ -230,12 +231,12 @@ func (cm *ChartMover) ChartMetadata() (*ChartMetadata, error) {
 	}, nil
 }
 
-func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
+func (cm *ChartMover) pullOriginalImages(pattens []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
 	var changes []*internal.ImageChange
 	imageCache := map[string]*internal.ImageChange{}
 
 	for _, pattern := range pattens {
-		originalImage, err := pattern.Render(chart)
+		originalImage, err := pattern.Render(cm.chart)
 		if err != nil {
 			return nil, err
 		}
@@ -246,7 +247,7 @@ func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate) (
 		}
 
 		if imageCache[originalImage.Name()] == nil {
-			image, digest, err := internal.Image.Pull(originalImage)
+			image, digest, err := cm.image.Pull(originalImage)
 			if err != nil {
 				return nil, err
 			}
@@ -262,7 +263,7 @@ func pullOriginalImages(chart *chart.Chart, pattens []*internal.ImageTemplate) (
 	return changes, nil
 }
 
-func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, registryRules *RewriteRules) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
+func (cm *ChartMover) computeChanges(imageChanges []*internal.ImageChange, registryRules *RewriteRules) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
 	var chartChanges []*internal.RewriteAction
 	imageCache := map[string]bool{}
 
@@ -279,7 +280,7 @@ func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, re
 
 		chartChanges = append(chartChanges, newActions...)
 
-		rewrittenImage, err := change.Pattern.Render(chart, newActions...)
+		rewrittenImage, err := change.Pattern.Render(cm.chart, newActions...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -291,7 +292,7 @@ func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, re
 				// This image has already been checked previously, so just force this one to be skipped
 				change.AlreadyPushed = true
 			} else {
-				needToPush, err := internal.Image.Check(change.Digest, rewrittenImage)
+				needToPush, err := cm.image.Check(change.Digest, rewrittenImage)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -304,22 +305,22 @@ func computeChanges(chart *chart.Chart, imageChanges []*internal.ImageChange, re
 	return imageChanges, chartChanges, nil
 }
 
-func pushRewrittenImages(imageChanges []*internal.ImageChange, retries uint, log Logger) error {
+func (cm *ChartMover) pushRewrittenImages(imageChanges []*internal.ImageChange) error {
 	for _, change := range imageChanges {
 		if change.ShouldPush() {
 			err := retry.Do(
 				func() error {
-					log.Printf("Pushing %s...\n", change.RewrittenReference.Name())
-					err := internal.Image.Push(change.Image, change.RewrittenReference)
+					cm.logger.Printf("Pushing %s...\n", change.RewrittenReference.Name())
+					err := cm.image.Push(change.Image, change.RewrittenReference)
 					if err != nil {
 						return err
 					}
-					log.Println("Done")
+					cm.logger.Println("Done")
 					return nil
 				},
-				retry.Attempts(retries),
+				retry.Attempts(cm.retries),
 				retry.OnRetry(func(n uint, err error) {
-					log.Printf("Attempt #%d failed: %s\n", n+1, err.Error())
+					cm.logger.Printf("Attempt #%d failed: %s\n", n+1, err.Error())
 				}),
 			)
 			if err != nil {
