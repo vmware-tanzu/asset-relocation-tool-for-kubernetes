@@ -66,8 +66,8 @@ type ChartMetadata struct {
 	Version string
 }
 
-// RegistryCredentials to access a registry
-type RegistryCredentials struct {
+// Credentials to access a Registry
+type Credentials struct {
 	Username, Password string
 	// add other credentials field/options as needed
 }
@@ -88,7 +88,7 @@ type ChartMoveRequest struct {
 	Source      ChartSource
 	Target      ChartTarget
 	Rules       RewriteRules
-	Credentials map[string]RegistryCredentials
+	Credentials map[string]Credentials
 }
 
 // ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
@@ -119,7 +119,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		chart:   chart,
 		logger:  &defaultLogger{},
 		retries: DefaultRetries,
-		image:   internal.NewImage(&authnKeychain{req.Credentials}),
+		image:   internal.NewImage(authnKeychain(req.Credentials)),
 	}
 
 	// Option overrides
