@@ -13,7 +13,7 @@ import (
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/test"
 )
 
-var _ = Describe("relok8s chart move command", func() {
+var _ = XDescribe("relok8s chart move command", func() {
 	steps := NewSteps()
 
 	// TODO: Excluding these scenarios until we have a fake docker daemon
@@ -47,63 +47,8 @@ var _ = Describe("relok8s chart move command", func() {
 		steps.Then("the command exits without error")
 	})
 
-	Scenario("missing helm chart", func() {
-		steps.When("running relok8s chart move")
-		steps.Then("the command exits with an error")
-		steps.And("it says the chart is missing")
-		steps.And("it prints the usage")
-	})
-
-	Scenario("helm chart does not exist", func() {
-		steps.When("running relok8s chart move ../fixtures/does-not-exist")
-		steps.Then("the command exits with an error")
-		steps.And("it says the chart does not exist")
-		steps.And("it prints the usage")
-	})
-
-	Scenario("helm chart is empty directory", func() {
-		steps.When("running relok8s chart move ../fixtures/empty-directory")
-		steps.Then("the command exits with an error")
-		steps.And("it says the chart is missing a critical file")
-		steps.And("it prints the usage")
-	})
-
-	Scenario("missing image patterns file", func() {
-		steps.When("running relok8s chart move ../fixtures/wordpress-11.0.4.tgz --repo-prefix cyberdyne-corp")
-		steps.Then("the command exits with an error")
-		steps.And("it says the image patterns file is missing")
-		steps.And("it prints the usage")
-	})
-
-	Scenario("no rules are given", func() {
-		steps.When("running relok8s chart move ../fixtures/wordpress-11.0.4.tgz --image-patterns ../fixtures/wordpress-11.0.4.images.yaml")
-		steps.Then("the command exits with an error")
-		steps.And("it says that the rules are missing")
-		steps.And("it prints the usage")
-	})
-
 	steps.Define(func(define Definitions) {
 		test.DefineCommonSteps(define)
-
-		define.Then(`^it says the chart is missing$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: requires a chart argument"))
-		})
-
-		define.Then(`^it says the chart does not exist$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: failed to load Helm Chart at \"../fixtures/does-not-exist\": stat ../fixtures/does-not-exist: no such file or directory"))
-		})
-
-		define.Then(`^it says the chart is missing a critical file$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: failed to load Helm Chart at \"../fixtures/empty-directory\": Chart.yaml file is missing"))
-		})
-
-		define.Then(`^it says the image patterns file is missing$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: image patterns file is required. Please try again with '--image-patterns <image patterns file>'"))
-		})
-
-		define.Then(`^it says that the rules are missing$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix"))
-		})
 
 		define.Then(`^the original images are pulled$`, func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Pulling docker.io/bitnami/wordpress:5.7.2-debian-10-r0... Done"))

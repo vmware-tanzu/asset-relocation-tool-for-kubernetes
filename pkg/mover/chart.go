@@ -44,14 +44,6 @@ func (e *ChartLoadingError) Unwrap() error {
 	return e.Inner
 }
 
-// RewriteRules indicate What kind of target registry overrides we want to apply to the found images
-type RewriteRules struct {
-	// Registry overrides the registry part of the image FQDN, i.e myregistry.io
-	Registry string
-	// RepositoryPrefix will override the image path by being prepended before the image name
-	RepositoryPrefix string
-}
-
 // Logger represents an interface used to output moving information
 type Logger interface {
 	Printf(format string, i ...interface{})

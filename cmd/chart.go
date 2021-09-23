@@ -47,19 +47,23 @@ func init() {
 	rootCmd.AddCommand(chartCmd)
 }
 
+func validateChartArgs(cmd *cobra.Command, args []string) error {
+	if len(args) < 1 {
+		return errors.New("requires a chart argument")
+	} else if len(args) > 1 {
+		return fmt.Errorf("expected 1 chart argument, received %d args", len(args))
+	}
+	return nil
+}
+
 func newChartMoveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "move <chart>",
-		Short:   "Relocates a Helm Chart along with their associated container images",
-		Long:    "It takes the provided Helm Chart, resolves and repushes all the dependent images, providing as output a modified Helm Chart (and subcharts) pointing to the new location of the images.",
+		Short:   "Relocates a Helm Chart along with its associated container images",
+		Long:    "It takes the provided Helm Chart, resolves and re-pushes all the dependent images, providing as output a modified Helm Chart (and subcharts) pointing to the new location of the images.",
 		Example: "move my-chart --image-patterns my-image-hints.yaml --registry my-registry.company.com ",
 		RunE:    moveChart,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
-				return errors.New("requires a chart argument")
-			}
-			return nil
-		},
+		Args:    validateChartArgs,
 	}
 
 	f := cmd.Flags()
@@ -80,6 +84,10 @@ func moveChart(cmd *cobra.Command, args []string) error {
 	targetRewriteRules := &mover.RewriteRules{
 		Registry:         registryRule,
 		RepositoryPrefix: repositoryPrefixRule,
+	}
+	err := targetRewriteRules.Validate()
+	if err != nil {
+		return err
 	}
 
 	chartMover, err := mover.NewChartMover(
