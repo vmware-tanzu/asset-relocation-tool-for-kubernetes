@@ -1,0 +1,7 @@
+build/
+ci/
+examples/
+registry-test/
+.git/
+.github/
+.vscode/
