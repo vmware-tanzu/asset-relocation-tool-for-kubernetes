@@ -1,6 +1,8 @@
 # Copyright 2021 VMware, Inc.
 # SPDX-License-Identifier: BSD-2-Clause
+ARG VERSION=dev
 FROM golang:1.16 as builder
+ARG VERSION
 
 COPY . /asset-relocation-tool-for-kubernetes/
 ENV GOPATH=
