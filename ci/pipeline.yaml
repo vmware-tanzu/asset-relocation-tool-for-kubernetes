@@ -148,42 +148,61 @@ jobs:
         - get: version
           params:
             bump: patch
-      - task: build
-        image: test-image
-        file: source/ci/tasks/build.yaml
-      - task: build-image
-        privileged: true
-        config:
-          platform: linux
-          image_resource:
-            type: registry-image
-            source:
-              repository: harbor-repo.vmware.com/dockerhub-proxy-cache/concourse/oci-build-task
-              username: ((harbor.username))
-              password: ((harbor.token))
-          inputs:
-            - name: build
-            - name: source
-              path: .
-          outputs:
-            - name: image
-          run:
-            path: build
-      - put: docker-image
-        inputs:
-          - image
-          - version
-        params:
-          image: image/image.tar
-          additional_tags: version/version
-      - put: release
-        inputs: [build, source, version]
-        params:
-          name: version/version
-          tag: version/version
-          commitish: source/.git/ref
-          globs:
-            - build/*
+      - in_parallel:
+        - do:
+          - task: build
+            image: test-image
+            file: source/ci/tasks/build.yaml
+          - put: release
+            inputs: [build, source, version]
+            params:
+              name: version/version
+              tag: version/version
+              commitish: source/.git/ref
+              globs:
+                - build/*
+        - do:
+          - task: make-args-file
+            image: docker-image
+            config:
+              platform: linux
+              inputs:
+                - name: version
+              outputs:
+                - name: args-file
+              run:
+                path: bash
+                args:
+                  - -exc
+                  - |
+                    echo "VERSION=$(cat version/version)" > args-file/args.env
+          - task: build-image
+            privileged: true
+            config:
+              platform: linux
+              image_resource:
+                type: registry-image
+                source:
+                  repository: harbor-repo.vmware.com/dockerhub-proxy-cache/concourse/oci-build-task
+                  username: ((harbor.username))
+                  password: ((harbor.token))
+              inputs:
+                - name: args-file
+                - name: source
+                  path: .
+              outputs:
+                - name: image
+              params:
+                BUILD_ARGS_FILE: args-file/args.env
+              run:
+                path: build
+          - put: docker-image
+            inputs:
+              - image
+              - version
+            params:
+              image: image/image.tar
+              additional_tags: version/version
       - put: version
         params:
           file: version/version
