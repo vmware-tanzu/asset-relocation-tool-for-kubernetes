@@ -2,11 +2,12 @@
 set -euxo pipefail
 
 cat <<EOF > .env
-USERNAME=testuser
-PASSWORD=testpassword-$(date +%s)
+PASSWORD=test-password-$(date +%s)
 EOF
 
-docker-compose up -d --remove-orphans
+mkdir -p data/auth data/certs
+docker-compose up pwdgen mkcert
+docker-compose up -d test-relok8s
 
 docker-compose logs -f test-relok8s
 
@@ -17,7 +18,8 @@ if docker-compose ps |grep test-relok8s | grep -s 'Exit 0'; then
   status=0
 fi
 
-docker-compose down || true
+docker-compose stop
+docker-compose down
 
 echo "${msg}"
 exit ${status}

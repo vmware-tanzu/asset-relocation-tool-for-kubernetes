@@ -3,39 +3,39 @@ version: "3"
 services:
   pwdgen:
     image: httpd:2
-    command: htpasswd -Bbc /auth/htpasswd "${USERNAME}" "${PASSWORD}"
+    entrypoint: htpasswd -Bbc /auth/htpasswd testuser "${PASSWORD}"
     volumes:
-      - auth:/auth
-  local-registry:
+      - ./data/auth:/auth
+  mkcert:
     build: .
+    working_dir: /certs
+    entrypoint: /mkcert local-registry.io
+    volumes:
+      - ./data/certs:/certs
+  local-registry:
+    image: registry:2
+    hostname: local-registry.io
     environment:
       REGISTRY_HTTP_ADDR: 0.0.0.0:443
-      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/local-registry.pem
-      REGISTRY_HTTP_TLS_KEY: /certs/local-registry-key.pem
+      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/local-registry.io.pem
+      REGISTRY_HTTP_TLS_KEY: /certs/local-registry.io-key.pem
       REGISTRY_AUTH: htpasswd
       REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
       REGISTRY_AUTH_HTPASSWD_REALM: Registry Realm
-      USERNAME: "${USERNAME}"
-      PASSWORD: "${PASSWORD}"
     volumes:
-      - certs:/certs
-      - auth:/auth
-    depends_on: [pwdgen]
+      - ./data/auth:/auth
+      - ./data/certs:/certs
   test-relok8s:
     build: ../..
     working_dir: /app
-    entrypoint: /app/test-entrypoint.sh
+    entrypoint: ./test-entrypoint.sh
     environment:
-      SSL_CERT_FILE: /certs/local-registry.pem
-      USERNAME: "${USERNAME}"
+      SSL_CERT_FILE: /certs/local-registry.io.pem
+      USERNAME: testuser
       PASSWORD: "${PASSWORD}"
     volumes:
-      - certs:/certs
+      - ./data/certs:/certs
       - ../../examples/chart-with-subcharts/:/app/chart
       - ../../assets/docker-login.sh:/docker-login.sh
       - ./test-entrypoint.sh:/app/test-entrypoint.sh
-    depends_on: [local-registry, pwdgen]
-
-volumes:
-  certs:
-  auth:
+    depends_on: [local-registry]
