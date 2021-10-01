@@ -1,3 +1,5 @@
+# Copyright 2021 VMware, Inc.
+# SPDX-License-Identifier: BSD-2-Clause
 FROM golang:1.16 as mkcert
 RUN cd /go && \
     GO111MODULE=off go get -u filippo.io/mkcert && \
