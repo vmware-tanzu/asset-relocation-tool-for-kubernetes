@@ -8,5 +8,4 @@ RUN cd /go && \
 
 FROM scratch
 COPY --from=mkcert /go/bin/mkcert /mkcert
-COPY run-local-registry.sh /run-local-registry.sh
-CMD /run-local-registry.sh
+ENTRYPOINT /mkcert
