@@ -5,15 +5,19 @@ version: "3"
 services:
   pwdgen:
     image: httpd:2
+    user: "${UID}:${GID}"
     entrypoint: htpasswd -Bbc /auth/htpasswd testuser "${PASSWORD}"
     volumes:
       - ./data/auth:/auth
   mkcert:
     build: .
+    user: "${UID}:${GID}"
     working_dir: /certs
     entrypoint: /mkcert local-registry.io
     volumes:
       - ./data/certs:/certs
+    environment:
+      CAROOT: /certs
   local-registry:
     image: registry:2
     hostname: local-registry.io

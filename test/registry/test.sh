@@ -5,10 +5,14 @@ set -euxo pipefail
 
 cat <<EOF > .env
 PASSWORD=test-password-$(date +%s)
+UID="$(id -u)"
+GID="$(id -g)"
 EOF
 
+# First prepare the password authentication and the certificate
 mkdir -p data/auth data/certs
 docker-compose up pwdgen mkcert
+# Then run the tests using the generated data
 docker-compose up -d test-relok8s
 
 docker-compose logs -f test-relok8s
