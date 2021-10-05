@@ -5,17 +5,17 @@ package mover
 
 import "github.com/google/go-containerregistry/pkg/authn"
 
-type authnKeychain map[string]Credentials
+type authnKeychain Repository
 
 func (kc authnKeychain) Resolve(resource authn.Resource) (authn.Authenticator, error) {
-	if creds, ok := kc[resource.RegistryStr()]; ok {
-		return &authenticator{creds}, nil
+	if kc.Server == resource.RegistryStr() {
+		return &authenticator{Repository(kc)}, nil
 	}
 	return authn.DefaultKeychain.Resolve(resource)
 }
 
 type authenticator struct {
-	Credentials
+	Repository
 }
 
 func (auth *authenticator) Authorization() (*authn.AuthConfig, error) {

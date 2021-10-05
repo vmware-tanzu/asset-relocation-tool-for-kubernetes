@@ -66,29 +66,45 @@ type ChartMetadata struct {
 	Version string
 }
 
-// Credentials to access a Registry
-type Credentials struct {
+// UserPassword credentials to access a Registry
+type UserPassword struct {
 	Username, Password string
-	// add other credentials field/options as needed
 }
 
-// MoveSource of the chart move
-type ChartSource struct {
-	Chart          string
+// LocalChart is a reference to a local chart
+type LocalChart struct {
+	Path string
+}
+
+// Repository defines a private repo name and credentials
+type Repository struct {
+	UserPassword
+	Server string
+}
+
+// Containers is the section for private repository definition
+type Containers struct {
+	Repository
+}
+
+// Source of the chart move
+type Source struct {
+	LocalChart     LocalChart
 	ImageHintsFile string
+	Containers     Containers
 }
 
-// ChartTarget of the chart move
-type ChartTarget struct {
-	Chart string
+// Target of the chart move
+type Target struct {
+	LocalChart LocalChart
+	Rules      RewriteRules
+	Containers Containers
 }
 
 // ChartMoveRequest defines a chart move
 type ChartMoveRequest struct {
-	Source      ChartSource
-	Target      ChartTarget
-	Rules       RewriteRules
-	Credentials map[string]Credentials
+	Source Source
+	Target Target
 }
 
 // ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
@@ -105,21 +121,24 @@ type ChartMover struct {
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
 func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
-	chart, err := loader.Load(req.Source.Chart)
+	chart, err := loader.Load(req.Source.LocalChart.Path)
 	if err != nil {
-		return nil, &ChartLoadingError{Path: req.Source.Chart, Inner: err}
+		return nil, &ChartLoadingError{Path: req.Source.LocalChart.Path, Inner: err}
 	}
 
-	if req.Rules.Registry == "" && req.Rules.RepositoryPrefix == "" {
+	rules := req.Target.Rules
+	if rules.Registry == "" && rules.RepositoryPrefix == "" {
 		return nil, ErrOCIRewritesMissing
 	}
 
+	sourceAuth := authnKeychain(req.Source.Containers.Repository)
+	targetAuth := authnKeychain(req.Target.Containers.Repository)
 	cm := &ChartMover{
 		request: *req,
 		chart:   chart,
 		logger:  &defaultLogger{},
 		retries: DefaultRetries,
-		image:   internal.NewImage(authnKeychain(req.Credentials)),
+		image:   internal.NewImage(sourceAuth, targetAuth),
 	}
 
 	// Option overrides
@@ -150,7 +169,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
 
-	imageChanges, chartChanges, err := cm.computeChanges(imageChanges, &req.Rules)
+	imageChanges, chartChanges, err := cm.computeChanges(imageChanges, &rules)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
@@ -218,7 +237,7 @@ func (cm *ChartMover) Move() error {
 	if err != nil {
 		return err
 	}
-	destination := targetOutput(cm.request.Target.Chart, chartMetadata.Name, chartMetadata.Version)
+	destination := targetOutput(cm.request.Target.LocalChart.Path, chartMetadata.Name, chartMetadata.Version)
 
 	log.Printf("Relocating %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
 

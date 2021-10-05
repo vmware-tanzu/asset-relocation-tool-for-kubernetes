@@ -103,14 +103,14 @@ func moveChart(cmd *cobra.Command, args []string) error {
 
 	chartMover, err := mover.NewChartMover(
 		&mover.ChartMoveRequest{
-			Source: mover.ChartSource{
-				Chart:          args[0],
+			Source: mover.Source{
+				LocalChart:     mover.LocalChart{Path: args[0]},
 				ImageHintsFile: imagePatternsFile,
 			},
-			Target: mover.ChartTarget{
-				Chart: outputPathFmt,
+			Target: mover.Target{
+				LocalChart: mover.LocalChart{Path: outputPathFmt},
+				Rules:      *targetRewriteRules,
 			},
-			Rules: *targetRewriteRules,
 		},
 		mover.WithRetries(retries), mover.WithLogger(cmd),
 	)

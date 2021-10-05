@@ -15,20 +15,20 @@ func Example() {
 	// Initialize the Mover action
 	chartMover, err := NewChartMover(
 		&ChartMoveRequest{
-			Source: ChartSource{
+			Source: Source{
 				// The Helm Chart can be provided in either tarball or directory form
-				Chart: "./helm_chart.tgz",
+				LocalChart: LocalChart{Path: "./helm_chart.tgz"},
 				// path to file containing rules such as // {{.image.registry}}:{{.image.tag}}
 				ImageHintsFile: "./image-hints.yaml",
 			},
-			Target: ChartTarget{
-				Chart: destinationPath,
-			},
-			// Where to push and how to rewrite the found images
-			// i.e docker.io/bitnami/mariadb => myregistry.com/myteam/mariadb
-			Rules: RewriteRules{
-				Registry:         "myregistry.com",
-				RepositoryPrefix: "/myteam",
+			Target: Target{
+				LocalChart: LocalChart{Path: destinationPath},
+				// Where to push and how to rewrite the found images
+				// i.e docker.io/bitnami/mariadb => myregistry.com/myteam/mariadb
+				Rules: RewriteRules{
+					Registry:         "myregistry.com",
+					RepositoryPrefix: "/myteam",
+				},
 			},
 		},
 	)
