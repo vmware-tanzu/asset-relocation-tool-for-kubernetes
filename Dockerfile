@@ -9,7 +9,7 @@ ENV PATH="${PATH}:/root/go/bin"
 WORKDIR /asset-relocation-tool-for-kubernetes/
 RUN make test && make build
 
-FROM harbor-repo.vmware.com/dockerhub-proxy-cache/library/photon:4.0
+FROM photon:4.0
 LABEL description="Asset Relocation Tool for Kubernetes"
 LABEL maintainer="tanzu-isv-engineering@groups.vmware.com"
 
