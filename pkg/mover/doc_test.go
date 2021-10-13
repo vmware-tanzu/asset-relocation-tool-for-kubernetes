@@ -17,12 +17,12 @@ func Example() {
 		&ChartMoveRequest{
 			Source: Source{
 				// The Helm Chart can be provided in either tarball or directory form
-				LocalChart: LocalChart{Path: "./helm_chart.tgz"},
+				Chart: ChartSpec{Local: LocalChart{Path: "./helm_chart.tgz"}},
 				// path to file containing rules such as // {{.image.registry}}:{{.image.tag}}
 				ImageHintsFile: "./image-hints.yaml",
 			},
 			Target: Target{
-				LocalChart: LocalChart{Path: destinationPath},
+				Chart: ChartSpec{Local: LocalChart{Path: destinationPath}},
 				// Where to push and how to rewrite the found images
 				// i.e docker.io/bitnami/mariadb => myregistry.com/myteam/mariadb
 				Rules: RewriteRules{

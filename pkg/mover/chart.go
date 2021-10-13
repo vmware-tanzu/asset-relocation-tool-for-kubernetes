@@ -87,16 +87,21 @@ type Containers struct {
 	Repository
 }
 
+// ChartSpec of possible chart inputs or outputs
+type ChartSpec struct {
+	Local LocalChart
+}
+
 // Source of the chart move
 type Source struct {
-	LocalChart     LocalChart
+	Chart          ChartSpec
 	ImageHintsFile string
 	Containers     Containers
 }
 
 // Target of the chart move
 type Target struct {
-	LocalChart LocalChart
+	Chart      ChartSpec
 	Rules      RewriteRules
 	Containers Containers
 }
@@ -121,9 +126,9 @@ type ChartMover struct {
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
 func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
-	chart, err := loader.Load(req.Source.LocalChart.Path)
+	chart, err := loader.Load(req.Source.Chart.Local.Path)
 	if err != nil {
-		return nil, &ChartLoadingError{Path: req.Source.LocalChart.Path, Inner: err}
+		return nil, &ChartLoadingError{Path: req.Source.Chart.Local.Path, Inner: err}
 	}
 
 	rules := req.Target.Rules
@@ -237,7 +242,7 @@ func (cm *ChartMover) Move() error {
 	if err != nil {
 		return err
 	}
-	destination := targetOutput(cm.request.Target.LocalChart.Path, chartMetadata.Name, chartMetadata.Version)
+	destination := targetOutput(cm.request.Target.Chart.Local.Path, chartMetadata.Name, chartMetadata.Version)
 
 	log.Printf("Relocating %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
 
