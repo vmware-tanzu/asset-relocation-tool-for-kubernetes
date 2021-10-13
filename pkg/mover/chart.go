@@ -66,11 +66,6 @@ type ChartMetadata struct {
 	Version string
 }
 
-// UserPassword credentials to access a Registry
-type UserPassword struct {
-	Username, Password string
-}
-
 // LocalChart is a reference to a local chart
 type LocalChart struct {
 	Path string
@@ -78,8 +73,8 @@ type LocalChart struct {
 
 // Repository defines a private repo name and credentials
 type Repository struct {
-	UserPassword
-	Server string
+	Server             string
+	Username, Password string
 }
 
 // Containers is the section for private repository definition
