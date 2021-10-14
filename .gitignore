@@ -2,4 +2,3 @@ build/*
 *.relocated.tgz
 test/registry/.env
 test/registry/data/
-
