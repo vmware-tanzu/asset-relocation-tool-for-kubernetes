@@ -225,6 +225,44 @@ var (
 		Template: "{{ .lazy-chart.registry }}/{{ .lazy-chart.image }}:{{ .lazy-chart.tag }}",
 	}
 
+	parentWithGlobalRegistry = &TableInput{
+		ParentChart: &test.ChartSeed{
+			Name: "parent",
+			Values: map[string]interface{}{
+				"registry": "docker.io",
+			},
+			Dependencies: []*test.ChartSeed{
+				{
+					Name: "subchart",
+					Values: map[string]interface{}{
+						"image": "mycompany/coolapp",
+						"tag":   "newest",
+					},
+				},
+			},
+		},
+		Template: "{{ .registry }}/{{ .subchart.image }}:{{ .subchart.tag }}",
+	}
+
+	parentWithGlobalRegistryAndPath = &TableInput{
+		ParentChart: &test.ChartSeed{
+			Name: "parent",
+			Values: map[string]interface{}{
+				"registry": "tenancy.registry.com/companyone",
+			},
+			Dependencies: []*test.ChartSeed{
+				{
+					Name: "subchart",
+					Values: map[string]interface{}{
+						"image": "super-app",
+						"tag":   "1.2.3",
+					},
+				},
+			},
+		},
+		Template: "{{ .registry }}/{{ .subchart.image }}:{{ .subchart.tag }}",
+	}
+
 	registryRule          = &internal.OCIImageLocation{Registry: "registry.vmware.com"}
 	repositoryPrefixRule  = &internal.OCIImageLocation{RepositoryPrefix: "my-company"}
 	registryAndPrefixRule = &internal.OCIImageLocation{Registry: "registry.vmware.com", RepositoryPrefix: "my-company"}
@@ -495,6 +533,131 @@ var _ = DescribeTable("Rewrite Actions",
 			{
 				Path:  ".lazy-chart.image",
 				Value: "my-company/lazybox",
+			},
+		},
+	}),
+
+	Entry("global registry, registry only", parentWithGlobalRegistry, registryRule, &TableOutput{
+		Image:          "index.docker.io/mycompany/coolapp:newest",
+		RewrittenImage: "registry.vmware.com/mycompany/coolapp:newest",
+		Actions: []*internal.RewriteAction{
+			{
+				Path:  ".registry",
+				Value: "registry.vmware.com",
+			},
+		},
+	}),
+	Entry("global registry, repository prefix only", parentWithGlobalRegistry, repositoryPrefixRule, &TableOutput{
+		Image:          "index.docker.io/mycompany/coolapp:newest",
+		RewrittenImage: "index.docker.io/my-company/coolapp:newest",
+		Actions: []*internal.RewriteAction{
+			{
+				Path:  ".subchart.image",
+				Value: "my-company/coolapp",
+			},
+		},
+	}),
+	Entry("global registry, registry and prefix", parentWithGlobalRegistry, registryAndPrefixRule, &TableOutput{
+		Image:          "index.docker.io/mycompany/coolapp:newest",
+		RewrittenImage: "registry.vmware.com/my-company/coolapp:newest",
+		Actions: []*internal.RewriteAction{
+			{
+				Path:  ".registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path:  ".subchart.image",
+				Value: "my-company/coolapp",
+			},
+		},
+	}),
+
+	Entry("global registry with path, registry only", parentWithGlobalRegistryAndPath, registryRule, &TableOutput{
+		Image:          "tenancy.registry.com/companyone/super-app:1.2.3",
+		RewrittenImage: "registry.vmware.com/super-app:1.2.3",
+		Actions: []*internal.RewriteAction{
+			{
+				Path:  ".registry",
+				Value: "registry.vmware.com",
+			},
+		},
+	}),
+	Entry("global registry with path, repository prefix only", parentWithGlobalRegistryAndPath, repositoryPrefixRule, &TableOutput{
+		Image:          "tenancy.registry.com/companyone/super-app:1.2.3",
+		RewrittenImage: "tenancy.registry.com/companyone/my-company/super-app:1.2.3",
+		Actions: []*internal.RewriteAction{
+			{
+				Path:  ".subchart.image",
+				Value: "my-company/super-app",
+			},
+		},
+	}),
+	Entry("global registry with path, registry and prefix", parentWithGlobalRegistryAndPath, registryAndPrefixRule, &TableOutput{
+		Image:          "tenancy.registry.com/companyone/super-app:1.2.3",
+		RewrittenImage: "registry.vmware.com/my-company/super-app:1.2.3",
+		Actions: []*internal.RewriteAction{
+			{
+				Path:  ".registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path:  ".subchart.image",
+				Value: "my-company/super-app",
+			},
+		},
+	}),
+
+	Entry("global registry with path, registry only", parentWithGlobalRegistryAndPath, registryRule, &TableOutput{
+		Image:          "tenancy.registry.com/companyone/super-app:1.2.3",
+		RewrittenImage: "registry.vmware.com/super-app:1.2.3", // Is this the expected result?
+		Actions: []*internal.RewriteAction{
+			{
+				Path:  ".registry",
+				Value: "registry.vmware.com",
+			},
+		},
+	}),
+	Entry("global registry with path, repository prefix only", parentWithGlobalRegistryAndPath, repositoryPrefixRule, &TableOutput{
+		Image:          "tenancy.registry.com/companyone/super-app:1.2.3",
+		RewrittenImage: "tenancy.registry.com/companyone/my-company/super-app:1.2.3",
+		Actions: []*internal.RewriteAction{
+			{
+				Path:  ".subchart.image",
+				Value: "my-company/super-app",
+			},
+		},
+	}),
+	Entry("global registry with path, registry and prefix", parentWithGlobalRegistryAndPath, registryAndPrefixRule, &TableOutput{
+		Image:          "tenancy.registry.com/companyone/super-app:1.2.3",
+		RewrittenImage: "registry.vmware.com/my-company/super-app:1.2.3",
+		Actions: []*internal.RewriteAction{
+			{
+				Path:  ".registry",
+				Value: "registry.vmware.com",
+			},
+			{
+				Path:  ".subchart.image",
+				Value: "my-company/super-app",
+			},
+		},
+	}),
+	Entry("global registry with path, registry and same prefix", parentWithGlobalRegistryAndPath, &internal.OCIImageLocation{Registry: "registry.vmware.com", RepositoryPrefix: "companyone"}, &TableOutput{
+		Image:          "tenancy.registry.com/companyone/super-app:1.2.3",
+		RewrittenImage: "registry.vmware.com/super-app:1.2.3", // Is this the expected result?
+		Actions: []*internal.RewriteAction{
+			{
+				Path:  ".registry",
+				Value: "registry.vmware.com",
+			},
+		},
+	}),
+	Entry("global registry with path, registry with same path", parentWithGlobalRegistryAndPath, &internal.OCIImageLocation{Registry: "registry.vmware.com/companyone"}, &TableOutput{
+		Image:          "tenancy.registry.com/companyone/super-app:1.2.3",
+		RewrittenImage: "registry.vmware.com/companyone/super-app:1.2.3",
+		Actions: []*internal.RewriteAction{
+			{
+				Path:  ".registry",
+				Value: "registry.vmware.com/companyone",
 			},
 		},
 	}),
