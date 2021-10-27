@@ -12,7 +12,7 @@ import "github.com/google/go-containerregistry/pkg/authn"
 // Returns a custom credentials authn.Authenticator if the given resource
 // RegistryStr() matches the Repository, otherwise it falls back to the default
 // KeyChain which may include local docker credentials.
-func (repo Repository) Resolve(resource authn.Resource) (authn.Authenticator, error) {
+func (repo ContainerRepository) Resolve(resource authn.Resource) (authn.Authenticator, error) {
 	if repo.Server == resource.RegistryStr() {
 		return repo, nil
 	}
@@ -24,6 +24,6 @@ func (repo Repository) Resolve(resource authn.Resource) (authn.Authenticator, er
 // See https://pkg.go.dev/github.com/google/go-containerregistry/pkg/authn#Authenticator
 //
 // Returns an authn.AuthConfig with a user / password pair to be used for authentication
-func (repo Repository) Authorization() (*authn.AuthConfig, error) {
+func (repo ContainerRepository) Authorization() (*authn.AuthConfig, error) {
 	return &authn.AuthConfig{Username: repo.Username, Password: repo.Password}, nil
 }

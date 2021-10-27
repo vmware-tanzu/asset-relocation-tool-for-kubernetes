@@ -71,15 +71,15 @@ type LocalChart struct {
 	Path string
 }
 
-// Repository defines a private repo name and credentials
-type Repository struct {
+// ContainerRepository defines a private repo name and credentials
+type ContainerRepository struct {
 	Server             string
 	Username, Password string
 }
 
 // Containers is the section for private repository definition
 type Containers struct {
-	Repository
+	ContainerRepository
 }
 
 // ChartSpec of possible chart inputs or outputs
@@ -131,8 +131,8 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, ErrOCIRewritesMissing
 	}
 
-	sourceAuth := req.Source.Containers.Repository
-	targetAuth := req.Target.Containers.Repository
+	sourceAuth := req.Source.Containers.ContainerRepository
+	targetAuth := req.Target.Containers.ContainerRepository
 	cm := &ChartMover{
 		chart:                    chart,
 		logger:                   &defaultLogger{},
