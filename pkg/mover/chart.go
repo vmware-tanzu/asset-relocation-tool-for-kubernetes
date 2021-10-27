@@ -109,13 +109,13 @@ type ChartMoveRequest struct {
 
 // ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
 type ChartMover struct {
-	request      ChartMoveRequest
-	chart        *chart.Chart
-	imageChanges []*internal.ImageChange
-	chartChanges []*internal.RewriteAction
-	image        internal.ImageInterface
-	logger       Logger
-	retries      uint
+	chartDestination string
+	imageChanges     []*internal.ImageChange
+	chartChanges     []*internal.RewriteAction
+	image            internal.ImageInterface
+	chart            *chart.Chart
+	logger           Logger
+	retries          uint
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
@@ -131,14 +131,14 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, ErrOCIRewritesMissing
 	}
 
-	sourceAuth := authnKeychain(req.Source.Containers.Repository)
-	targetAuth := authnKeychain(req.Target.Containers.Repository)
+	sourceAuth := req.Source.Containers.Repository
+	targetAuth := req.Target.Containers.Repository
 	cm := &ChartMover{
-		request: *req,
-		chart:   chart,
-		logger:  &defaultLogger{},
-		retries: DefaultRetries,
-		image:   internal.NewImage(sourceAuth, targetAuth),
+		chart:            chart,
+		logger:           &defaultLogger{},
+		retries:          DefaultRetries,
+		image:            internal.NewImage(sourceAuth, targetAuth),
+		chartDestination: targetOutput(req.Target.Chart.Local.Path, chart.Name(), chart.Metadata.Version),
 	}
 
 	// Option overrides
@@ -233,37 +233,20 @@ Move executes the Chart relocation which includes
 func (cm *ChartMover) Move() error {
 	log := cm.logger
 
-	chartMetadata, err := cm.chartMetadata()
-	if err != nil {
-		return err
-	}
-	destination := targetOutput(cm.request.Target.Chart.Local.Path, chartMetadata.Name, chartMetadata.Version)
-
 	log.Printf("Relocating %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
 
-	err = cm.pushRewrittenImages(cm.imageChanges)
+	err := cm.pushRewrittenImages(cm.imageChanges)
 	if err != nil {
 		return err
 	}
-	err = modifyChart(cm.chart, cm.chartChanges, destination)
+	err = modifyChart(cm.chart, cm.chartChanges, cm.chartDestination)
 	if err != nil {
 		return err
 	}
 
 	log.Println("Done")
-	log.Println(destination)
+	log.Println(cm.chartDestination)
 	return nil
-}
-
-func (cm *ChartMover) chartMetadata() (*ChartMetadata, error) {
-	if cm.chart == nil {
-		return nil, errors.New("Helm Chart not loaded")
-	}
-
-	return &ChartMetadata{
-		Name:    cm.chart.Name(),
-		Version: cm.chart.Metadata.Version,
-	}, nil
 }
 
 func (cm *ChartMover) pullOriginalImages(pattens []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
