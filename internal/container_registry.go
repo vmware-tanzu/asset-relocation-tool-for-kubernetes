@@ -12,23 +12,23 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
-//go:generate counterfeiter . ImageInterface
-type ImageInterface interface {
+//go:generate counterfeiter . ContainerRegistryInterface
+type ContainerRegistryInterface interface {
 	Check(digest string, imageReference name.Reference) (bool, error)
 	Pull(imageReference name.Reference) (v1.Image, string, error)
 	Push(image v1.Image, dest name.Reference) error
 }
 
-type ImageImpl struct {
-	srcAuth, dstAuth authn.Keychain
+type ContainerRegistryClient struct {
+	auth authn.Keychain
 }
 
-func NewImage(srcAuth, dstAuth authn.Keychain) *ImageImpl {
-	return &ImageImpl{srcAuth: srcAuth, dstAuth: dstAuth}
+func NewContainerRegistryClient(auth authn.Keychain) *ContainerRegistryClient {
+	return &ContainerRegistryClient{auth: auth}
 }
 
-func (i *ImageImpl) Pull(imageReference name.Reference) (v1.Image, string, error) {
-	image, err := remote.Image(imageReference, remote.WithAuthFromKeychain(i.srcAuth))
+func (i *ContainerRegistryClient) Pull(imageReference name.Reference) (v1.Image, string, error) {
+	image, err := remote.Image(imageReference, remote.WithAuthFromKeychain(i.auth))
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to pull image %s: %w", imageReference.Name(), err)
 	}
@@ -41,7 +41,7 @@ func (i *ImageImpl) Pull(imageReference name.Reference) (v1.Image, string, error
 	return image, digest.String(), nil
 }
 
-func (i *ImageImpl) Check(digest string, imageReference name.Reference) (bool, error) {
+func (i *ContainerRegistryClient) Check(digest string, imageReference name.Reference) (bool, error) {
 	_, remoteDigest, err := i.Pull(imageReference)
 	if err != nil {
 		// Return true if failed to pull the image.
@@ -58,8 +58,8 @@ func (i *ImageImpl) Check(digest string, imageReference name.Reference) (bool, e
 	return false, nil
 }
 
-func (i *ImageImpl) Push(image v1.Image, dest name.Reference) error {
-	err := remote.Write(dest, image, remote.WithAuthFromKeychain(i.dstAuth))
+func (i *ContainerRegistryClient) Push(image v1.Image, dest name.Reference) error {
+	err := remote.Write(dest, image, remote.WithAuthFromKeychain(i.auth))
 	if err != nil {
 		return fmt.Errorf("failed to push image %s: %w", dest.Name(), err)
 	}

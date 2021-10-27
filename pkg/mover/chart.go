@@ -109,13 +109,14 @@ type ChartMoveRequest struct {
 
 // ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
 type ChartMover struct {
-	chartDestination         string
-	imageChanges             []*internal.ImageChange
-	chartChanges             []*internal.RewriteAction
-	containerRegistryClients internal.ImageInterface
-	chart                    *chart.Chart
-	logger                   Logger
-	retries                  uint
+	chartDestination        string
+	imageChanges            []*internal.ImageChange
+	chartChanges            []*internal.RewriteAction
+	sourceContainerRegistry internal.ContainerRegistryInterface
+	targetContainerRegistry internal.ContainerRegistryInterface
+	chart                   *chart.Chart
+	logger                  Logger
+	retries                 uint
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
@@ -134,11 +135,12 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	sourceAuth := req.Source.Containers.ContainerRepository
 	targetAuth := req.Target.Containers.ContainerRepository
 	cm := &ChartMover{
-		chart:                    chart,
-		logger:                   &defaultLogger{},
-		retries:                  DefaultRetries,
-		containerRegistryClients: internal.NewImage(sourceAuth, targetAuth),
-		chartDestination:         targetOutput(req.Target.Chart.Local.Path, chart.Name(), chart.Metadata.Version),
+		chart:                   chart,
+		logger:                  &defaultLogger{},
+		retries:                 DefaultRetries,
+		sourceContainerRegistry: internal.NewContainerRegistryClient(sourceAuth),
+		targetContainerRegistry: internal.NewContainerRegistryClient(targetAuth),
+		chartDestination:        targetOutput(req.Target.Chart.Local.Path, chart.Name(), chart.Metadata.Version),
 	}
 
 	// Option overrides
@@ -265,7 +267,7 @@ func (cm *ChartMover) pullOriginalImages(pattens []*internal.ImageTemplate) ([]*
 		}
 
 		if imageCache[originalImage.Name()] == nil {
-			image, digest, err := cm.containerRegistryClients.Pull(originalImage)
+			image, digest, err := cm.sourceContainerRegistry.Pull(originalImage)
 			if err != nil {
 				return nil, err
 			}
@@ -310,7 +312,7 @@ func (cm *ChartMover) computeChanges(imageChanges []*internal.ImageChange, regis
 				// This image has already been checked previously, so just force this one to be skipped
 				change.AlreadyPushed = true
 			} else {
-				needToPush, err := cm.containerRegistryClients.Check(change.Digest, rewrittenImage)
+				needToPush, err := cm.targetContainerRegistry.Check(change.Digest, rewrittenImage)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -329,7 +331,7 @@ func (cm *ChartMover) pushRewrittenImages(imageChanges []*internal.ImageChange) 
 			err := retry.Do(
 				func() error {
 					cm.logger.Printf("Pushing %s...\n", change.RewrittenReference.Name())
-					err := cm.containerRegistryClients.Push(change.Image, change.RewrittenReference)
+					err := cm.targetContainerRegistry.Push(change.Image, change.RewrittenReference)
 					if err != nil {
 						return err
 					}
