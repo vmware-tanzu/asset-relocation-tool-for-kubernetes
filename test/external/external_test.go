@@ -104,9 +104,7 @@ var _ = Describe("External tests", func() {
 		})
 
 		define.Then(`^the location of the chart is shown$`, func() {
-			cwd, err := os.Getwd()
-			Expect(err).ToNot(HaveOccurred())
-			modifiedChartPath := filepath.Join(cwd, "testchart-0.1.0.relocated.tgz")
+			modifiedChartPath := "testchart-0.1.0.relocated.tgz"
 
 			Eventually(test.CommandSession.Out).Should(Say(modifiedChartPath))
 		})

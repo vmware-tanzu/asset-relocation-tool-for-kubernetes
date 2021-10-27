@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -75,7 +74,7 @@ func newChartMoveCmd() *cobra.Command {
 	f.StringVar(&repositoryPrefixRule, "repo-prefix", "", "path prefix to be used when relocating the container images")
 
 	f.UintVar(&retries, "retries", defaultRetries, "number of times to retry push operations")
-	f.StringVar(&output, "out", "*.relocated.tgz", "output chart name produced, from current dir")
+	f.StringVar(&output, "out", "*.relocated.tgz", "output chart name produced")
 
 	return cmd
 }
@@ -90,16 +89,10 @@ func moveChart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("Could not get current path: %w", err)
-	}
-
-	outFmt, err := parseOutputFlag(output)
+	outputPathFmt, err := parseOutputFlag(output)
 	if err != nil {
 		return fmt.Errorf("failed to move chart: %w", err)
 	}
-	outputPathFmt := filepath.Join(cwd, outFmt)
 
 	chartMover, err := mover.NewChartMover(
 		&mover.ChartMoveRequest{
