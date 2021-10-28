@@ -12,7 +12,7 @@ var _ = Describe("Chart", func() {
 	Describe("ParseOutputFlag", func() {
 		It("works with default out flag", func() {
 			got, err := parseOutputFlag(output)
-			want := "./%s-%s.relocated.tgz"
+			want := "%s-%s.relocated.tgz"
 			Expect(got).To(Equal(want))
 			Expect(err).To(BeNil())
 		})
@@ -28,18 +28,6 @@ var _ = Describe("Chart", func() {
 			got, err := parseOutputFlag("*-wildcardhere.tgz")
 			Expect(got).To(Equal("%s-%s-wildcardhere.tgz"))
 			Expect(err).To(BeNil())
-		})
-	})
-
-	Describe("TargetOutput", func() {
-		It("works with default out flag", func() {
-			outFmt := "./%s-%s.relocated.tgz"
-			target := targetOutput("path", outFmt, "my-chart", "0.1")
-			Expect(target).To(Equal("path/my-chart-0.1.relocated.tgz"))
-		})
-		It("builds custom out input as expected", func() {
-			target := targetOutput("path", "%s-%s-wildcardhere.tgz", "my-chart", "0.1")
-			Expect(target).To(Equal("path/my-chart-0.1-wildcardhere.tgz"))
 		})
 	})
 })

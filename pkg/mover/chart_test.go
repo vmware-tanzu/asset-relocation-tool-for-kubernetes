@@ -87,18 +87,22 @@ func makeImage(digest string) *moverfakes.FakeImage {
 	return image
 }
 
+func testChartMover(registry internal.ContainerRegistryInterface, logger Logger) *ChartMover {
+	return &ChartMover{
+		chart:                   testchart,
+		sourceContainerRegistry: registry,
+		targetContainerRegistry: registry,
+		logger:                  logger,
+		retries:                 testRetries,
+	}
+}
+
 var _ = Describe("Pull & Push Images", func() {
 	var (
-		fakeImage     *internalfakes.FakeImageInterface
-		originalImage internal.ImageInterface
+		fakeRegistry *internalfakes.FakeContainerRegistryInterface
 	)
 	BeforeEach(func() {
-		originalImage = internal.Image
-		fakeImage = &internalfakes.FakeImageInterface{}
-		internal.Image = fakeImage
-	})
-	AfterEach(func() {
-		internal.Image = originalImage
+		fakeRegistry = &internalfakes.FakeContainerRegistryInterface{}
 	})
 
 	Describe("ComputeChanges", func() {
@@ -122,18 +126,19 @@ var _ = Describe("Pull & Push Images", func() {
 				RepositoryPrefix: "pwall",
 			}
 
-			fakeImage.CheckReturnsOnCall(0, true, nil)  // Pretend it doesn't exist
-			fakeImage.CheckReturnsOnCall(1, false, nil) // Pretend it already exists
+			fakeRegistry.CheckReturnsOnCall(0, true, nil)  // Pretend it doesn't exist
+			fakeRegistry.CheckReturnsOnCall(1, false, nil) // Pretend it already exists
 
-			newChanges, actions, err := computeChanges(testchart, changes, rules)
+			cm := testChartMover(fakeRegistry, newLogger())
+			newChanges, actions, err := cm.computeChanges(changes, rules)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("checking the existing images on the remote registry", func() {
-				Expect(fakeImage.CheckCallCount()).To(Equal(2))
-				digest, imageReference := fakeImage.CheckArgsForCall(0)
+				Expect(fakeRegistry.CheckCallCount()).To(Equal(2))
+				digest, imageReference := fakeRegistry.CheckArgsForCall(0)
 				Expect(digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 				Expect(imageReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-				digest, imageReference = fakeImage.CheckArgsForCall(1)
+				digest, imageReference = fakeRegistry.CheckArgsForCall(1)
 				Expect(digest).To(Equal("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 				Expect(imageReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
 			})
@@ -198,14 +203,15 @@ var _ = Describe("Pull & Push Images", func() {
 					RepositoryPrefix: "pwall",
 				}
 
-				fakeImage.CheckReturns(true, nil) // Pretend it doesn't exist
+				fakeRegistry.CheckReturns(true, nil) // Pretend it doesn't exist
 
-				newChanges, actions, err := computeChanges(testchart, changes, rules)
+				cm := testChartMover(fakeRegistry, newLogger())
+				newChanges, actions, err := cm.computeChanges(changes, rules)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("checking the image once", func() {
-					Expect(fakeImage.CheckCallCount()).To(Equal(1))
-					digest, imageReference := fakeImage.CheckArgsForCall(0)
+					Expect(fakeRegistry.CheckCallCount()).To(Equal(1))
+					digest, imageReference := fakeRegistry.CheckArgsForCall(0)
 					Expect(digest).To(Equal("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 					Expect(imageReference.Name()).To(Equal("harbor-repo.vmware.com/pwall/wavefront:5.6.7"))
 				})
@@ -256,21 +262,22 @@ var _ = Describe("Pull & Push Images", func() {
 			image1 := makeImage(digest1)
 			digest2 := "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 			image2 := makeImage(digest2)
-			fakeImage.PullReturnsOnCall(0, image1, digest1, nil)
-			fakeImage.PullReturnsOnCall(1, image2, digest2, nil)
+			fakeRegistry.PullReturnsOnCall(0, image1, digest1, nil)
+			fakeRegistry.PullReturnsOnCall(1, image2, digest2, nil)
 
 			patterns := []*internal.ImageTemplate{
 				newPattern("{{.image.registry}}/{{.image.repository}}"),
 				newPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 			}
 
-			changes, err := pullOriginalImages(testchart, patterns)
+			cm := testChartMover(fakeRegistry, newLogger())
+			changes, err := cm.pullOriginalImages(patterns)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("pulling the images", func() {
-				Expect(fakeImage.PullCallCount()).To(Equal(2))
-				Expect(fakeImage.PullArgsForCall(0).Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
-				Expect(fakeImage.PullArgsForCall(1).Name()).To(Equal("index.docker.io/bitnami/wavefront:5.6.7"))
+				Expect(fakeRegistry.PullCallCount()).To(Equal(2))
+				Expect(fakeRegistry.PullArgsForCall(0).Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
+				Expect(fakeRegistry.PullArgsForCall(1).Name()).To(Equal("index.docker.io/bitnami/wavefront:5.6.7"))
 			})
 
 			By("returning a list of images", func() {
@@ -288,19 +295,20 @@ var _ = Describe("Pull & Push Images", func() {
 			It("only pulls once", func() {
 				digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 				image := makeImage(digest)
-				fakeImage.PullReturns(image, digest, nil)
+				fakeRegistry.PullReturns(image, digest, nil)
 
 				patterns := []*internal.ImageTemplate{
 					newPattern("{{.image.registry}}/{{.image.repository}}"),
 					newPattern("{{.secondimage.registry}}/{{.secondimage.repository}}:{{.secondimage.tag}}"),
 				}
 
-				changes, err := pullOriginalImages(testchart, patterns)
+				cm := testChartMover(fakeRegistry, newLogger())
+				changes, err := cm.pullOriginalImages(patterns)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("pulling the image once", func() {
-					Expect(fakeImage.PullCallCount()).To(Equal(1))
-					Expect(fakeImage.PullArgsForCall(0).Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
+					Expect(fakeRegistry.PullCallCount()).To(Equal(1))
+					Expect(fakeRegistry.PullArgsForCall(0).Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
 				})
 
 				By("returning a list of images", func() {
@@ -317,12 +325,13 @@ var _ = Describe("Pull & Push Images", func() {
 
 		Context("error pulling an image", func() {
 			It("returns the error", func() {
-				fakeImage.PullReturns(nil, "", fmt.Errorf("image pull error"))
+				fakeRegistry.PullReturns(nil, "", fmt.Errorf("image pull error"))
 				patterns := []*internal.ImageTemplate{
 					newPattern("{{.image.registry}}/{{.image.repository}}"),
 				}
 
-				_, err := pullOriginalImages(testchart, patterns)
+				cm := testChartMover(fakeRegistry, newLogger())
+				_, err := cm.pullOriginalImages(patterns)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("image pull error"))
 			})
@@ -343,12 +352,13 @@ var _ = Describe("Pull & Push Images", func() {
 
 		It("pushes the images", func() {
 			printer := newLogger()
-			err := pushRewrittenImages(images, testRetries, printer)
+			cm := testChartMover(fakeRegistry, printer)
+			err := cm.pushRewrittenImages(images)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("pushing the image", func() {
-				Expect(fakeImage.PushCallCount()).To(Equal(1))
-				image, ref := fakeImage.PushArgsForCall(0)
+				Expect(fakeRegistry.PushCallCount()).To(Equal(1))
+				image, ref := fakeRegistry.PushArgsForCall(0)
 				Expect(image).To(Equal(images[0].Image))
 				Expect(ref).To(Equal(images[0].RewrittenReference))
 			})
@@ -361,12 +371,13 @@ var _ = Describe("Pull & Push Images", func() {
 		Context("rewritten image is the same", func() {
 			It("does not push the image", func() {
 				images[0].RewrittenReference = images[0].ImageReference
-				printer := newLogger()
-				err := pushRewrittenImages(images, testRetries, printer)
+
+				cm := testChartMover(fakeRegistry, newLogger())
+				err := cm.pushRewrittenImages(images)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("not pushing the image", func() {
-					Expect(fakeImage.PushCallCount()).To(Equal(0))
+					Expect(fakeRegistry.PushCallCount()).To(Equal(0))
 				})
 			})
 		})
@@ -374,29 +385,30 @@ var _ = Describe("Pull & Push Images", func() {
 		Context("image has already been pushed", func() {
 			It("does not push the image", func() {
 				images[0].AlreadyPushed = true
-				printer := newLogger()
-				err := pushRewrittenImages(images, testRetries, printer)
+				cm := testChartMover(fakeRegistry, newLogger())
+				err := cm.pushRewrittenImages(images)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("not pushing the image", func() {
-					Expect(fakeImage.PushCallCount()).To(Equal(0))
+					Expect(fakeRegistry.PushCallCount()).To(Equal(0))
 				})
 			})
 		})
 
 		Context("pushing fails once", func() {
 			BeforeEach(func() {
-				fakeImage.PushReturnsOnCall(0, fmt.Errorf("push failed"))
-				fakeImage.PushReturnsOnCall(1, nil)
+				fakeRegistry.PushReturnsOnCall(0, fmt.Errorf("push failed"))
+				fakeRegistry.PushReturnsOnCall(1, nil)
 			})
 
 			It("retries and passes", func() {
 				printer := newLogger()
-				err := pushRewrittenImages(images, testRetries, printer)
+				cm := testChartMover(fakeRegistry, printer)
+				err := cm.pushRewrittenImages(images)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("trying to push the image twice", func() {
-					Expect(fakeImage.PushCallCount()).To(Equal(2))
+					Expect(fakeRegistry.PushCallCount()).To(Equal(2))
 				})
 
 				By("logging the process", func() {
@@ -409,17 +421,18 @@ var _ = Describe("Pull & Push Images", func() {
 
 		Context("pushing fails every time", func() {
 			BeforeEach(func() {
-				fakeImage.PushReturns(fmt.Errorf("push failed"))
+				fakeRegistry.PushReturns(fmt.Errorf("push failed"))
 			})
 
 			It("returns an error", func() {
 				printer := newLogger()
-				err := pushRewrittenImages(images, testRetries, printer)
+				cm := testChartMover(fakeRegistry, printer)
+				err := cm.pushRewrittenImages(images)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("All attempts fail:\n#1: push failed\n#2: push failed\n#3: push failed"))
 
 				By("trying to push the image", func() {
-					Expect(fakeImage.PushCallCount()).To(Equal(3))
+					Expect(fakeRegistry.PushCallCount()).To(Equal(3))
 				})
 
 				By("logging the process", func() {
@@ -431,6 +444,18 @@ var _ = Describe("Pull & Push Images", func() {
 					Expect(printer.out).To(Say("Attempt #3 failed: push failed"))
 				})
 			})
+		})
+	})
+
+	Describe("targetOutput", func() {
+		It("works with default out flag", func() {
+			outFmt := "/path/%s-%s.relocated.tgz"
+			target := targetOutput(outFmt, "my-chart", "0.1")
+			Expect(target).To(Equal("/path/my-chart-0.1.relocated.tgz"))
+		})
+		It("builds custom out input as expected", func() {
+			target := targetOutput("/path/%s-%s-wildcardhere.tgz", "my-chart", "0.1")
+			Expect(target).To(Equal("/path/my-chart-0.1-wildcardhere.tgz"))
 		})
 	})
 })
