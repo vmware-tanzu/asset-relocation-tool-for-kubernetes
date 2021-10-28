@@ -74,7 +74,7 @@ func newChartMoveCmd() *cobra.Command {
 	f.StringVar(&repositoryPrefixRule, "repo-prefix", "", "path prefix to be used when relocating the container images")
 
 	f.UintVar(&retries, "retries", defaultRetries, "number of times to retry push operations")
-	f.StringVar(&output, "out", "*.relocated.tgz", "output chart name produced")
+	f.StringVar(&output, "out", "*.relocated.tgz", "name of the resulting chart")
 
 	return cmd
 }
@@ -91,7 +91,7 @@ func moveChart(cmd *cobra.Command, args []string) error {
 
 	outputPathFmt, err := parseOutputFlag(output)
 	if err != nil {
-		return fmt.Errorf("failed to move chart: %w", err)
+		return fmt.Errorf("failed to parse output flag: %w", err)
 	}
 
 	chartMover, err := mover.NewChartMover(
