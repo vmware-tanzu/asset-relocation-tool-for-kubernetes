@@ -1,0 +1,47 @@
+# Copyright 2021 VMware, Inc.
+# SPDX-License-Identifier: BSD-2-Clause
+version: "3"
+
+services:
+  pwdgen:
+    image: httpd:2
+    user: "${UID}:${GID}"
+    entrypoint: htpasswd -Bbc /auth/htpasswd testuser "${PASSWORD}"
+    volumes:
+      - ./data/auth:/auth
+  mkcert:
+    build: .
+    user: "${UID}:${GID}"
+    working_dir: /certs
+    entrypoint: /mkcert local-registry.io
+    volumes:
+      - ./data/certs:/certs
+    environment:
+      CAROOT: /certs
+  local-registry:
+    image: registry:2
+    hostname: local-registry.io
+    environment:
+      REGISTRY_HTTP_ADDR: 0.0.0.0:443
+      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/local-registry.io.pem
+      REGISTRY_HTTP_TLS_KEY: /certs/local-registry.io-key.pem
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: Registry Realm
+    volumes:
+      - ./data/auth:/auth
+      - ./data/certs:/certs
+  test-relok8s:
+    build: ../..
+    working_dir: /app
+    entrypoint: ./test-entrypoint.sh
+    environment:
+      SSL_CERT_FILE: /certs/local-registry.io.pem
+      USERNAME: testuser
+      PASSWORD: "${PASSWORD}"
+    volumes:
+      - ./data/certs:/certs
+      - ../../examples/chart-with-subcharts/:/app/chart
+      - ../../assets/docker-login.sh:/docker-login.sh
+      - ./test-entrypoint.sh:/app/test-entrypoint.sh
+    depends_on: [local-registry]
