@@ -1,6 +1,5 @@
 build/
 ci/
-examples/
 .git/
 .github/
 .vscode/
