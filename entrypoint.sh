@@ -4,7 +4,7 @@ set -e
 ### Usage
 ### ----------------------------------------
 ### Set RELOCATION_CLI_VERSION env var or pass arg
-### Print ls - export VERBOSE=true
+### Print ls - export VERBOSE=true 
 ### ./entrypoint.sh "$RELOCATION_CLI_VERSION"
 ### ----------------------------------------
 
