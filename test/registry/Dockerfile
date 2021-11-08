@@ -7,7 +7,9 @@ RUN cd /go && \
     GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /go/bin/mkcert
 COPY . /app/
 
-RUN cd /app && go test -c /app/pkg/mover/registry_test.go -o /app/registry_test
+RUN cd /app && \
+  GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test \
+  -c /app/pkg/mover/registry_test.go -o /app/registry_test
 
 FROM registry:2 as registry
 
@@ -23,4 +25,6 @@ COPY --from=compiled /app/assets/docker-login.sh /bin/docker-login.sh
 COPY --from=compiled /app/examples/chart-with-subcharts/ /data/
 COPY --from=registry /bin/registry /bin/registry
 COPY --from=registry /etc/docker/registry/config.yml /data/registry-config.yml
-CMD /bin/registry-test -test.v
+COPY test/registry/local-registry.sh /bin/local-registry.sh
+ENTRYPOINT ["/bin/local-registry.sh"]
+CMD ["/bin/registry-test", "-test.v"]

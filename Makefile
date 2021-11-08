@@ -94,6 +94,10 @@ test-features: deps test-fixtures
 test-external: deps test-fixtures
 	ginkgo -r test/external
 
+test-registry: deps test
+	docker build -f test/registry/Dockerfile -t registry-tester .
+	docker run -it --rm -p 5443:443 registry-tester
+
 test: deps lint test-units test-features
 
 test-all: test test-external
