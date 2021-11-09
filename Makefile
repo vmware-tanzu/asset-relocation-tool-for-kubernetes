@@ -100,7 +100,7 @@ test-registry: deps test
 
 test: deps lint test-units test-features
 
-test-all: test test-external
+test-all: test test-registry test-external
 
 # https://golangci-lint.run/usage/install/#local-installation
 lint: deps-golangci-lint
