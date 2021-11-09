@@ -6,7 +6,7 @@ jobs:
     name: release
     runs-on: ubuntu-latest
     steps:
-      - uses: vmware-tanzu/asset-relocation-tool-for-kubernetes@relok8s_action
+      - uses: vmware-tanzu/asset-relocation-tool-for-kubernetes@main
         with:
           fetch-depth: 0
   test_relocation_version:
@@ -15,10 +15,10 @@ jobs:
     env:
       RELOCATION_CLI_VERSION: "0.3.39"    
     steps:
-      - uses: vmware-tanzu/asset-relocation-tool-for-kubernetes@relok8s_action
+      - uses: vmware-tanzu/asset-relocation-tool-for-kubernetes@main
         with:
           version: "0.3.39"
       - name: Version check
         run: |
-          sudo ./entrypoint.sh 
+          sudo ./entrypoint.sh
 
