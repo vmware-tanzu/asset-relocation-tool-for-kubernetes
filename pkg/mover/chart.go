@@ -52,13 +52,25 @@ type Logger interface {
 
 type defaultLogger struct{}
 
-func (l *defaultLogger) Printf(format string, i ...interface{}) {
+func (l defaultLogger) Printf(format string, i ...interface{}) {
 	fmt.Printf(format, i...)
 }
 
-func (l *defaultLogger) Println(i ...interface{}) {
+func (l defaultLogger) Println(i ...interface{}) {
 	fmt.Println(i...)
 }
+
+type noLogger struct{}
+
+func (nl noLogger) Printf(format string, i ...interface{}) {}
+
+func (nl noLogger) Println(i ...interface{}) {}
+
+// DefaultLogger to stdout
+var DefaultLogger Logger = defaultLogger{}
+
+// DefaultNoLogger swallows all logs
+var NoLogger Logger = noLogger{}
 
 // ChartMetadata exposes metadata about the Helm Chart to be relocated
 type ChartMetadata struct {
@@ -136,7 +148,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	targetAuth := req.Target.Containers.ContainerRepository
 	cm := &ChartMover{
 		chart:                   chart,
-		logger:                  &defaultLogger{},
+		logger:                  defaultLogger{},
 		retries:                 DefaultRetries,
 		sourceContainerRegistry: internal.NewContainerRegistryClient(sourceAuth),
 		targetContainerRegistry: internal.NewContainerRegistryClient(targetAuth),

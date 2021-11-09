@@ -31,7 +31,7 @@ REGISTRY_HTTP_ADDR=0.0.0.0:443 \
   REGISTRY_AUTH=htpasswd \
   REGISTRY_AUTH_HTPASSWD_PATH=/data/htpasswd \
   REGISTRY_AUTH_HTPASSWD_REALM="Registry Realm" \
-  registry serve /data/registry-config.yml &
+  registry serve /data/registry-config.yml > /data/registry.log 2>&1 &
 
 echo "Running $*"
 LOCAL_REGISTRY_TEST=true \

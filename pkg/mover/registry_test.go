@@ -4,12 +4,12 @@
 package mover_test
 
 import (
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
+	"github.com/avast/retry-go"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/pkg/mover"
 )
 
@@ -18,7 +18,18 @@ const (
 	Hints     = "/data/image-hints.yaml"
 	Target    = "*-wp-relocated.tgz"
 	Prefix    = "relocated/local-example"
+
+	BadUser   = "notauser"
+	BadPasswd = "notapassword"
 )
+
+var logger = mover.NoLogger // change to mover.DefaultLogger for debug
+
+func skipUnitTest(t *testing.T) {
+	if os.Getenv("LOCAL_REGISTRY_TEST") == "" {
+		t.Skip("Skip local-registry tests on unit tests")
+	}
+}
 
 func run(t *testing.T, name string, arg ...string) string {
 	out, err := exec.Command(name, arg...).CombinedOutput()
@@ -28,20 +39,23 @@ func run(t *testing.T, name string, arg ...string) string {
 	return string(out)
 }
 
-func prepareTest(t *testing.T, certFile string) {
+func prepareDockerCA(t *testing.T, certFile string) {
 	caDir := "/etc/docker/certs.d/local-registry.io/"
 	run(t, "mkdir", "-p", caDir)
 	run(t, "cp", certFile, filepath.Join(caDir, "ca.crt"))
 	os.Setenv("SSL_CERT_FILE", certFile)
-	t.Logf(run(t, "ls", "-l", caDir))
 }
 
 func dockerLogin(t *testing.T, domain, username, password string) {
-	t.Logf(run(t, "/bin/docker-login.sh", domain, username, password))
+	run(t, "/bin/docker-login.sh", domain, username, password)
 }
 
-func relok8s(t *testing.T, chartPath, hints, target, targetRegistry, targetPrefix string) {
-	req := &mover.ChartMoveRequest{
+func dockerLogout(t *testing.T, domain string) {
+	dockerLogin(t, domain, "", "")
+}
+
+func NewMoveRequest(chartPath, hints, target, targetRegistry, targetPrefix string) *mover.ChartMoveRequest {
+	return &mover.ChartMoveRequest{
 		Source: mover.Source{
 			// The Helm Chart can be provided in either tarball or directory form
 			Chart: mover.ChartSpec{Local: mover.LocalChart{Path: chartPath}},
@@ -58,35 +72,87 @@ func relok8s(t *testing.T, chartPath, hints, target, targetRegistry, targetPrefi
 			},
 		},
 	}
-	cm, err := mover.NewChartMover(req, mover.WithLogger(log.Default()))
-	if err != nil {
-		t.Fatalf("failed to create chart mover: %v", err)
-	}
-	log.Printf("moving...")
-	err = cm.Move()
-	if err != nil {
-		t.Fatalf("failed to move the chart: %v", err)
+}
+
+func repo(domain, user, passwd string) mover.ContainerRepository {
+	return mover.ContainerRepository{
+		Server:   domain,
+		Username: user,
+		Password: passwd,
 	}
 }
 
-func skipUnitTest(t *testing.T) {
-	log.Printf("LOCAL_REGISTRY_TEST=%q", os.Getenv("LOCAL_REGISTRY_TEST"))
-	if os.Getenv("LOCAL_REGISTRY_TEST") == "" {
-		t.Skip("Skip local-registry tests on unit tests")
+func relok8s(t *testing.T, req *mover.ChartMoveRequest) error {
+	cm, err := mover.NewChartMover(req, mover.WithLogger(logger))
+	if err != nil {
+		t.Fatalf("failed to create chart mover: %v", err)
+	}
+	return cm.Move()
+}
+
+type Params struct {
+	certFile, domain, user, passwd string
+}
+
+func loadParams() Params {
+	return Params{
+		certFile: os.Getenv("SSL_CERT_FILE"),
+		domain:   os.Getenv("DOMAIN"),
+		user:     os.Getenv("USER"),
+		passwd:   os.Getenv("PASSWD"),
 	}
 }
 
 func TestDockerCredentials(t *testing.T) {
 	skipUnitTest(t)
-	certFile := os.Getenv("SSL_CERT_FILE")
-	domain := os.Getenv("DOMAIN")
-	user := os.Getenv("USER")
-	passwd := os.Getenv("PASSWD")
-	prepareTest(t, certFile)
-	dockerLogin(t, domain, user, passwd)
-	relok8s(t, TestChart, Hints, Target, domain, Prefix)
+	params := loadParams()
+	prepareDockerCA(t, params.certFile)
+	dockerLogin(t, params.domain, params.user, params.passwd)
+	got := relok8s(t, NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix))
+	var want error
+	if got != want {
+		t.Fatalf("want error %v got %v", want, got)
+	}
 }
 
 func TestCustomCredentials(t *testing.T) {
-	// TODO: add here the custom credentials test
+	skipUnitTest(t)
+	params := loadParams()
+	prepareDockerCA(t, params.certFile)
+	dockerLogout(t, params.domain)
+	req := NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix)
+	req.Target.Containers.ContainerRepository = repo(params.domain, params.user, params.passwd)
+	got := relok8s(t, req)
+	var want error
+	if got != want {
+		t.Fatalf("want error %v got %v", want, got)
+	}
+}
+
+func TestBadDockerCredentials(t *testing.T) {
+	skipUnitTest(t)
+	params := loadParams()
+	prepareDockerCA(t, params.certFile)
+	dockerLogin(t, params.domain, BadUser, BadPasswd)
+	got := relok8s(t, NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix))
+	// retry.Error is incompatible with errors package, it cannot be unwrapped
+	_, ok := got.(retry.Error)
+	if !ok {
+		t.Fatalf("want error.retry got %v", got)
+	}
+}
+
+func TestBadCustomCredentials(t *testing.T) {
+	skipUnitTest(t)
+	params := loadParams()
+	prepareDockerCA(t, params.certFile)
+	dockerLogout(t, params.domain)
+	req := NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix)
+	req.Target.Containers.ContainerRepository = repo(params.domain, BadUser, BadPasswd)
+	got := relok8s(t, req)
+	// retry.Error is incompatible with errors package, it cannot be unwrapped
+	_, ok := got.(retry.Error)
+	if !ok {
+		t.Fatalf("want error.retry got %v", got)
+	}
 }
