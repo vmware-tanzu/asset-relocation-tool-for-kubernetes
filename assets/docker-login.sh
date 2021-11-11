@@ -2,6 +2,8 @@
 # Copyright 2021 VMware, Inc.
 # SPDX-License-Identifier: BSD-2-Clause
 
+set -euo pipefail
+
 REGISTRY=$1
 USERNAME=$2
 PASSWORD=$3
