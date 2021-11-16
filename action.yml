@@ -1,0 +1,16 @@
+name: "install-relok8s-cli-action"
+description: "Install Relok8s CLI on a Linux"
+outputs:
+  version:
+    description: "The Relok8s CLI version that was installed"
+    value: ${{ steps.set-output.outputs.version }}
+    
+runs:
+  using: "composite"
+  steps:
+    - id: print-version
+      run: sudo --preserve-env ${{ github.action_path }}/entrypoint.sh
+      shell: bash
+    - id: set-output
+      run: echo "::set-output name=version::$(relok8s version)"
+      shell: bash
