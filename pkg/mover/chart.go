@@ -344,8 +344,9 @@ func archiveImages(folder string, imageChanges []*internal.ImageChange, logger L
 			return err
 		}
 		tagToImage[tag] = change.Image
-		logger.Printf("Archiving %s...\n", imageName)
+		logger.Printf("Archiving image %s...\n", imageName)
 	}
+	logger.Printf("Packing all images at %s...\n", imagesTarball)
 	if err := tarball.MultiWriteToFile(imagesTarball, tagToImage); err != nil {
 		return err
 	}
