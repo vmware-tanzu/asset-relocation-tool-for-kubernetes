@@ -8,9 +8,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
+	"path/filepath"
 	"regexp"
 
 	"github.com/avast/retry-go"
+	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	tarball "github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -22,11 +27,18 @@ const (
 	EmbeddedHintsFilename = ".relok8s-images.yaml"
 	// DefaultRetries indicates the default number of retries for pull/push operations
 	DefaultRetries = 3
+
+	// DefaultTarPermissions
+	DefaultTarPermissions = 0750
+
+	// ArchivedHintsFilename to be present in the Helm Chart rootpath
+	ArchivedHintsFilename = "relok8s-images.yaml"
 )
 
 var (
 	// ErrImageHintsMissing indicates that neither the hints file was provided nor found in the Helm chart
 	ErrImageHintsMissing = errors.New("no image hints provided")
+
 	// ErrOCIRewritesMissing indicates that no rewrite rules have been provided
 	ErrOCIRewritesMissing = errors.New("at least one rewrite rule is required")
 )
@@ -83,6 +95,10 @@ type LocalChart struct {
 	Path string
 }
 
+// OfflineArchive is a self contained version of a chart including
+// container images within and the hints file
+type OfflineArchive LocalChart
+
 // ContainerRepository defines a private repo name and credentials
 type ContainerRepository struct {
 	Server             string
@@ -96,7 +112,8 @@ type Containers struct {
 
 // ChartSpec of possible chart inputs or outputs
 type ChartSpec struct {
-	Local LocalChart
+	Local   LocalChart
+	Archive OfflineArchive
 }
 
 // Source of the chart move
@@ -121,14 +138,17 @@ type ChartMoveRequest struct {
 
 // ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
 type ChartMover struct {
+	chartOrigin             string
 	chartDestination        string
 	imageChanges            []*internal.ImageChange
 	chartChanges            []*internal.RewriteAction
 	sourceContainerRegistry internal.ContainerRegistryInterface
 	targetContainerRegistry internal.ContainerRegistryInterface
+	targetOfflineTar        string
 	chart                   *chart.Chart
 	logger                  Logger
 	retries                 uint
+	externalHintsFile       string
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
@@ -139,20 +159,27 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, &ChartLoadingError{Path: req.Source.Chart.Local.Path, Inner: err}
 	}
 
-	rules := req.Target.Rules
-	if rules.Registry == "" && rules.RepositoryPrefix == "" {
-		return nil, ErrOCIRewritesMissing
+	if err := validateTarget(&req.Target); err != nil {
+		return nil, err
+	}
+
+	chartDest := ""
+	if req.Target.Chart.Local.Path != "" {
+		chartDest = targetOutput(req.Target.Chart.Local.Path, chart.Name(), chart.Metadata.Version)
 	}
 
 	sourceAuth := req.Source.Containers.ContainerRepository
 	targetAuth := req.Target.Containers.ContainerRepository
 	cm := &ChartMover{
+		chartOrigin:             req.Source.Chart.Local.Path,
 		chart:                   chart,
 		logger:                  defaultLogger{},
 		retries:                 DefaultRetries,
 		sourceContainerRegistry: internal.NewContainerRegistryClient(sourceAuth),
 		targetContainerRegistry: internal.NewContainerRegistryClient(targetAuth),
-		chartDestination:        targetOutput(req.Target.Chart.Local.Path, chart.Name(), chart.Metadata.Version),
+		chartDestination:        chartDest,
+		targetOfflineTar:        req.Target.Chart.Archive.Path,
+		externalHintsFile:       req.Source.ImageHintsFile,
 	}
 
 	// Option overrides
@@ -183,7 +210,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
 
-	imageChanges, chartChanges, err := cm.computeChanges(imageChanges, &rules)
+	imageChanges, chartChanges, err := cm.computeChanges(imageChanges, &req.Target.Rules)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
@@ -204,6 +231,19 @@ func (cm *ChartMover) WithRetries(retries uint) *ChartMover {
 // including the new location of the Helm Chart Images as well as
 // the expected rewrites in the Helm Chart.
 func (cm *ChartMover) Print() {
+	if cm.targetOfflineTar != "" {
+		cm.printArchival()
+		return
+	}
+	cm.printMove()
+}
+
+func (cm *ChartMover) printArchival() {
+	log := cm.logger
+	log.Printf("Chart %s will be archived offline into %s\n", cm.chart.Metadata.Name, cm.targetOfflineTar)
+}
+
+func (cm *ChartMover) printMove() {
 	log := cm.logger
 	log.Println("Image copies:")
 	for _, change := range cm.imageChanges {
@@ -236,17 +276,92 @@ func namespacedPath(fullpath, chartName string) string {
 }
 
 /*
-Move executes the Chart relocation which includes
+  Move perfomes the relocation.
+
+A regular move executes the Chart relocation which includes
 
 1 - Push all the images to their new locations
 
 2 - Rewrite the Helm Chart and its subcharts
 
 3 - Repackage the Helm chart as toChartFilename
+
+A move to tar will:
+
+1 - Drop all images locally
+
+2 - Pack also the original chart (unpacked) and the hints file
+
+3 - Package all in a single compressed tarball
 */
 func (cm *ChartMover) Move() error {
-	log := cm.logger
+	if cm.targetOfflineTar != "" {
+		return cm.archive()
+	}
+	return cm.moveChart()
+}
 
+func (cm *ChartMover) archive() error {
+	log := cm.logger
+	log.Printf("Archiving %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
+
+	tarFolder := cm.targetOfflineTar + ".folder"
+	if err := os.MkdirAll(tarFolder, DefaultTarPermissions); err != nil {
+		return fmt.Errorf("failed to create tar folder %s: %w", tarFolder, err)
+	}
+	if err := archiveChart(tarFolder, cm.chartOrigin); err != nil {
+		return fmt.Errorf("failed archiving chart %s: %w", cm.chart.Name(), err)
+	}
+	cm.logger.Println("Archived char tarball")
+	if err := archiveImages(tarFolder, cm.imageChanges, cm.logger); err != nil {
+		return fmt.Errorf("failed archiving images: %w", err)
+	}
+	if cm.externalHintsFile == "" {
+		return nil
+	}
+	log.Printf("Inserting hints file %s...\n", cm.externalHintsFile)
+	archivedHints := filepath.Join(tarFolder, ArchivedHintsFilename)
+	return copyFile(cm.externalHintsFile, archivedHints)
+}
+
+func archiveChart(folder, chartPath string) error {
+	target := filepath.Join(folder, filepath.Base(chartPath))
+	if err := os.Mkdir(target, DefaultTarPermissions); err != nil {
+		return err
+	}
+	return copyRecursive(chartPath, target)
+}
+
+func archiveImages(folder string, imageChanges []*internal.ImageChange, logger Logger) error {
+	imagesFolder := filepath.Join(folder, "images")
+	if err := os.MkdirAll(imagesFolder, DefaultTarPermissions); err != nil {
+		return err
+	}
+	for _, change := range imageChanges {
+		name := path.Base(change.ImageReference.Context().Name())
+		tag := change.ImageReference.Identifier()
+		imageName := fmt.Sprintf("%s-%s", name, tag)
+		logger.Printf("Archiving %s...\n", imageName)
+		imageTarget := filepath.Join(imagesFolder, fmt.Sprintf("%s.tar", imageName))
+		if err := archiveImage(imageTarget, change.ImageReference, change.Image); err != nil {
+			return err
+		}
+	}
+	logger.Printf("Archived %d images...\n", len(imageChanges))
+	return nil
+}
+
+func archiveImage(target string, tag name.Reference, image v1.Image) error {
+	f, err := os.Create(target)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return tarball.Write(tag, image, f)
+}
+
+func (cm *ChartMover) moveChart() error {
+	log := cm.logger
 	log.Printf("Relocating %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
 
 	err := cm.pushRewrittenImages(cm.imageChanges)
@@ -260,6 +375,17 @@ func (cm *ChartMover) Move() error {
 
 	log.Println("Done")
 	log.Println(cm.chartDestination)
+	return nil
+}
+
+func validateTarget(target *Target) error {
+	if target.Chart.Archive.Path != "" {
+		return nil
+	}
+	rules := target.Rules
+	if rules.Registry == "" && rules.RepositoryPrefix == "" {
+		return ErrOCIRewritesMissing
+	}
 	return nil
 }
 

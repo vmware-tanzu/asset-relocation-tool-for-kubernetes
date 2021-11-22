@@ -30,6 +30,8 @@ var (
 
 	output string
 
+	toOfflineTar string
+
 	// errMissingOutPlaceHolder if out flag is missing the wildcard * placeholder
 	errMissingOutPlaceHolder = errors.New("missing '*' placeholder in --out flag")
 
@@ -76,6 +78,8 @@ func newChartMoveCmd() *cobra.Command {
 	f.UintVar(&retries, "retries", defaultRetries, "number of times to retry push operations")
 	f.StringVar(&output, "out", "*.relocated.tgz", "name of the resulting chart")
 
+	f.StringVar(&toOfflineTar, "to-offline-tar", "", "Tar to save the chart and all its dependencies to")
+
 	return cmd
 }
 
@@ -104,7 +108,8 @@ func moveChart(cmd *cobra.Command, args []string) error {
 			},
 			Target: mover.Target{
 				Chart: mover.ChartSpec{
-					Local: mover.LocalChart{Path: outputPathFmt},
+					Local:   mover.LocalChart{Path: outputPathFmt},
+					Archive: mover.OfflineArchive{Path: toOfflineTar},
 				},
 				Rules: *targetRewriteRules,
 			},
