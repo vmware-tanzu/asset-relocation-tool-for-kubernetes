@@ -333,31 +333,24 @@ func archiveChart(folder, chartPath string) error {
 }
 
 func archiveImages(folder string, imageChanges []*internal.ImageChange, logger Logger) error {
-	imagesFolder := filepath.Join(folder, "images")
-	if err := os.MkdirAll(imagesFolder, DefaultTarPermissions); err != nil {
-		return err
-	}
+	imagesTarball := filepath.Join(folder, "images.tar")
+	tagToImage := map[name.Tag]v1.Image{}
 	for _, change := range imageChanges {
-		name := path.Base(change.ImageReference.Context().Name())
-		tag := change.ImageReference.Identifier()
-		imageName := fmt.Sprintf("%s-%s", name, tag)
-		logger.Printf("Archiving %s...\n", imageName)
-		imageTarget := filepath.Join(imagesFolder, fmt.Sprintf("%s.tar", imageName))
-		if err := archiveImage(imageTarget, change.ImageReference, change.Image); err != nil {
+		appName := path.Base(change.ImageReference.Context().Name())
+		version := change.ImageReference.Identifier()
+		imageName := fmt.Sprintf("%s-%s", appName, version)
+		tag, err := name.NewTag(imageName)
+		if err != nil {
 			return err
 		}
+		tagToImage[tag] = change.Image
+		logger.Printf("Archiving %s...\n", imageName)
+	}
+	if err := tarball.MultiWriteToFile(imagesTarball, tagToImage); err != nil {
+		return err
 	}
 	logger.Printf("Archived %d images...\n", len(imageChanges))
 	return nil
-}
-
-func archiveImage(target string, tag name.Reference, image v1.Image) error {
-	f, err := os.Create(target)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return tarball.Write(tag, image, f)
 }
 
 func (cm *ChartMover) moveChart() error {
