@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 
@@ -240,7 +239,8 @@ func (cm *ChartMover) Print() {
 
 func (cm *ChartMover) printArchival() {
 	log := cm.logger
-	log.Printf("Chart %s will be archived offline into %s\n", cm.chart.Metadata.Name, cm.targetOfflineTar)
+	log.Printf("Will archive chart %s@%s to offline tarball %s\n",
+		cm.chart.Metadata.Name, cm.chart.Metadata.Version, cm.targetOfflineTar)
 }
 
 func (cm *ChartMover) printMove() {
@@ -303,7 +303,6 @@ func (cm *ChartMover) Move() error {
 
 func (cm *ChartMover) archive() error {
 	log := cm.logger
-	log.Printf("Archiving %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
 
 	tarFolder := cm.targetOfflineTar + ".folder"
 	if err := os.MkdirAll(tarFolder, DefaultTarPermissions); err != nil {
@@ -312,7 +311,6 @@ func (cm *ChartMover) archive() error {
 	if err := archiveChart(tarFolder, cm.chartOrigin); err != nil {
 		return fmt.Errorf("failed archiving chart %s: %w", cm.chart.Name(), err)
 	}
-	cm.logger.Println("Archived char tarball")
 	if err := archiveImages(tarFolder, cm.imageChanges, cm.logger); err != nil {
 		return fmt.Errorf("failed archiving images: %w", err)
 	}
@@ -336,9 +334,9 @@ func archiveImages(folder string, imageChanges []*internal.ImageChange, logger L
 	imagesTarball := filepath.Join(folder, "images.tar")
 	tagToImage := map[name.Tag]v1.Image{}
 	for _, change := range imageChanges {
-		appName := path.Base(change.ImageReference.Context().Name())
+		appName := change.ImageReference.Context().Name()
 		version := change.ImageReference.Identifier()
-		imageName := fmt.Sprintf("%s-%s", appName, version)
+		imageName := fmt.Sprintf("%s:%s", appName, version)
 		tag, err := name.NewTag(imageName)
 		if err != nil {
 			return err
@@ -346,11 +344,10 @@ func archiveImages(folder string, imageChanges []*internal.ImageChange, logger L
 		tagToImage[tag] = change.Image
 		logger.Printf("Archiving image %s...\n", imageName)
 	}
-	logger.Printf("Packing all images at %s...\n", imagesTarball)
+	logger.Printf("Packing all %d images at %s...\n", len(imageChanges), imagesTarball)
 	if err := tarball.MultiWriteToFile(imagesTarball, tagToImage); err != nil {
 		return err
 	}
-	logger.Printf("Archived %d images...\n", len(imageChanges))
 	return nil
 }
 

@@ -44,6 +44,16 @@ var _ = Describe("External tests", func() {
 		steps.And("the location of the chart is shown")
 	})
 
+	Scenario("running chart move to offline archive", func() {
+		steps.When("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-archive testchart-offline.tar")
+		steps.And("the move is computed")
+		steps.Then("the command says it will archive the chart")
+		steps.Then("the command says it is archiving the container images")
+		steps.And("the command says it is packing all images into an images.tar")
+		steps.Then("the command says it is inserting the hints file")
+		defer steps.Then("remove the archive folder at testchart-offline.tar.folder")
+	})
+
 	steps.Define(func(define Definitions) {
 		test.DefineCommonSteps(define)
 
@@ -140,6 +150,28 @@ var _ = Describe("External tests", func() {
 				_ = os.Remove(modifiedChartPath)
 				modifiedChartPath = ""
 			}
+		})
+
+		define.Then(`^the command says it will archive the chart$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Will archive chart testchart@0.1.0 to offline tarball testchart-offline.tar\n"))
+		})
+
+		define.Then(`^the command says it is archiving the container images$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Archiving image harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest...\n"))
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Archiving image harbor-repo.vmware.com/dockerhub-proxy-cache/library/busybox:1.33.1...\n"))
+		})
+
+		define.Then(`^the command says it is packing all images into an images.tar$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Packing all 4 images at testchart-offline.tar.folder/images.tar...\n"))
+		})
+
+		define.Then(`^the command says it is inserting the hints file$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Inserting hints file ../fixtures/testchart.images.yaml...\n"))
+		})
+
+		define.Then(`^remove the archive folder at testchart-offline.tar.folder$`, func() {
+			err := os.RemoveAll("testchart-offline.tar.folder")
+			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 })
