@@ -47,8 +47,7 @@ endif
 .PHONY: clean
 
 clean: deps-go-binary 
-	rm -rf build/*
-	find vendor -d 1 -not -name .gitkeep | xargs rm -rf
+	rm -rf build/* vendor/*
 
 # #### DEPS ####
 .PHONY: deps
