@@ -31,7 +31,7 @@ const (
 	// DefaultTarPermissions
 	DefaultTarPermissions = 0750
 
-	// ArchivedHintsFilename to be present in the Helm Chart rootpath
+	// ArchivedHintsFilename to be present in the offline archive root path
 	ArchivedHintsFilename = "relok8s-images.yaml"
 )
 
