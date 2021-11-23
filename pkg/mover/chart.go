@@ -403,6 +403,8 @@ func (cm *ChartMover) moveChart() error {
 	return nil
 }
 
+// validateTarget ensures the requested Target has expected inputs.
+// If the archival target is not set, at least one transformation rule must be set
 func validateTarget(target *Target) error {
 	if target.Chart.Archive != nil {
 		return nil
