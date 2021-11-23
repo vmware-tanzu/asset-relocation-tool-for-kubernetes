@@ -111,8 +111,8 @@ type Containers struct {
 
 // ChartSpec of possible chart inputs or outputs
 type ChartSpec struct {
-	Local   LocalChart
-	Archive OfflineArchive
+	Local   *LocalChart
+	Archive *OfflineArchive
 }
 
 // Source of the chart move
@@ -162,11 +162,6 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, err
 	}
 
-	chartDest := ""
-	if req.Target.Chart.Local.Path != "" {
-		chartDest = targetOutput(req.Target.Chart.Local.Path, chart.Name(), chart.Metadata.Version)
-	}
-
 	sourceAuth := req.Source.Containers.ContainerRepository
 	targetAuth := req.Target.Containers.ContainerRepository
 	cm := &ChartMover{
@@ -176,9 +171,13 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		retries:                 DefaultRetries,
 		sourceContainerRegistry: internal.NewContainerRegistryClient(sourceAuth),
 		targetContainerRegistry: internal.NewContainerRegistryClient(targetAuth),
-		chartDestination:        chartDest,
-		targetOfflineTar:        req.Target.Chart.Archive.Path,
 		externalHintsFile:       req.Source.ImageHintsFile,
+	}
+	if req.Target.Chart.Archive != nil {
+		cm.targetOfflineTar = req.Target.Chart.Archive.Path
+	}
+	if req.Target.Chart.Local != nil {
+		cm.chartDestination = targetOutput(req.Target.Chart.Local.Path, chart.Name(), chart.Metadata.Version)
 	}
 
 	// Option overrides
@@ -370,7 +369,7 @@ func (cm *ChartMover) moveChart() error {
 }
 
 func validateTarget(target *Target) error {
-	if target.Chart.Archive.Path != "" {
+	if target.Chart.Archive != nil {
 		return nil
 	}
 	rules := target.Rules

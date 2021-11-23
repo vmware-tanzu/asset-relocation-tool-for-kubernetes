@@ -98,24 +98,25 @@ func moveChart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse output flag: %w", err)
 	}
 
-	chartMover, err := mover.NewChartMover(
-		&mover.ChartMoveRequest{
-			Source: mover.Source{
-				Chart: mover.ChartSpec{
-					Local: mover.LocalChart{Path: args[0]},
-				},
-				ImageHintsFile: imagePatternsFile,
+	moveRequest := mover.ChartMoveRequest{
+		Source: mover.Source{
+			Chart: mover.ChartSpec{
+				Local: &mover.LocalChart{Path: args[0]},
 			},
-			Target: mover.Target{
-				Chart: mover.ChartSpec{
-					Local:   mover.LocalChart{Path: outputPathFmt},
-					Archive: mover.OfflineArchive{Path: toArchive},
-				},
-				Rules: *targetRewriteRules,
-			},
+			ImageHintsFile: imagePatternsFile,
 		},
-		mover.WithRetries(retries), mover.WithLogger(cmd),
-	)
+		Target: mover.Target{
+			Chart: mover.ChartSpec{},
+			Rules: *targetRewriteRules,
+		},
+	}
+	if toArchive != "" {
+		moveRequest.Target.Chart.Archive = &mover.OfflineArchive{Path: toArchive}
+	} else {
+		moveRequest.Target.Chart.Local = &mover.LocalChart{Path: outputPathFmt}
+	}
+	chartMover, err :=
+		mover.NewChartMover(&moveRequest, mover.WithRetries(retries), mover.WithLogger(cmd))
 	if err != nil {
 		var loadingError *mover.ChartLoadingError
 		if errors.As(err, &loadingError) {
