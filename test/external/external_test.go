@@ -162,7 +162,7 @@ var _ = Describe("External tests", func() {
 		})
 
 		define.Then(`^the command says it is packing all images into an images.tar$`, func() {
-			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Packing all 4 images within images.tar...\n"))
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Packing all 2 images within images.tar...\n"))
 		})
 
 		define.Then(`^the command says it is inserting the hints file$`, func() {

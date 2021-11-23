@@ -333,19 +333,41 @@ func archiveImages(archivePath string, imageChanges []*internal.ImageChange, log
 	imagesTarball := filepath.Join(archivePath, "images.tar")
 	tagToImage := map[name.Tag]v1.Image{}
 	for _, change := range imageChanges {
-		appName := change.ImageReference.Context().Name()
+		app := change.ImageReference.Context().Name()
 		version := change.ImageReference.Identifier()
-		imageName := fmt.Sprintf("%s:%s", appName, version)
-		tag, err := name.NewTag(imageName)
+		fullImageName := fmt.Sprintf("%s:%s", app, version)
+		tag, err := name.NewTag(fullImageName)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create tag %q: %v", fullImageName, err)
+		}
+		if previousImage, ok := tagToImage[tag]; ok {
+			if err := deduplicateByDigest(fullImageName, change.Image, previousImage); err != nil {
+				return err
+			}
+			continue
 		}
 		tagToImage[tag] = change.Image
-		logger.Printf("Processing image %s\n", imageName)
+		logger.Printf("Processing image %s\n", fullImageName)
 	}
-	logger.Printf("Packing all %d images within images.tar...\n", len(imageChanges))
+	logger.Printf("Packing all %d images within images.tar...\n", len(tagToImage))
 	if err := tarball.MultiWriteToFile(imagesTarball, tagToImage); err != nil {
 		return err
+	}
+	return nil
+}
+
+func deduplicateByDigest(name string, current, previous v1.Image) error {
+	previousDigest, err := previous.Digest()
+	if err != nil {
+		return fmt.Errorf("failed to check previous image digest: %v", err)
+	}
+	imageDigest, err := current.Digest()
+	if err != nil {
+		return fmt.Errorf("failed to check current image digest: %v", err)
+	}
+	if previousDigest != imageDigest {
+		return fmt.Errorf("found image %q with different digests %s vs %s",
+			name, previousDigest, imageDigest)
 	}
 	return nil
 }
