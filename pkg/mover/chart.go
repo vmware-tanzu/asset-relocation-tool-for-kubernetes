@@ -137,7 +137,6 @@ type ChartMoveRequest struct {
 
 // ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
 type ChartMover struct {
-	chartOrigin             string
 	chartDestination        string
 	imageChanges            []*internal.ImageChange
 	chartChanges            []*internal.RewriteAction
@@ -165,7 +164,6 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	sourceAuth := req.Source.Containers.ContainerRepository
 	targetAuth := req.Target.Containers.ContainerRepository
 	cm := &ChartMover{
-		chartOrigin:             req.Source.Chart.Local.Path,
 		chart:                   chart,
 		logger:                  defaultLogger{},
 		retries:                 DefaultRetries,
@@ -297,13 +295,11 @@ A regular move executes the Chart relocation which includes
 
 3 - Repackage the Helm chart as toChartFilename
 
-A move to tar will:
+A save to an offline tarball bundle will:
 
-1 - Drop all images locally
+1 - Drop all images to disk, with the original chart (unpacked) and hints file
 
-2 - Pack also the original chart (unpacked) and the hints file
-
-3 - Package all in a single compressed tarball
+2 - Package all in a single compressed tarball
 */
 func (cm *ChartMover) Move() error {
 	if cm.targetOfflineTar != "" {
@@ -319,8 +315,8 @@ func (cm *ChartMover) saveOfflineBundle() error {
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory to build tar: %w", err)
 	}
-	log.Printf("Archiving chart tarball %s...\n", cm.chartOrigin)
-	if err := archiveChart(cm.chartOrigin, tarPath); err != nil {
+	log.Printf("Writing chart at %s/...\n", cm.chart.Metadata.Name)
+	if err := writeChart(cm.chart, filepath.Join(tarPath, cm.chart.Metadata.Name)); err != nil {
 		return fmt.Errorf("failed archiving chart %s: %w", cm.chart.Name(), err)
 	}
 	if err := packImages(tarPath, cm.imageChanges, cm.logger); err != nil {
@@ -330,12 +326,21 @@ func (cm *ChartMover) saveOfflineBundle() error {
 	return os.WriteFile(filepath.Join(tarPath, HintsFilename), cm.rawHints, defaultTarPermissions)
 }
 
-func archiveChart(chartPath, path string) error {
-	target := filepath.Join(path, filepath.Base(chartPath))
-	if err := os.Mkdir(target, defaultTarPermissions); err != nil {
-		return err
+func writeChart(chart *chart.Chart, targetDir string) error {
+	if err := os.MkdirAll(targetDir, defaultTarPermissions); err != nil {
+		return fmt.Errorf("failed to create target chart %s: %w", targetDir, err)
 	}
-	return copyRecursive(chartPath, target)
+	for _, file := range chart.Raw {
+		dir := filepath.Dir(file.Name)
+		dirPath := filepath.Join(targetDir, dir)
+		if err := os.MkdirAll(dirPath, defaultTarPermissions); err != nil {
+			return fmt.Errorf("failed to create path %s: %w", dirPath, err)
+		}
+		if err := os.WriteFile(filepath.Join(targetDir, file.Name), file.Data, defaultTarPermissions); err != nil {
+			return fmt.Errorf("failed to write chart's inner file %s: %v", file.Name, err)
+		}
+	}
+	return nil
 }
 
 func packImages(archivePath string, imageChanges []*internal.ImageChange, logger Logger) error {
