@@ -14,7 +14,7 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	tarball "github.com/google/go-containerregistry/pkg/v1/tarball"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"

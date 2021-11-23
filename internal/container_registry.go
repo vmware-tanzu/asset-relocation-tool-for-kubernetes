@@ -10,9 +10,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-
-	// Pull tarball package to update dependencies. TODO: use it next
-	_ "github.com/google/go-containerregistry/pkg/v1/tarball"
 )
 
 //go:generate counterfeiter . ContainerRegistryInterface
