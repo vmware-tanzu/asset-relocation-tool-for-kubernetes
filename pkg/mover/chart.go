@@ -230,16 +230,28 @@ func (cm *ChartMover) WithRetries(retries uint) *ChartMover {
 // the expected rewrites in the Helm Chart.
 func (cm *ChartMover) Print() {
 	if cm.targetOfflineTar != "" {
-		cm.printArchival()
+		cm.printSaveOfflineBundle()
 		return
 	}
 	cm.printMove()
 }
 
-func (cm *ChartMover) printArchival() {
+func (cm *ChartMover) printSaveOfflineBundle() {
 	log := cm.logger
-	log.Printf("Will archive chart %s@%s to offline tarball %s\n",
+	log.Printf("Will archive Helm Chart %s@%s, dependent images and hint file to offline tarball %s\n",
 		cm.chart.Metadata.Name, cm.chart.Metadata.Version, cm.targetOfflineTar)
+	names := map[string]bool{}
+	for _, change := range cm.imageChanges {
+		app := change.ImageReference.Context().Name()
+		version := change.ImageReference.Identifier()
+		fullImageName := fmt.Sprintf("%s:%s", app, version)
+		names[fullImageName] = true
+	}
+
+	log.Printf("%d images detected to be archived:", len(names))
+	for name := range names {
+		log.Printf("%s\n", name)
+	}
 }
 
 func (cm *ChartMover) printMove() {
@@ -295,18 +307,19 @@ A move to tar will:
 */
 func (cm *ChartMover) Move() error {
 	if cm.targetOfflineTar != "" {
-		return cm.archive()
+		return cm.saveOfflineBundle()
 	}
 	return cm.moveChart()
 }
 
-func (cm *ChartMover) archive() error {
+func (cm *ChartMover) saveOfflineBundle() error {
 	log := cm.logger
 
 	tarPath, err := os.MkdirTemp("", "offline-tarball-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory to build tar: %w", err)
 	}
+	log.Printf("Archiving chart tarball %s...\n", cm.chartOrigin)
 	if err := archiveChart(cm.chartOrigin, tarPath); err != nil {
 		return fmt.Errorf("failed archiving chart %s: %w", cm.chart.Name(), err)
 	}

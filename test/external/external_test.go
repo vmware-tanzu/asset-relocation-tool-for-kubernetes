@@ -153,7 +153,12 @@ var _ = Describe("External tests", func() {
 		})
 
 		define.Then(`^the command says it will archive the chart$`, func() {
-			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Will archive chart testchart@0.1.0 to offline tarball testchart-offline.tar\n"))
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Will archive Helm Chart testchart@0.1.0, dependent images and hint file to offline tarball testchart-offline.tar\n"))
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("2 images detected to be archived"))
+		})
+
+		define.Then(`^the command says it is archiving the chart$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Archiving chart tarball..."))
 		})
 
 		define.Then(`^the command says it is processing the container images$`, func() {
