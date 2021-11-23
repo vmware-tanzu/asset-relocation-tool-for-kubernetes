@@ -27,8 +27,8 @@ const (
 	// DefaultRetries indicates the default number of retries for pull/push operations
 	DefaultRetries = 3
 
-	// DefaultTarPermissions
-	DefaultTarPermissions = 0750
+	// defaultTarPermissions
+	defaultTarPermissions = 0750
 
 	// ArchivedHintsFilename to be present in the offline archive root path
 	ArchivedHintsFilename = "relok8s-images.yaml"
@@ -304,7 +304,7 @@ func (cm *ChartMover) archive() error {
 	log := cm.logger
 
 	tarFolder := cm.targetOfflineTar + ".folder"
-	if err := os.MkdirAll(tarFolder, DefaultTarPermissions); err != nil {
+	if err := os.MkdirAll(tarFolder, defaultTarPermissions); err != nil {
 		return fmt.Errorf("failed to create tar folder %s: %w", tarFolder, err)
 	}
 	if err := archiveChart(tarFolder, cm.chartOrigin); err != nil {
@@ -323,7 +323,7 @@ func (cm *ChartMover) archive() error {
 
 func archiveChart(folder, chartPath string) error {
 	target := filepath.Join(folder, filepath.Base(chartPath))
-	if err := os.Mkdir(target, DefaultTarPermissions); err != nil {
+	if err := os.Mkdir(target, defaultTarPermissions); err != nil {
 		return err
 	}
 	return copyRecursive(chartPath, target)

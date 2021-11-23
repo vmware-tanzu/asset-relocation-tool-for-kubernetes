@@ -19,7 +19,7 @@ func copyRecursive(source, destination string) error {
 			return nil
 		}
 		if info.IsDir() {
-			return os.Mkdir(destPath, DefaultTarPermissions)
+			return os.Mkdir(destPath, defaultTarPermissions)
 		}
 		return copyFile(path, destPath)
 	})
