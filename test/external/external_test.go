@@ -48,7 +48,7 @@ var _ = Describe("External tests", func() {
 		steps.When("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-archive testchart-offline.tar")
 		steps.And("the move is computed")
 		steps.Then("the command says it will archive the chart")
-		steps.Then("the command says it is archiving the container images")
+		steps.Then("the command says it is processing the container images")
 		steps.And("the command says it is packing all images into an images.tar")
 		steps.Then("the command says it is inserting the hints file")
 		defer steps.Then("remove the archive folder at testchart-offline.tar.folder")
@@ -156,13 +156,13 @@ var _ = Describe("External tests", func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Will archive chart testchart@0.1.0 to offline tarball testchart-offline.tar\n"))
 		})
 
-		define.Then(`^the command says it is archiving the container images$`, func() {
-			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Archiving image harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest...\n"))
-			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Archiving image harbor-repo.vmware.com/dockerhub-proxy-cache/library/busybox:1.33.1...\n"))
+		define.Then(`^the command says it is processing the container images$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Processing image harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest\n"))
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Processing image harbor-repo.vmware.com/dockerhub-proxy-cache/library/busybox:1.33.1\n"))
 		})
 
 		define.Then(`^the command says it is packing all images into an images.tar$`, func() {
-			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Packing all 4 images at testchart-offline.tar.folder/images.tar...\n"))
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Packing all 4 images within images.tar...\n"))
 		})
 
 		define.Then(`^the command says it is inserting the hints file$`, func() {
