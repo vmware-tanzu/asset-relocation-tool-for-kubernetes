@@ -50,7 +50,7 @@ var _ = Describe("External tests", func() {
 		steps.Then("the command says it will archive the chart")
 		steps.Then("the command says it is processing the container images")
 		steps.And("the command says it is packing all images into an images.tar")
-		steps.Then("the command says it is inserting the hints file")
+		steps.Then("the command says it is writing the hints file")
 		defer steps.Then("remove the archive folder at testchart-offline.tar.folder")
 	})
 
@@ -170,8 +170,8 @@ var _ = Describe("External tests", func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Packing all 2 images within images.tar...\n"))
 		})
 
-		define.Then(`^the command says it is inserting the hints file$`, func() {
-			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Inserting hints file ../fixtures/testchart.images.yaml...\n"))
+		define.Then(`^the command says it is writing the hints file$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Writing hints file hints.yaml...\n"))
 		})
 
 		define.Then(`^remove the archive folder at testchart-offline.tar.folder$`, func() {

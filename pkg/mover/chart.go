@@ -147,7 +147,7 @@ type ChartMover struct {
 	chart                   *chart.Chart
 	logger                  Logger
 	retries                 uint
-	externalHintsFile       string
+	rawHints                []byte
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
@@ -171,7 +171,6 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		retries:                 DefaultRetries,
 		sourceContainerRegistry: internal.NewContainerRegistryClient(sourceAuth),
 		targetContainerRegistry: internal.NewContainerRegistryClient(targetAuth),
-		externalHintsFile:       req.Source.ImageHintsFile,
 	}
 	if req.Target.Chart.Archive != nil {
 		cm.targetOfflineTar = req.Target.Chart.Archive.Path
@@ -213,6 +212,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
 
+	cm.rawHints = patternsRaw
 	cm.imageChanges = imageChanges
 	cm.chartChanges = chartChanges
 
@@ -248,7 +248,7 @@ func (cm *ChartMover) printSaveOfflineBundle() {
 		names[fullImageName] = true
 	}
 
-	log.Printf("%d images detected to be archived:", len(names))
+	log.Printf("%d images detected to be archived:\n", len(names))
 	for name := range names {
 		log.Printf("%s\n", name)
 	}
@@ -323,15 +323,11 @@ func (cm *ChartMover) saveOfflineBundle() error {
 	if err := archiveChart(cm.chartOrigin, tarPath); err != nil {
 		return fmt.Errorf("failed archiving chart %s: %w", cm.chart.Name(), err)
 	}
-	if err := archiveImages(tarPath, cm.imageChanges, cm.logger); err != nil {
+	if err := packImages(tarPath, cm.imageChanges, cm.logger); err != nil {
 		return fmt.Errorf("failed archiving images: %w", err)
 	}
-	if cm.externalHintsFile == "" {
-		return nil
-	}
-	log.Printf("Inserting hints file %s...\n", cm.externalHintsFile)
-	archivedHints := filepath.Join(tarPath, HintsFilename)
-	return copyFile(cm.externalHintsFile, archivedHints)
+	log.Printf("Writing hints file %s...\n", HintsFilename)
+	return os.WriteFile(filepath.Join(tarPath, HintsFilename), cm.rawHints, defaultTarPermissions)
 }
 
 func archiveChart(chartPath, path string) error {
@@ -342,7 +338,7 @@ func archiveChart(chartPath, path string) error {
 	return copyRecursive(chartPath, target)
 }
 
-func archiveImages(archivePath string, imageChanges []*internal.ImageChange, logger Logger) error {
+func packImages(archivePath string, imageChanges []*internal.ImageChange, logger Logger) error {
 	imagesTarball := filepath.Join(archivePath, "images.tar")
 	tagToImage := map[name.Tag]v1.Image{}
 	for _, change := range imageChanges {
