@@ -275,7 +275,7 @@ func namespacedPath(fullpath, chartName string) string {
 }
 
 /*
-  Move perfomes the relocation.
+  Move performs the relocation.
 
 A regular move executes the Chart relocation which includes
 
