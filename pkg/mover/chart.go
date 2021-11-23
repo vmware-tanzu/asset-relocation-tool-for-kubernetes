@@ -323,7 +323,14 @@ func (cm *ChartMover) saveOfflineBundle() error {
 		return fmt.Errorf("failed archiving images: %w", err)
 	}
 	log.Printf("Writing hints file %s...\n", HintsFilename)
-	return os.WriteFile(filepath.Join(tarPath, HintsFilename), cm.rawHints, defaultTarPermissions)
+	if err := os.WriteFile(filepath.Join(tarPath, HintsFilename), cm.rawHints, defaultTarPermissions); err != nil {
+		return fmt.Errorf("failed to write hints file: %w", err)
+	}
+	log.Printf("Packing all as tarball %s...\n", cm.targetOfflineTar)
+	if err := tarDirectory(tarPath, cm.targetOfflineTar); err != nil {
+		return fmt.Errorf("failed to tar bundle as %s: %w", cm.targetOfflineTar, err)
+	}
+	return os.RemoveAll(tarPath)
 }
 
 func writeChart(chart *chart.Chart, targetDir string) error {
