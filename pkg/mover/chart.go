@@ -30,8 +30,8 @@ const (
 	// defaultTarPermissions
 	defaultTarPermissions = 0750
 
-	// ArchivedHintsFilename to be present in the offline archive root path
-	ArchivedHintsFilename = "relok8s-images.yaml"
+	// HintsFilename to be present in the offline archive root path
+	HintsFilename = "hints.yaml"
 )
 
 var (
@@ -317,7 +317,7 @@ func (cm *ChartMover) archive() error {
 		return nil
 	}
 	log.Printf("Inserting hints file %s...\n", cm.externalHintsFile)
-	archivedHints := filepath.Join(tarFolder, ArchivedHintsFilename)
+	archivedHints := filepath.Join(tarFolder, HintsFilename)
 	return copyFile(cm.externalHintsFile, archivedHints)
 }
 
