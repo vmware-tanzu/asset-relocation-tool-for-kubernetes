@@ -51,7 +51,7 @@ var _ = Describe("External tests", func() {
 		steps.Then("the command says it is processing the container images")
 		steps.And("the command says it is packing all images into an images.tar")
 		steps.Then("the command says it is writing the hints file")
-		defer steps.Then("remove the archive folder at testchart-offline.tar.folder")
+		defer steps.Then("remove the archive folder at testchart-offline.tar")
 	})
 
 	steps.Define(func(define Definitions) {
@@ -174,8 +174,8 @@ var _ = Describe("External tests", func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Writing hints file hints.yaml...\n"))
 		})
 
-		define.Then(`^remove the archive folder at testchart-offline.tar.folder$`, func() {
-			err := os.RemoveAll("testchart-offline.tar.folder")
+		define.Then(`^remove the archive folder at testchart-offline.tar$`, func() {
+			err := os.Remove("testchart-offline.tar")
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})
