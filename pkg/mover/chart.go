@@ -360,9 +360,9 @@ func packImages(archivePath string, imageChanges []*internal.ImageChange, logger
 	imagesTarball := filepath.Join(archivePath, "images.tar")
 	tagToImage := map[name.Tag]v1.Image{}
 	for _, change := range imageChanges {
-		app := change.ImageReference.Context().Name()
+		imageName := change.ImageReference.Context().Name()
 		version := change.ImageReference.Identifier()
-		fullImageName := fmt.Sprintf("%s:%s", app, version)
+		fullImageName := fmt.Sprintf("%s:%s", imageName, version)
 		tag, err := name.NewTag(fullImageName)
 		if err != nil {
 			return fmt.Errorf("failed to create tag %q: %v", fullImageName, err)
