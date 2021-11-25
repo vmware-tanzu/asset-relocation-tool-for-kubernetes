@@ -317,17 +317,21 @@ func (cm *ChartMover) saveOfflineBundle() error {
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory to build tar: %w", err)
 	}
+
 	log.Printf("Writing chart at %s/...\n", cm.chart.Metadata.Name)
 	if err := writeChart(cm.chart, filepath.Join(bundleWorkDir, cm.chart.Metadata.Name)); err != nil {
 		return fmt.Errorf("failed archiving chart %s: %w", cm.chart.Name(), err)
 	}
+
 	if err := packImages(bundleWorkDir, cm.imageChanges, cm.logger); err != nil {
 		return fmt.Errorf("failed archiving images: %w", err)
 	}
+
 	log.Printf("Writing hints file %s...\n", HintsFilename)
 	if err := os.WriteFile(filepath.Join(bundleWorkDir, HintsFilename), cm.rawHints, defaultTarPermissions); err != nil {
 		return fmt.Errorf("failed to write hints file: %w", err)
 	}
+
 	log.Printf("Packing all as tarball %s...\n", cm.targetOfflineTarPath)
 	if err := tarDirectory(bundleWorkDir, cm.targetOfflineTarPath); err != nil {
 		return fmt.Errorf("failed to tar bundle as %s: %w", cm.targetOfflineTarPath, err)
