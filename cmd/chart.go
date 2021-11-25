@@ -78,7 +78,8 @@ func newChartMoveCmd() *cobra.Command {
 	f.UintVar(&retries, "retries", defaultRetries, "number of times to retry push operations")
 	f.StringVar(&output, "out", "*.relocated.tgz", "name of the resulting chart")
 
-	f.StringVar(&toArchive, "to-archive", "", "save the chart and all its dependencies to and offline archive tarball")
+	// TODO: uncomment "coming soon" to add save and load support for airgap environments
+	// f.StringVar(&toArchive, "to-archive", "", "save the chart and all its dependencies to and offline archive tarball")
 
 	return cmd
 }

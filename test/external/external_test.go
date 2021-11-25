@@ -44,15 +44,16 @@ var _ = Describe("External tests", func() {
 		steps.And("the location of the chart is shown")
 	})
 
-	Scenario("running chart move to offline archive", func() {
-		steps.When("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-archive testchart-offline.tar")
-		steps.And("the move is computed")
-		steps.Then("the command says it will archive the chart")
-		steps.Then("the command says it is processing the container images")
-		steps.And("the command says it is packing all images into an images.tar")
-		steps.Then("the command says it is writing the hints file")
-		defer steps.Then("remove the archive folder at testchart-offline.tar")
-	})
+	// TODO: uncomment "coming soon" to add save and load support for airgap environments
+	// Scenario("running chart move to offline archive", func() {
+	// 	steps.When("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-archive testchart-offline.tar")
+	// 	steps.And("the move is computed")
+	// 	steps.Then("the command says it will archive the chart")
+	// 	steps.Then("the command says it is processing the container images")
+	// 	steps.And("the command says it is packing all images into an images.tar")
+	// 	steps.Then("the command says it is writing the hints file")
+	// 	defer steps.Then("remove the archive folder at testchart-offline.tar")
+	// })
 
 	steps.Define(func(define Definitions) {
 		test.DefineCommonSteps(define)
