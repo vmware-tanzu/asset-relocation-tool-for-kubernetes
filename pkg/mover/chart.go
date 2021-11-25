@@ -313,26 +313,26 @@ func (cm *ChartMover) Move() error {
 func (cm *ChartMover) saveOfflineBundle() error {
 	log := cm.logger
 
-	tarPath, err := os.MkdirTemp("", "offline-tarball-*")
+	bundleWorkDir, err := os.MkdirTemp("", "offline-tarball-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory to build tar: %w", err)
 	}
 	log.Printf("Writing chart at %s/...\n", cm.chart.Metadata.Name)
-	if err := writeChart(cm.chart, filepath.Join(tarPath, cm.chart.Metadata.Name)); err != nil {
+	if err := writeChart(cm.chart, filepath.Join(bundleWorkDir, cm.chart.Metadata.Name)); err != nil {
 		return fmt.Errorf("failed archiving chart %s: %w", cm.chart.Name(), err)
 	}
-	if err := packImages(tarPath, cm.imageChanges, cm.logger); err != nil {
+	if err := packImages(bundleWorkDir, cm.imageChanges, cm.logger); err != nil {
 		return fmt.Errorf("failed archiving images: %w", err)
 	}
 	log.Printf("Writing hints file %s...\n", HintsFilename)
-	if err := os.WriteFile(filepath.Join(tarPath, HintsFilename), cm.rawHints, defaultTarPermissions); err != nil {
+	if err := os.WriteFile(filepath.Join(bundleWorkDir, HintsFilename), cm.rawHints, defaultTarPermissions); err != nil {
 		return fmt.Errorf("failed to write hints file: %w", err)
 	}
 	log.Printf("Packing all as tarball %s...\n", cm.targetOfflineTarPath)
-	if err := tarDirectory(tarPath, cm.targetOfflineTarPath); err != nil {
+	if err := tarDirectory(bundleWorkDir, cm.targetOfflineTarPath); err != nil {
 		return fmt.Errorf("failed to tar bundle as %s: %w", cm.targetOfflineTarPath, err)
 	}
-	return os.RemoveAll(tarPath)
+	return os.RemoveAll(bundleWorkDir)
 }
 
 func writeChart(chart *chart.Chart, targetDir string) error {
