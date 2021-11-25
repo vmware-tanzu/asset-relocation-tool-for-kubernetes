@@ -383,6 +383,10 @@ func packImages(archivePath string, imageChanges []*internal.ImageChange, logger
 	return nil
 }
 
+// deduplicateByDigest asserts our assumption that, within a given chart,
+// a particular fully qualified image tag name uniquely identifies its contents.
+// This checks returns an error if the same name is associated to more than one
+// digest value. It also fails if the digest values cannot be retrieved.
 func deduplicateByDigest(name string, current, previous v1.Image) error {
 	previousDigest, err := previous.Digest()
 	if err != nil {
