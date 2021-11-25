@@ -52,7 +52,8 @@ func (i *ContainerRegistryClient) Check(digest string, imageReference name.Refer
 	}
 
 	if remoteDigest != digest {
-		return false, fmt.Errorf("remote image \"%s\" already exists with a different digest: %s. Will not overwrite", imageReference.Name(), remoteDigest)
+		return false, fmt.Errorf("remote image \"%s\" already exists with a different digest: %s (vs %s). "+
+			"Will not overwrite", imageReference.Name(), remoteDigest, digest)
 	}
 
 	return false, nil

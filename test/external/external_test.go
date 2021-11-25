@@ -5,6 +5,7 @@ package external_test
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -44,16 +45,34 @@ var _ = Describe("External tests", func() {
 		steps.And("the location of the chart is shown")
 	})
 
-	// TODO: uncomment "coming soon" to add save and load support for airgap environments
-	// Scenario("running chart move to offline archive", func() {
-	// 	steps.When("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-archive testchart-offline.tar")
-	// 	steps.And("the move is computed")
-	// 	steps.Then("the command says it will archive the chart")
-	// 	steps.Then("the command says it is processing the container images")
-	// 	steps.And("the command says it is packing all images into an images.tar")
-	// 	steps.Then("the command says it is writing the hints file")
-	// 	defer steps.Then("remove the archive folder at testchart-offline.tar")
-	// })
+	Scenario("running chart move to intermediate bundle", func() {
+		tmpdir, err := os.MkdirTemp("", "intermediate-tar-test-*")
+		if err != nil {
+			log.Fatalf("Failed to create temporary dir")
+		}
+		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-archive %s/testchart-intermediate.tar", tmpdir))
+		steps.And("the move is computed")
+		steps.Then("the command says it will archive the chart")
+		steps.Then("the command says it is processing the container images")
+		steps.And("the command says it is packing all images into an images.tar")
+		steps.Then("the command says it is writing the hints file")
+		defer os.RemoveAll(tmpdir)
+	})
+
+	Scenario("running chart move from intermediate bundle", func() {
+		oldprefix := customRepoPrefix
+		customRepoPrefix += "-unbundled"
+		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart-intermediate.tar --repo-prefix %s", customRepoPrefix))
+		steps.And("the move is computed")
+		steps.Then("the command says that the unbundled & rewritten image will be pushed")
+		steps.And("the command says that the rewritten images will be written to the chart and subchart")
+		steps.And("the command exits without error")
+		steps.And("the chart name and version is shown before relocation")
+		steps.And("the rewritten image is pushed")
+		steps.And("the modified chart is written")
+		steps.And("the location of the chart is shown")
+		customRepoPrefix = oldprefix
+	})
 
 	steps.Define(func(define Definitions) {
 		test.DefineCommonSteps(define)
@@ -94,6 +113,11 @@ var _ = Describe("External tests", func() {
 		define.Then(`^the command says that the rewritten image will be pushed$`, func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Image copies:"))
 			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest => harbor-repo.vmware.com/%s/tiny:tiniest \\(sha256:[a-z0-9]*\\) \\(push required\\)", customRepoPrefix)))
+		})
+
+		define.Then(`^the command says that the unbundled & rewritten image will be pushed$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Image copies:"))
+			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest \\(from bundle\\) => harbor-repo.vmware.com/%s/tiny:tiniest \\(sha256:[a-z0-9]*\\) \\(push required\\)", customRepoPrefix)))
 		})
 
 		define.Then(`^the command says that the rewritten images will be written to the chart and subchart$`, func() {
@@ -154,7 +178,7 @@ var _ = Describe("External tests", func() {
 		})
 
 		define.Then(`^the command says it will archive the chart$`, func() {
-			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Will archive Helm Chart testchart@0.1.0, dependent images and hint file to offline tarball testchart-offline.tar\n"))
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Will archive Helm Chart testchart@0.1.0, dependent images and hint file to intermediate tarball "))
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("2 images detected to be archived"))
 		})
 
@@ -175,8 +199,8 @@ var _ = Describe("External tests", func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Writing hints file hints.yaml...\n"))
 		})
 
-		define.Then(`^remove the archive folder at testchart-offline.tar$`, func() {
-			err := os.Remove("testchart-offline.tar")
+		define.Then(`^remove the archive folder at testchart-intermediate.tar$`, func() {
+			err := os.Remove("testchart-intermediate.tar")
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})

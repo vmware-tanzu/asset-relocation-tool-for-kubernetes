@@ -89,7 +89,7 @@ func makeImage(digest string) *moverfakes.FakeImage {
 
 func testChartMover(registry internal.ContainerRegistryInterface, logger Logger) *ChartMover {
 	return &ChartMover{
-		chart:                   testchart,
+		ChartData:               ChartData{chart: testchart},
 		sourceContainerRegistry: registry,
 		targetContainerRegistry: registry,
 		logger:                  logger,
@@ -271,7 +271,7 @@ var _ = Describe("Pull & Push Images", func() {
 			}
 
 			cm := testChartMover(fakeRegistry, newLogger())
-			changes, err := cm.pullOriginalImages(patterns)
+			changes, err := cm.loadImagesFrom(patterns)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("pulling the images", func() {
@@ -303,7 +303,7 @@ var _ = Describe("Pull & Push Images", func() {
 				}
 
 				cm := testChartMover(fakeRegistry, newLogger())
-				changes, err := cm.pullOriginalImages(patterns)
+				changes, err := cm.loadImagesFrom(patterns)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("pulling the image once", func() {
@@ -331,9 +331,9 @@ var _ = Describe("Pull & Push Images", func() {
 				}
 
 				cm := testChartMover(fakeRegistry, newLogger())
-				_, err := cm.pullOriginalImages(patterns)
+				_, err := cm.loadImagesFrom(patterns)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("image pull error"))
+				Expect(err.Error()).To(Equal("failed to pull original images: image pull error"))
 			})
 		})
 	})
@@ -487,7 +487,7 @@ var _ = Describe("LoadImagePatterns", func() {
 
 	It("reads from given file first if present", func() {
 		imagefile := filepath.Join(fixturesRoot, "testchart.images.yaml")
-		contents, err := loadPatterns(imagefile, nil, logger)
+		contents, err := loadHints(imagefile, nil, logger)
 		Expect(err).ToNot(HaveOccurred())
 
 		expected, err := os.ReadFile(imagefile)
@@ -498,7 +498,7 @@ var _ = Describe("LoadImagePatterns", func() {
 		chart, err := loader.Load(filepath.Join(fixturesRoot, "self-relok8ing-chart"))
 		Expect(err).ToNot(HaveOccurred())
 
-		contents, err := loadPatterns("", chart, logger)
+		contents, err := loadHints("", chart, logger)
 		Expect(err).ToNot(HaveOccurred())
 
 		embeddedPatterns := filepath.Join(fixturesRoot, "self-relok8ing-chart/.relok8s-images.yaml")
@@ -512,7 +512,7 @@ var _ = Describe("LoadImagePatterns", func() {
 		chart, err := loader.Load(filepath.Join(fixturesRoot, "testchart"))
 		Expect(err).ToNot(HaveOccurred())
 
-		contents, err := loadPatterns("", chart, logger)
+		contents, err := loadHints("", chart, logger)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(contents).To(BeEmpty())
 	})
