@@ -80,16 +80,9 @@ func newChartMoveCmd() *cobra.Command {
 	f.UintVar(&retries, "retries", defaultRetries, "number of times to retry push operations")
 	f.StringVar(&output, "out", "*.relocated.tgz", "name of the resulting chart")
 
-	if experimentalFlagOn() {
-		f.StringVar(&toArchive, "to-archive", "", "save the chart and all its dependencies to an intermediate archive tarball")
-	}
+	f.StringVar(&toArchive, "to-archive", "", "save the chart and all its dependencies to an intermediate archive tarball")
 
 	return cmd
-}
-
-func experimentalFlagOn() bool {
-	experimental := strings.ToLower(os.Getenv("RELOK8S_EXPERIMENTAL"))
-	return experimental == "true" || experimental == "yes"
 }
 
 func moveChart(cmd *cobra.Command, args []string) error {
@@ -119,7 +112,13 @@ func moveChart(cmd *cobra.Command, args []string) error {
 			Rules: *targetRewriteRules,
 		},
 	}
-	moveRequest.Source.Chart.Local = &mover.LocalChart{Path: args[0]}
+	inputChartPath := args[0]
+	if mover.IsIntermediateBundle(inputChartPath) {
+		cmd.Printf("Detected intermediate bundle as input at %s", inputChartPath)
+		moveRequest.Source.Chart.IntermediateBundle = &mover.IntermediateBundle{Path: inputChartPath}
+	} else {
+		moveRequest.Source.Chart.Local = &mover.LocalChart{Path: inputChartPath}
+	}
 	if toArchive != "" {
 		moveRequest.Target.Chart.IntermediateBundle = &mover.IntermediateBundle{Path: toArchive}
 	} else {

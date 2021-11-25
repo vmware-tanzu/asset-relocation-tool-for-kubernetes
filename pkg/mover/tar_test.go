@@ -7,9 +7,12 @@ import (
 	"archive/tar"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -53,8 +56,24 @@ func newTarFilePath() string {
 	return filepath.Join(newDir("test-tar-dir"), "test.tar")
 }
 
-func dumpTar(tarFile string) []testFile {
-	tarredFiles := []testFile{}
+func lsRecursive(dir string) []string {
+	paths := []string{}
+	err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+		paths = append(paths, strings.TrimPrefix(path, dir+"/"))
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("failed to list recursively %s: %v", dir, err)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func lsTar(tarFile string) []string {
+	paths := []string{}
 	f, err := os.Open(tarFile)
 	if err != nil {
 		log.Fatalf("failed to dumpTar %s: %v", tarFile, err)
@@ -64,14 +83,12 @@ func dumpTar(tarFile string) []testFile {
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF || hdr == nil {
-			return tarredFiles
+			break
 		}
-		data, err := io.ReadAll(tr)
-		if err != nil {
-			log.Fatalf("failed to dump tarred file %s: %v", hdr.Name, err)
-		}
-		tarredFiles = append(tarredFiles, testFile{path: hdr.Name, data: string(data)})
+		paths = append(paths, hdr.Name)
 	}
+	sort.Strings(paths)
+	return paths
 }
 
 func cleanup(dirs ...string) {
@@ -85,12 +102,15 @@ func cleanup(dirs ...string) {
 
 var _ = Describe("Tar", func() {
 	Context("directory", func() {
-		It("tar all test files as expected", func() {
+		It("tar and untar reproduces original files", func() {
 			tarFile := newTarFilePath()
 			err := tarTestFiles(tarFile, testDirContents)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(testDirContents).To(Equal(dumpTar(tarFile)))
-			cleanup(filepath.Dir(tarFile))
+			targetDir := newDir("test-target")
+			err = untar(tarFile, "", targetDir)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(lsRecursive(targetDir)).To(Equal(lsTar(tarFile)))
+			cleanup(targetDir, filepath.Dir(tarFile))
 		})
 	})
 })

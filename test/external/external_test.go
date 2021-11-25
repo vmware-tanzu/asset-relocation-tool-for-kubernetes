@@ -74,6 +74,21 @@ var _ = Describe("External tests", func() {
 		steps.Then("the command says the intermediate bundle is complete")
 	})
 
+	Scenario("running chart move from intermediate bundle", func() {
+		oldprefix := customRepoPrefix
+		customRepoPrefix += "-unbundled"
+		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart-intermediate.tar --repo-prefix %s", customRepoPrefix))
+		steps.And("the move is computed")
+		steps.Then("the command says that the unbundled & rewritten image will be pushed")
+		steps.And("the command says that the rewritten images will be written to the chart and subchart")
+		steps.And("the command exits without error")
+		steps.And("the chart name and version is shown before relocation")
+		steps.And("the rewritten image is pushed")
+		steps.And("the modified chart is written")
+		steps.And("the location of the chart is shown")
+		customRepoPrefix = oldprefix
+	})
+
 	steps.Define(func(define Definitions) {
 		test.DefineCommonSteps(define)
 

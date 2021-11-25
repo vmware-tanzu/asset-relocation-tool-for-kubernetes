@@ -11,6 +11,8 @@ import (
 	"regexp"
 
 	"github.com/avast/retry-go"
+	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -148,6 +150,7 @@ type ChartMover struct {
 	targetIntermediateTarPath string
 	logger                    Logger
 	retries                   uint
+	bundle                    *intermediateBundle
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
@@ -169,8 +172,14 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		if err != nil {
 			return nil, err
 		}
+	} else if req.Source.Chart.IntermediateBundle != nil {
+		err := cm.loadIntermediateBundle(req.Source.Chart.IntermediateBundle.Path,
+			req.Source.ImageHintsFile)
+		if err != nil {
+			return nil, err
+		}
 	} else {
-		return nil, fmt.Errorf("must provide a local chart as input")
+		return nil, fmt.Errorf("must provide either a local chart or an intermediate bundle as input")
 	}
 	if req.Target.Chart.IntermediateBundle != nil {
 		cm.targetIntermediateTarPath = req.Target.Chart.IntermediateBundle.Path
@@ -196,7 +205,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	}
 
 	cm.logger.Println("Computing relocation...\n")
-	imageChanges, err := cm.pullOriginalImages(imagePatterns)
+	imageChanges, err := cm.loadImages(imagePatterns)
 	if err != nil {
 		return nil, err
 	}
@@ -239,6 +248,33 @@ func (cm *ChartMover) loadChart(chartPath string, hintsFile string) error {
 	return err
 }
 
+func (cm *ChartMover) loadIntermediateBundle(bundlePath, hintsFile string) error {
+	var err error
+	cm.bundle, err = openBundle(bundlePath)
+	if err != nil {
+		return err
+	}
+	chartPath, err := os.MkdirTemp("", "bundle-chart-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary directory to extract bundled chart %s: %w",
+			cm.bundle.bundlePath, err)
+	}
+	if err := cm.bundle.ExtractChartTo(chartPath); err != nil {
+		return err
+	}
+	defer os.RemoveAll(chartPath)
+	cm.chart, err = loader.Load(chartPath)
+	if err != nil {
+		return &ChartLoadingError{Path: chartPath, Inner: err}
+	}
+	if hintsFile != "" {
+		return fmt.Errorf("intermediate bundles already embed the hints file" +
+			", skip explicit hints, they will be ignored")
+	}
+	cm.rawHints, err = cm.bundle.LoadHints(cm.logger)
+	return err
+}
+
 func (cm *ChartMover) printSaveIntermediateBundle() {
 	log := cm.logger
 	log.Printf("Will archive Helm Chart %s@%s, dependent images and hint file to intermediate tarball %s\n",
@@ -259,14 +295,18 @@ func (cm *ChartMover) printSaveIntermediateBundle() {
 
 func (cm *ChartMover) printMove() {
 	log := cm.logger
+	bundledText := ""
+	if cm.bundle != nil {
+		bundledText = "(from bundle) "
+	}
 	log.Println("Image copies:")
 	for _, change := range cm.imageChanges {
 		pushRequiredTxt := "already exists"
 		if change.ShouldPush() {
 			pushRequiredTxt = "push required"
 		}
-		log.Printf(" %s => %s (%s) (%s)\n",
-			change.ImageReference.Name(), change.RewrittenReference.Name(), change.Digest, pushRequiredTxt)
+		log.Printf(" %s %s=> %s (%s) (%s)\n",
+			change.ImageReference.Name(), bundledText, change.RewrittenReference.Name(), change.Digest, pushRequiredTxt)
 	}
 
 	var chartToModify *chart.Chart
@@ -325,6 +365,24 @@ func (cm *ChartMover) moveChart() error {
 	return nil
 }
 
+func (cm *ChartMover) loadImages(imagePatterns []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
+	loadFn := func(originalImage name.Reference) (v1.Image, string, error) {
+		return cm.sourceContainerRegistry.Pull(originalImage)
+	}
+	action := "pull"
+	if cm.bundle != nil {
+		loadFn = func(originalImage name.Reference) (v1.Image, string, error) {
+			return cm.bundle.LoadImage(originalImage)
+		}
+		action = "load"
+	}
+	imageChanges, err := loadImageChanges(cm.chart, imagePatterns, loadFn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to %s original images: %w", action, err)
+	}
+	return imageChanges, nil
+}
+
 // validateTarget ensures the requested Target has expected inputs.
 // If the archival target is not set, at least one transformation rule must be set
 func validateTarget(target *Target) error {
@@ -338,12 +396,14 @@ func validateTarget(target *Target) error {
 	return nil
 }
 
-func (cm *ChartMover) pullOriginalImages(patterns []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
+type imageLoadFn func(name.Reference) (v1.Image, string, error)
+
+func loadImageChanges(chart *chart.Chart, patterns []*internal.ImageTemplate, loadFn imageLoadFn) ([]*internal.ImageChange, error) {
 	var changes []*internal.ImageChange
 	imageCache := map[string]*internal.ImageChange{}
 
 	for _, pattern := range patterns {
-		originalImage, err := pattern.Render(cm.chart)
+		originalImage, err := pattern.Render(chart)
 		if err != nil {
 			return nil, err
 		}
@@ -354,7 +414,7 @@ func (cm *ChartMover) pullOriginalImages(patterns []*internal.ImageTemplate) ([]
 		}
 
 		if imageCache[originalImage.Name()] == nil {
-			image, digest, err := cm.sourceContainerRegistry.Pull(originalImage)
+			image, digest, err := loadFn(originalImage)
 			if err != nil {
 				return nil, err
 			}

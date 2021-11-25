@@ -91,7 +91,7 @@ test-features: deps test-fixtures
 	ginkgo -r test/features
 
 test-external: deps test-fixtures
-	RELOK8S_EXPERIMENTAL=yes ginkgo -r test/external
+	ginkgo -r test/external
 
 test-registry: deps test
 	docker build -f test/registry/Dockerfile -t registry-tester .
