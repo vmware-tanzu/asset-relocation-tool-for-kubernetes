@@ -142,7 +142,7 @@ type ChartMover struct {
 	chartChanges            []*internal.RewriteAction
 	sourceContainerRegistry internal.ContainerRegistryInterface
 	targetContainerRegistry internal.ContainerRegistryInterface
-	targetOfflineTar        string
+	targetOfflineTarPath    string
 	chart                   *chart.Chart
 	logger                  Logger
 	retries                 uint
@@ -171,7 +171,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		targetContainerRegistry: internal.NewContainerRegistryClient(targetAuth),
 	}
 	if req.Target.Chart.Archive != nil {
-		cm.targetOfflineTar = req.Target.Chart.Archive.Path
+		cm.targetOfflineTarPath = req.Target.Chart.Archive.Path
 	}
 	if req.Target.Chart.Local != nil {
 		cm.chartDestination = targetOutput(req.Target.Chart.Local.Path, chart.Name(), chart.Metadata.Version)
@@ -227,7 +227,7 @@ func (cm *ChartMover) WithRetries(retries uint) *ChartMover {
 // including the new location of the Helm Chart Images as well as
 // the expected rewrites in the Helm Chart.
 func (cm *ChartMover) Print() {
-	if cm.targetOfflineTar != "" {
+	if cm.targetOfflineTarPath != "" {
 		cm.printSaveOfflineBundle()
 		return
 	}
@@ -237,7 +237,7 @@ func (cm *ChartMover) Print() {
 func (cm *ChartMover) printSaveOfflineBundle() {
 	log := cm.logger
 	log.Printf("Will archive Helm Chart %s@%s, dependent images and hint file to offline tarball %s\n",
-		cm.chart.Metadata.Name, cm.chart.Metadata.Version, cm.targetOfflineTar)
+		cm.chart.Metadata.Name, cm.chart.Metadata.Version, cm.targetOfflineTarPath)
 	names := map[string]bool{}
 	for _, change := range cm.imageChanges {
 		app := change.ImageReference.Context().Name()
@@ -302,7 +302,7 @@ A save to an offline tarball bundle will:
 2 - Package all in a single compressed tarball
 */
 func (cm *ChartMover) Move() error {
-	if cm.targetOfflineTar != "" {
+	if cm.targetOfflineTarPath != "" {
 		return cm.saveOfflineBundle()
 	}
 	return cm.moveChart()
@@ -326,9 +326,9 @@ func (cm *ChartMover) saveOfflineBundle() error {
 	if err := os.WriteFile(filepath.Join(tarPath, HintsFilename), cm.rawHints, defaultTarPermissions); err != nil {
 		return fmt.Errorf("failed to write hints file: %w", err)
 	}
-	log.Printf("Packing all as tarball %s...\n", cm.targetOfflineTar)
-	if err := tarDirectory(tarPath, cm.targetOfflineTar); err != nil {
-		return fmt.Errorf("failed to tar bundle as %s: %w", cm.targetOfflineTar, err)
+	log.Printf("Packing all as tarball %s...\n", cm.targetOfflineTarPath)
+	if err := tarDirectory(tarPath, cm.targetOfflineTarPath); err != nil {
+		return fmt.Errorf("failed to tar bundle as %s: %w", cm.targetOfflineTarPath, err)
 	}
 	return os.RemoveAll(tarPath)
 }
