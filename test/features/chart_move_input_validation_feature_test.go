@@ -22,14 +22,14 @@ var _ = Describe("relok8s chart move input validation", func() {
 	})
 
 	Scenario("helm chart does not exist", func() {
-		steps.When("running relok8s chart move ../fixtures/does-not-exist")
+		steps.When("running relok8s chart move ../fixtures/does-not-exist --repo-prefix cyberdyne-corp")
 		steps.Then("the command exits with an error")
 		steps.And("it says the chart does not exist")
 		steps.And("it prints the usage")
 	})
 
 	Scenario("helm chart is empty directory", func() {
-		steps.When("running relok8s chart move ../fixtures/empty-directory")
+		steps.When("running relok8s chart move ../fixtures/empty-directory --repo-prefix cyberdyne-corp")
 		steps.Then("the command exits with an error")
 		steps.And("it says the chart is missing a critical file")
 		steps.And("it prints the usage")

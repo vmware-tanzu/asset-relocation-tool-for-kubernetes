@@ -53,7 +53,8 @@ func (i *ContainerRegistryClient) Check(digest string, imageReference name.Refer
 	}
 
 	if remoteDigest != digest {
-		return false, fmt.Errorf("remote image \"%s\" already exists with a different digest: %s. use forcePush option to override", imageReference.Name(), remoteDigest)
+		return false, fmt.Errorf("image %s already exists with a different digest "+
+			"(local: %s remote: %s). Will not overwrite", imageReference.Name(), digest, remoteDigest)
 	}
 
 	return false, nil

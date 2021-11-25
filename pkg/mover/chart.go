@@ -23,10 +23,7 @@ const (
 	// DefaultRetries indicates the default number of retries for pull/push operations
 	DefaultRetries = 3
 
-	// defaultTarPermissions
-	defaultTarPermissions = 0750
-
-	// HintsFilename to be present in the offline archive root path
+	// HintsFilename to be present in the intermediate archive root path
 	HintsFilename = "hints.yaml"
 )
 
@@ -90,9 +87,9 @@ type LocalChart struct {
 	Path string
 }
 
-// OfflineArchive is a self contained version of a chart including
+// IntermediateBundle is a self contained version of a chart including
 // container images within and the hints file
-type OfflineArchive LocalChart
+type IntermediateBundle LocalChart
 
 // ContainerRepository defines a private repo name and credentials
 type ContainerRepository struct {
@@ -107,8 +104,8 @@ type Containers struct {
 
 // ChartSpec of possible chart inputs or outputs
 type ChartSpec struct {
-	Local   *LocalChart
-	Archive *OfflineArchive
+	Local              *LocalChart
+	IntermediateBundle *IntermediateBundle
 }
 
 // Source of the chart move
@@ -131,48 +128,56 @@ type ChartMoveRequest struct {
 	Target Target
 }
 
-// ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
-type ChartMover struct {
-	chartDestination        string
-	imageChanges            []*internal.ImageChange
-	chartChanges            []*internal.RewriteAction
-	sourceContainerRegistry internal.ContainerRegistryInterface
-	targetContainerRegistry internal.ContainerRegistryInterface
-	targetOfflineTarPath    string
-	chart                   *chart.Chart
-	logger                  Logger
-	retries                 uint
+// ChartData is the part of the Chart mover data that should be saved for a move to complete
+// without any network access to the original chart resources
+type ChartData struct {
+	chart        *chart.Chart
+	imageChanges []*internal.ImageChange
 	// raw contents of the hints file. Sample:
 	// test/fixtures/testchart.images.yaml
 	rawHints []byte
 }
 
+// ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
+type ChartMover struct {
+	ChartData
+	chartDestination          string
+	chartChanges              []*internal.RewriteAction
+	sourceContainerRegistry   internal.ContainerRegistryInterface
+	targetContainerRegistry   internal.ContainerRegistryInterface
+	targetIntermediateTarPath string
+	logger                    Logger
+	retries                   uint
+}
+
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
 func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
-	chart, err := loader.Load(req.Source.Chart.Local.Path)
-	if err != nil {
-		return nil, &ChartLoadingError{Path: req.Source.Chart.Local.Path, Inner: err}
-	}
-
-	if err := validateTarget(&req.Target); err != nil {
-		return nil, err
-	}
-
 	sourceAuth := req.Source.Containers.ContainerRepository
 	targetAuth := req.Target.Containers.ContainerRepository
 	cm := &ChartMover{
-		chart:                   chart,
 		logger:                  defaultLogger{},
 		retries:                 DefaultRetries,
 		sourceContainerRegistry: internal.NewContainerRegistryClient(sourceAuth),
 		targetContainerRegistry: internal.NewContainerRegistryClient(targetAuth),
 	}
-	if req.Target.Chart.Archive != nil {
-		cm.targetOfflineTarPath = req.Target.Chart.Archive.Path
+	if err := validateTarget(&req.Target); err != nil {
+		return nil, err
+	}
+	if req.Source.Chart.Local != nil {
+		err := cm.loadChart(req.Source.Chart.Local.Path, req.Source.ImageHintsFile)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("must provide a local chart as input")
+	}
+	if req.Target.Chart.IntermediateBundle != nil {
+		cm.targetIntermediateTarPath = req.Target.Chart.IntermediateBundle.Path
 	}
 	if req.Target.Chart.Local != nil {
-		cm.chartDestination = targetOutput(req.Target.Chart.Local.Path, chart.Name(), chart.Metadata.Version)
+		cm.chartDestination =
+			targetOutput(req.Target.Chart.Local.Path, cm.chart.Name(), cm.chart.Metadata.Version)
 	}
 
 	// Option overrides
@@ -182,25 +187,18 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		}
 	}
 
-	patternsRaw, err := loadPatterns(req.Source.ImageHintsFile, chart, cm.logger)
-	if err != nil {
-		return nil, err
-	}
-
-	if patternsRaw == nil {
+	if cm.rawHints == nil {
 		return nil, ErrImageHintsMissing
 	}
-
-	imagePatterns, err := internal.ParseImagePatterns(patternsRaw)
+	imagePatterns, err := internal.ParseImagePatterns(cm.rawHints)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
 	}
 
 	cm.logger.Println("Computing relocation...\n")
-
 	imageChanges, err := cm.pullOriginalImages(imagePatterns)
 	if err != nil {
-		return nil, fmt.Errorf("failed to pull original images: %w", err)
+		return nil, err
 	}
 
 	imageChanges, chartChanges, err := cm.computeChanges(imageChanges, &req.Target.Rules)
@@ -208,7 +206,6 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
 
-	cm.rawHints = patternsRaw
 	cm.imageChanges = imageChanges
 	cm.chartChanges = chartChanges
 
@@ -225,17 +222,27 @@ func (cm *ChartMover) WithRetries(retries uint) *ChartMover {
 // including the new location of the Helm Chart Images as well as
 // the expected rewrites in the Helm Chart.
 func (cm *ChartMover) Print() {
-	if cm.targetOfflineTarPath != "" {
-		cm.printSaveOfflineBundle()
+	if cm.targetIntermediateTarPath != "" {
+		cm.printSaveIntermediateBundle()
 		return
 	}
 	cm.printMove()
 }
 
-func (cm *ChartMover) printSaveOfflineBundle() {
+func (cm *ChartMover) loadChart(chartPath string, hintsFile string) error {
+	var err error
+	cm.chart, err = loader.Load(chartPath)
+	if err != nil {
+		return &ChartLoadingError{Path: chartPath, Inner: err}
+	}
+	cm.rawHints, err = loadHints(hintsFile, cm.chart, cm.logger)
+	return err
+}
+
+func (cm *ChartMover) printSaveIntermediateBundle() {
 	log := cm.logger
-	log.Printf("Will archive Helm Chart %s@%s, dependent images and hint file to offline tarball %s\n",
-		cm.chart.Metadata.Name, cm.chart.Metadata.Version, cm.targetOfflineTarPath)
+	log.Printf("Will archive Helm Chart %s@%s, dependent images and hint file to intermediate tarball %s\n",
+		cm.chart.Metadata.Name, cm.chart.Metadata.Version, cm.targetIntermediateTarPath)
 	names := map[string]bool{}
 	for _, change := range cm.imageChanges {
 		app := change.ImageReference.Context().Name()
@@ -295,8 +302,8 @@ A save to an offline tarball bundle will:
 - Package all in a single compressed tarball
 */
 func (cm *ChartMover) Move() error {
-	if cm.targetOfflineTarPath != "" {
-		return cm.saveOfflineBundle()
+	if cm.targetIntermediateTarPath != "" {
+		return saveIntermediateBundle(&cm.ChartData, cm.targetIntermediateTarPath, cm.logger)
 	}
 	return cm.moveChart()
 }
@@ -314,15 +321,14 @@ func (cm *ChartMover) moveChart() error {
 		return err
 	}
 
-	log.Println("Done")
-	log.Println(cm.chartDestination)
+	log.Println("Done moving", cm.chartDestination)
 	return nil
 }
 
 // validateTarget ensures the requested Target has expected inputs.
 // If the archival target is not set, at least one transformation rule must be set
 func validateTarget(target *Target) error {
-	if target.Chart.Archive != nil {
+	if target.Chart.IntermediateBundle != nil {
 		return nil
 	}
 	rules := target.Rules
@@ -332,11 +338,11 @@ func validateTarget(target *Target) error {
 	return nil
 }
 
-func (cm *ChartMover) pullOriginalImages(pattens []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
+func (cm *ChartMover) pullOriginalImages(patterns []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
 	var changes []*internal.ImageChange
 	imageCache := map[string]*internal.ImageChange{}
 
-	for _, pattern := range pattens {
+	for _, pattern := range patterns {
 		originalImage, err := pattern.Render(cm.chart)
 		if err != nil {
 			return nil, err
@@ -467,44 +473,39 @@ func saveChart(chart *chart.Chart, toChartFilename string) error {
 	return os.Remove(tempDir)
 }
 
-// load patterns from either a hints file or an existing EmbeddedHintsFilename
-func loadPatterns(imageHintsFile string, chart *chart.Chart, log Logger) ([]byte, error) {
-	var patternsRaw []byte
-	var err error
-
+// load hints from either a given hints file or a chart-embedded hints file
+func loadHints(imageHintsFile string, chart *chart.Chart, log Logger) ([]byte, error) {
 	if imageHintsFile != "" {
-		patternsRaw, err = loadPatternsFromFile(imageHintsFile, log)
+		rawHints, err := loadHintsFromFile(imageHintsFile, log)
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		// If patterns file is not provided we try to find the patterns from inside the Chart
-		patternsRaw = loadPatternsFromChart(chart, log)
+		return rawHints, nil
 	}
-
-	return patternsRaw, err
+	// If the hints file is not provided, try to find the hints inside the Chart
+	return loadHintsFromChart(chart, log), nil
 }
 
-func loadPatternsFromChart(chart *chart.Chart, log Logger) []byte {
-	// TODO: This is an overkill, we know the location of the file
-	// we should just check for it
+func loadHintsFromChart(chart *chart.Chart, log Logger) []byte {
+	// We get the file form the parsed chart object, otherwise the chart might
+	// have come from a tar or tgz, so its files might not be directly available
+	// on disk at this point.
+	// In the general case, retrieving the hints file from disk is more work.
 	for _, file := range chart.Files {
 		if file.Name == EmbeddedHintsFilename && file.Data != nil {
 			log.Printf("%s hints file found\n", EmbeddedHintsFilename)
 			return file.Data
 		}
 	}
-
 	return nil
 }
 
-// loadPatternsFromFile from file first, or the embedded from the chart as a fallback
-func loadPatternsFromFile(patternsFile string, log Logger) ([]byte, error) {
-	contents, err := os.ReadFile(patternsFile)
+// loadHintsFromFile from a file
+func loadHintsFromFile(hintsFile string, log Logger) ([]byte, error) {
+	contents, err := os.ReadFile(hintsFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the image patterns file: %w", err)
 	}
-
 	return contents, nil
 }
 
