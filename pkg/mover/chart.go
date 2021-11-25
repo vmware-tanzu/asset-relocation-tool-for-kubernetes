@@ -146,7 +146,9 @@ type ChartMover struct {
 	chart                   *chart.Chart
 	logger                  Logger
 	retries                 uint
-	rawHints                []byte
+	// raw contents of the hints file. Sample:
+	// test/fixtures/testchart.images.yaml
+	rawHints []byte
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
