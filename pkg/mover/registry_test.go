@@ -58,12 +58,12 @@ func NewMoveRequest(chartPath, hints, target, targetRegistry, targetPrefix strin
 	return &mover.ChartMoveRequest{
 		Source: mover.Source{
 			// The Helm Chart can be provided in either tarball or directory form
-			Chart: mover.ChartSpec{Local: mover.LocalChart{Path: chartPath}},
+			Chart: mover.ChartSpec{Local: &mover.LocalChart{Path: chartPath}},
 			// path to file containing rules such as // {{.image.registry}}:{{.image.tag}}
 			ImageHintsFile: hints,
 		},
 		Target: mover.Target{
-			Chart: mover.ChartSpec{Local: mover.LocalChart{Path: target}},
+			Chart: mover.ChartSpec{Local: &mover.LocalChart{Path: target}},
 			// Where to push and how to rewrite the found images
 			// i.e docker.io/bitnami/mariadb => myregistry.com/myteam/mariadb
 			Rules: mover.RewriteRules{

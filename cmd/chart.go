@@ -30,6 +30,8 @@ var (
 
 	output string
 
+	toArchive string
+
 	// errMissingOutPlaceHolder if out flag is missing the wildcard * placeholder
 	errMissingOutPlaceHolder = errors.New("missing '*' placeholder in --out flag")
 
@@ -76,6 +78,9 @@ func newChartMoveCmd() *cobra.Command {
 	f.UintVar(&retries, "retries", defaultRetries, "number of times to retry push operations")
 	f.StringVar(&output, "out", "*.relocated.tgz", "name of the resulting chart")
 
+	// TODO: uncomment "coming soon" to add save and load support for airgap environments
+	// f.StringVar(&toArchive, "to-archive", "", "save the chart and all its dependencies to and offline archive tarball")
+
 	return cmd
 }
 
@@ -94,23 +99,25 @@ func moveChart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse output flag: %w", err)
 	}
 
-	chartMover, err := mover.NewChartMover(
-		&mover.ChartMoveRequest{
-			Source: mover.Source{
-				Chart: mover.ChartSpec{
-					Local: mover.LocalChart{Path: args[0]},
-				},
-				ImageHintsFile: imagePatternsFile,
+	moveRequest := mover.ChartMoveRequest{
+		Source: mover.Source{
+			Chart: mover.ChartSpec{
+				Local: &mover.LocalChart{Path: args[0]},
 			},
-			Target: mover.Target{
-				Chart: mover.ChartSpec{
-					Local: mover.LocalChart{Path: outputPathFmt},
-				},
-				Rules: *targetRewriteRules,
-			},
+			ImageHintsFile: imagePatternsFile,
 		},
-		mover.WithRetries(retries), mover.WithLogger(cmd),
-	)
+		Target: mover.Target{
+			Chart: mover.ChartSpec{},
+			Rules: *targetRewriteRules,
+		},
+	}
+	if toArchive != "" {
+		moveRequest.Target.Chart.Archive = &mover.OfflineArchive{Path: toArchive}
+	} else {
+		moveRequest.Target.Chart.Local = &mover.LocalChart{Path: outputPathFmt}
+	}
+	chartMover, err :=
+		mover.NewChartMover(&moveRequest, mover.WithRetries(retries), mover.WithLogger(cmd))
 	if err != nil {
 		var loadingError *mover.ChartLoadingError
 		if errors.As(err, &loadingError) {

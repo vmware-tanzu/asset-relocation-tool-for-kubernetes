@@ -22,11 +22,18 @@ const (
 	EmbeddedHintsFilename = ".relok8s-images.yaml"
 	// DefaultRetries indicates the default number of retries for pull/push operations
 	DefaultRetries = 3
+
+	// defaultTarPermissions
+	defaultTarPermissions = 0750
+
+	// HintsFilename to be present in the offline archive root path
+	HintsFilename = "hints.yaml"
 )
 
 var (
 	// ErrImageHintsMissing indicates that neither the hints file was provided nor found in the Helm chart
 	ErrImageHintsMissing = errors.New("no image hints provided")
+
 	// ErrOCIRewritesMissing indicates that no rewrite rules have been provided
 	ErrOCIRewritesMissing = errors.New("at least one rewrite rule is required")
 )
@@ -83,6 +90,10 @@ type LocalChart struct {
 	Path string
 }
 
+// OfflineArchive is a self contained version of a chart including
+// container images within and the hints file
+type OfflineArchive LocalChart
+
 // ContainerRepository defines a private repo name and credentials
 type ContainerRepository struct {
 	Server             string
@@ -96,7 +107,8 @@ type Containers struct {
 
 // ChartSpec of possible chart inputs or outputs
 type ChartSpec struct {
-	Local LocalChart
+	Local   *LocalChart
+	Archive *OfflineArchive
 }
 
 // Source of the chart move
@@ -126,9 +138,13 @@ type ChartMover struct {
 	chartChanges            []*internal.RewriteAction
 	sourceContainerRegistry internal.ContainerRegistryInterface
 	targetContainerRegistry internal.ContainerRegistryInterface
+	targetOfflineTarPath    string
 	chart                   *chart.Chart
 	logger                  Logger
 	retries                 uint
+	// raw contents of the hints file. Sample:
+	// test/fixtures/testchart.images.yaml
+	rawHints []byte
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
@@ -139,9 +155,8 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, &ChartLoadingError{Path: req.Source.Chart.Local.Path, Inner: err}
 	}
 
-	rules := req.Target.Rules
-	if rules.Registry == "" && rules.RepositoryPrefix == "" {
-		return nil, ErrOCIRewritesMissing
+	if err := validateTarget(&req.Target); err != nil {
+		return nil, err
 	}
 
 	sourceAuth := req.Source.Containers.ContainerRepository
@@ -152,7 +167,12 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		retries:                 DefaultRetries,
 		sourceContainerRegistry: internal.NewContainerRegistryClient(sourceAuth),
 		targetContainerRegistry: internal.NewContainerRegistryClient(targetAuth),
-		chartDestination:        targetOutput(req.Target.Chart.Local.Path, chart.Name(), chart.Metadata.Version),
+	}
+	if req.Target.Chart.Archive != nil {
+		cm.targetOfflineTarPath = req.Target.Chart.Archive.Path
+	}
+	if req.Target.Chart.Local != nil {
+		cm.chartDestination = targetOutput(req.Target.Chart.Local.Path, chart.Name(), chart.Metadata.Version)
 	}
 
 	// Option overrides
@@ -183,11 +203,12 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
 
-	imageChanges, chartChanges, err := cm.computeChanges(imageChanges, &rules)
+	imageChanges, chartChanges, err := cm.computeChanges(imageChanges, &req.Target.Rules)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute chart rewrites: %w", err)
 	}
 
+	cm.rawHints = patternsRaw
 	cm.imageChanges = imageChanges
 	cm.chartChanges = chartChanges
 
@@ -204,6 +225,32 @@ func (cm *ChartMover) WithRetries(retries uint) *ChartMover {
 // including the new location of the Helm Chart Images as well as
 // the expected rewrites in the Helm Chart.
 func (cm *ChartMover) Print() {
+	if cm.targetOfflineTarPath != "" {
+		cm.printSaveOfflineBundle()
+		return
+	}
+	cm.printMove()
+}
+
+func (cm *ChartMover) printSaveOfflineBundle() {
+	log := cm.logger
+	log.Printf("Will archive Helm Chart %s@%s, dependent images and hint file to offline tarball %s\n",
+		cm.chart.Metadata.Name, cm.chart.Metadata.Version, cm.targetOfflineTarPath)
+	names := map[string]bool{}
+	for _, change := range cm.imageChanges {
+		app := change.ImageReference.Context().Name()
+		version := change.ImageReference.Identifier()
+		fullImageName := fmt.Sprintf("%s:%s", app, version)
+		names[fullImageName] = true
+	}
+
+	log.Printf("%d images detected to be archived:\n", len(names))
+	for name := range names {
+		log.Printf("%s\n", name)
+	}
+}
+
+func (cm *ChartMover) printMove() {
 	log := cm.logger
 	log.Println("Image copies:")
 	for _, change := range cm.imageChanges {
@@ -236,17 +283,31 @@ func namespacedPath(fullpath, chartName string) string {
 }
 
 /*
-Move executes the Chart relocation which includes
+  Move performs the relocation.
+
+A regular move executes the Chart relocation which includes
 
 1 - Push all the images to their new locations
 
 2 - Rewrite the Helm Chart and its subcharts
 
 3 - Repackage the Helm chart as toChartFilename
+
+A save to an offline tarball bundle will:
+
+1 - Drop all images to disk, with the original chart (unpacked) and hints file
+
+2 - Package all in a single compressed tarball
 */
 func (cm *ChartMover) Move() error {
-	log := cm.logger
+	if cm.targetOfflineTarPath != "" {
+		return cm.saveOfflineBundle()
+	}
+	return cm.moveChart()
+}
 
+func (cm *ChartMover) moveChart() error {
+	log := cm.logger
 	log.Printf("Relocating %s@%s...\n", cm.chart.Name(), cm.chart.Metadata.Version)
 
 	err := cm.pushRewrittenImages(cm.imageChanges)
@@ -260,6 +321,19 @@ func (cm *ChartMover) Move() error {
 
 	log.Println("Done")
 	log.Println(cm.chartDestination)
+	return nil
+}
+
+// validateTarget ensures the requested Target has expected inputs.
+// If the archival target is not set, at least one transformation rule must be set
+func validateTarget(target *Target) error {
+	if target.Chart.Archive != nil {
+		return nil
+	}
+	rules := target.Rules
+	if rules.Registry == "" && rules.RepositoryPrefix == "" {
+		return ErrOCIRewritesMissing
+	}
 	return nil
 }
 
