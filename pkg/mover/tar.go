@@ -9,34 +9,9 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/user"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"syscall"
 )
-
-func uname(info os.FileInfo) string {
-	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-		u, err := user.LookupId(strconv.Itoa(int(stat.Uid)))
-		if err != nil {
-			log.Fatalf("Failed to get username for uid %v: %v", stat.Uid, err)
-		}
-		return u.Username
-	}
-	return ""
-}
-
-func gname(info os.FileInfo) string {
-	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-		g, err := user.LookupGroupId(strconv.Itoa(int(stat.Gid)))
-		if err != nil {
-			log.Fatalf("Failed to get username for uid %v: %v", stat.Uid, err)
-		}
-		return g.Name
-	}
-	return ""
-}
 
 func tarDirectory(rootPath, tarFile string) error {
 	f, err := os.Create(tarFile)
@@ -58,8 +33,6 @@ func tarDirectory(rootPath, tarFile string) error {
 			Name:    name,
 			Mode:    int64(info.Mode()),
 			ModTime: info.ModTime(),
-			Uname:   uname(info),
-			Gname:   gname(info),
 		}
 		if info.IsDir() {
 			hdr.Typeflag = tar.TypeDir
