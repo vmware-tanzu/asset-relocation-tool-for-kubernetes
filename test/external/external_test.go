@@ -59,9 +59,10 @@ var _ = Describe("External tests", func() {
 		steps.And("the command says that the rewritten images will be written to the chart and subchart")
 		steps.And("the command exits without error")
 		steps.And("the chart name and version is shown before relocation")
-		steps.And("the rewritten image is pushed")
+		steps.And("the tagged versions are pushed")
 		steps.And("the modified chart is written")
 		steps.And("the location of the chart is shown")
+		steps.And("the modified chart contains the digest tagged image")
 	})
 
 	Scenario("running chart move to intermediate bundle", func() {
@@ -83,7 +84,7 @@ var _ = Describe("External tests", func() {
 		steps.And("the command says that the rewritten images will be written to the chart and subchart")
 		steps.And("the command exits without error")
 		steps.And("the chart name and version is shown before relocation")
-		steps.And("the rewritten image is pushed")
+		steps.And("the tagged versions are pushed")
 		steps.And("the modified chart is written")
 		steps.And("the location of the chart is shown")
 		customRepoPrefix = oldprefix
@@ -146,8 +147,14 @@ var _ = Describe("External tests", func() {
 			Eventually(test.CommandSession.Out).Should(Say("  .image.name: harbor-repo.vmware.com/%s/tiny", customRepoPrefix))
 		})
 
-		define.Then(`^the rewritten image is pushed$`, func() {
-			Eventually(test.CommandSession.Out).Should(Say("Pushing harbor-repo.vmware.com/%s/tiny:tiniest...\nDone", customRepoPrefix))
+		define.Then(`^the digest version is written to the chart$`, func() {
+			Eventually(test.CommandSession.Out).Should(Say("Changes to be applied to testchart/values.yaml:"))
+			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("  .sameImageButNoTagRequirement.image: harbor-repo.vmware.com/%s/tiny@sha256:[a-z0-9]*", customRepoPrefix)))
+		})
+
+		define.Then(`^the tagged versions are pushed$`, func() {
+			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/%s/tiny:tiniest...\nDone", customRepoPrefix)))
+			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("Pushing harbor-repo.vmware.com/%s/busybox:1.33.1...\nDone", customRepoPrefix)))
 		})
 
 		define.Then(`^the chart name and version is shown before relocation$`, func() {
@@ -155,9 +162,14 @@ var _ = Describe("External tests", func() {
 		})
 
 		define.Then(`^the location of the chart is shown$`, func() {
-			modifiedChartPath := "testchart-0.1.0.relocated.tgz"
+			Eventually(test.CommandSession.Out).Should(Say("testchart-0.1.0.relocated.tgz"))
+		})
 
-			Eventually(test.CommandSession.Out).Should(Say(modifiedChartPath))
+		define.Then("^the modified chart contains the digest tagged image$", func() {
+			chart, err := loader.Load("testchart-0.1.0.relocated.tgz")
+			Expect(err).ToNot(HaveOccurred())
+			writtenImage := chart.Values["sameImageButNoTagRequirement"].(map[string]interface{})["image"]
+			Expect(writtenImage).To(MatchRegexp("harbor-repo.vmware.com/%s/tiny@sha256:[a-z0-9]*", customRepoPrefix))
 		})
 
 		var modifiedChartPath string
