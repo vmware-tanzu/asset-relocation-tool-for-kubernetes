@@ -4,6 +4,7 @@
 package mover
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -178,6 +179,44 @@ var _ = Describe("Pull & Push Images", func() {
 						Value: "pwall/wavefront",
 					},
 				}))
+			})
+		})
+
+		Context("the target image already exists with a different digest", func() {
+			changes := []*internal.ImageChange{
+				{
+					Pattern:        newPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
+					ImageReference: name.MustParseReference("index.docker.io/bitnami/wavefront:5.6.7"),
+					Image:          makeImage("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+					Digest:         "sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				},
+			}
+			rules := &RewriteRules{
+				Registry: "new-registry.io",
+			}
+
+			It("returns an error if no force push is set", func() {
+				fakeRegistry.CheckReturns(false, errors.New("Image exists with different digest")) // Pretend it doesn't exist
+
+				cm := testChartMover(fakeRegistry, newLogger())
+				_, _, err := cm.computeChanges(changes, rules)
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("sets image to be pushed if forcePush is set", func() {
+				fakeRegistry.CheckReturns(false, errors.New("Image exists with different digest")) // Pretend it doesn't exist
+
+				cm := testChartMover(fakeRegistry, newLogger())
+				rules.ForcePush = true
+				newChanges, _, err := cm.computeChanges(changes, rules)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("updating the image change list with the image to be pushed anyways", func() {
+					Expect(newChanges).To(HaveLen(1))
+					Expect(newChanges[0].Pattern).To(Equal(changes[0].Pattern))
+					Expect(newChanges[0].RewrittenReference.Name()).To(Equal("new-registry.io/bitnami/wavefront:5.6.7"))
+					Expect(newChanges[0].AlreadyPushed).To(BeFalse())
+				})
 			})
 		})
 

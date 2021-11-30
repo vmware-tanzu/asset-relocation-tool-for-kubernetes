@@ -15,6 +15,8 @@ type RewriteRules struct {
 	Registry string
 	// RepositoryPrefix will override the image path by being prepended before the image name
 	RepositoryPrefix string
+	// Push the image even if there is already an image with a different digest
+	ForcePush bool
 }
 
 func (r *RewriteRules) Validate() error {
