@@ -161,9 +161,11 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		sourceContainerRegistry: internal.NewContainerRegistryClient(sourceAuth),
 		targetContainerRegistry: internal.NewContainerRegistryClient(targetAuth),
 	}
+
 	if err := validateTarget(&req.Target); err != nil {
 		return nil, err
 	}
+
 	if req.Source.Chart.Local != nil {
 		err := cm.loadChart(req.Source.Chart.Local.Path, req.Source.ImageHintsFile)
 		if err != nil {
@@ -172,6 +174,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	} else {
 		return nil, fmt.Errorf("must provide a local chart as input")
 	}
+
 	if req.Target.Chart.IntermediateBundle != nil {
 		cm.targetIntermediateTarPath = req.Target.Chart.IntermediateBundle.Path
 	}
