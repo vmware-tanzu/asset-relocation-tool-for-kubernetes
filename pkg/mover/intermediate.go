@@ -75,6 +75,7 @@ func packImages(w io.Writer, imageChanges []*internal.ImageChange, logger Logger
 		refToImage[change.ImageReference] = change.Image
 		logger.Printf("Processing image %s\n", change.ImageReference.Name())
 	}
+
 	logger.Printf("Writing all %d images...\n", len(refToImage))
 	if err := tarball.MultiRefWrite(refToImage, w); err != nil {
 		return err
