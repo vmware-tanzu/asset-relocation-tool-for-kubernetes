@@ -248,7 +248,7 @@ func (cm *ChartMover) loadChart(chartPath string) error {
 
 func (cm *ChartMover) printSaveIntermediateBundle() {
 	log := cm.logger
-	log.Printf("Will archive Helm Chart %s@%s, dependent images and hint file to intermediate tarball %s\n",
+	log.Printf("Will archive Helm Chart %s@%s, dependent images and hint file to intermediate tarball %q\n",
 		cm.chart.Metadata.Name, cm.chart.Metadata.Version, cm.targetIntermediateTarPath)
 	names := map[string]bool{}
 	for _, change := range cm.imageChanges {
