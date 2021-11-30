@@ -4,7 +4,6 @@
 package mover
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,11 +14,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 	"helm.sh/helm/v3/pkg/chart"
-)
-
-var (
-	// ErrNotIntermediateBundle when a verified path does not have expected intermediate bundle contents
-	ErrNotIntermediateBundle = errors.New("not an intermediate chart bundle")
 )
 
 func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
