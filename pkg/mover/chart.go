@@ -201,7 +201,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	cm.logger.Println("Computing relocation...\n")
 	imageChanges, err := cm.pullOriginalImages(imagePatterns)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to pull original images: %w", err)
 	}
 
 	imageChanges, chartChanges, err := cm.computeChanges(imageChanges, &req.Target.Rules)
