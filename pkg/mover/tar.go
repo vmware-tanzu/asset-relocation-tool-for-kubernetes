@@ -15,6 +15,7 @@ import (
 type tarFileWriter struct {
 	*tar.Writer
 	io.WriteCloser
+	tarWriterDisabled bool
 }
 
 func (tfw *tarFileWriter) Close() error {
@@ -24,13 +25,17 @@ func (tfw *tarFileWriter) Close() error {
 	return tfw.WriteCloser.Close()
 }
 
-func (tfw *tarFileWriter) RawWriter() io.Writer {
+func (tfw *tarFileWriter) ContinueWithRawWriter() io.WriteCloser {
 	// this flush here allows for another tar writer to continue on the stream
-	tfw.Flush()
+	tfw.Writer.Flush()
+	tfw.tarWriterDisabled = false
 	return tfw.WriteCloser
 }
 
 func (tfw *tarFileWriter) WriteFile(name string, data []byte, permission fs.FileMode) error {
+	if tfw.tarWriterDisabled {
+		return fmt.Errorf("No more tar writing operations allowed after ContinueWithRawWriter")
+	}
 	hdr := &tar.Header{
 		Name: name,
 		Mode: int64(permission),
@@ -49,18 +54,6 @@ func newTarFileWriter(tarFile string) (*tarFileWriter, error) {
 	f, err := os.Create(tarFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tar file %s: %v", tarFile, err)
-	}
-	return &tarFileWriter{Writer: tar.NewWriter(f), WriteCloser: f}, nil
-}
-
-func reopenTarFileWriter(tarFile string) (*tarFileWriter, error) {
-	f, err := os.OpenFile(tarFile, os.O_RDWR, os.ModePerm)
-	if err != nil {
-		return nil, fmt.Errorf("failed to reopen %s %s", tarFile, err)
-	}
-	tarBlockSize := int64(512)
-	if _, err = f.Seek(-(2 * tarBlockSize), os.SEEK_END); err != nil {
-		log.Fatalln(err)
 	}
 	return &tarFileWriter{Writer: tar.NewWriter(f), WriteCloser: f}, nil
 }

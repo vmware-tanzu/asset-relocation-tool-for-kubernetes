@@ -38,15 +38,10 @@ func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
 	if err := tarChart(tfw, cd.chart); err != nil {
 		return fmt.Errorf("failed archiving original-chart/: %w", err)
 	}
-	if err := tfw.Close(); err != nil {
-		return fmt.Errorf("failed mid-closing intermediate bundle at %s: %w", tarFile, err)
-	}
 
-	tfw, err = reopenTarFileWriter(tarFile)
-	if err != nil {
-		return err
-	}
-	if err := packImages(tfw.RawWriter(), cd.imageChanges, log); err != nil {
+	// Need to give a raw writer to the tarball lib, ready to append tar entries
+	w := tfw.ContinueWithRawWriter()
+	if err := packImages(w, cd.imageChanges, log); err != nil {
 		return fmt.Errorf("failed archiving images: %w", err)
 	}
 
