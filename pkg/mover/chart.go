@@ -167,7 +167,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	}
 
 	if req.Source.Chart.Local != nil {
-		err := cm.loadChart(req.Source.Chart.Local.Path, req.Source.ImageHintsFile)
+		err := cm.loadChart(req.Source.Chart.Local.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -190,6 +190,11 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		}
 	}
 
+	var err error
+	cm.rawHints, err = loadHints(req.Source.ImageHintsFile, cm.chart, cm.logger)
+	if err != nil {
+		return nil, err
+	}
 	if cm.rawHints == nil {
 		return nil, ErrImageHintsMissing
 	}
@@ -232,14 +237,13 @@ func (cm *ChartMover) Print() {
 	cm.printMove()
 }
 
-func (cm *ChartMover) loadChart(chartPath string, hintsFile string) error {
+func (cm *ChartMover) loadChart(chartPath string) error {
 	var err error
 	cm.chart, err = loader.Load(chartPath)
 	if err != nil {
 		return &ChartLoadingError{Path: chartPath, Inner: err}
 	}
-	cm.rawHints, err = loadHints(hintsFile, cm.chart, cm.logger)
-	return err
+	return nil
 }
 
 func (cm *ChartMover) printSaveIntermediateBundle() {
