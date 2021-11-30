@@ -14,6 +14,7 @@ type ImageChange struct {
 	RewrittenReference name.Reference
 	Image              v1.Image
 	Digest             string
+	Tag                string
 	AlreadyPushed      bool
 }
 

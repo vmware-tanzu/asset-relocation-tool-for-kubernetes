@@ -464,6 +464,11 @@ func loadImageChanges(chart *chart.Chart, patterns []*internal.ImageTemplate, lo
 			change.Image = imageCache[originalImage.Name()].Image
 			change.Digest = imageCache[originalImage.Name()].Digest
 		}
+
+		// If the identifier is not the digest, then it must be the tag.
+		if change.Digest != originalImage.Identifier() {
+			change.Tag = originalImage.Identifier()
+		}
 		changes = append(changes, change)
 	}
 	return changes, nil
@@ -518,8 +523,20 @@ func (cm *ChartMover) pushRewrittenImages(imageChanges []*internal.ImageChange) 
 		if change.ShouldPush() {
 			err := retry.Do(
 				func() error {
-					cm.logger.Printf("Pushing %s...\n", change.RewrittenReference.Name())
-					err := cm.targetContainerRegistry.Push(change.Image, change.RewrittenReference)
+					var err error
+					imageToPush := change.RewrittenReference
+
+					// if we know the tag, use that when pushing the image
+					if change.Tag != "" {
+						imageToPush, err = name.NewTag(imageToPush.Context().Name(), name.WithDefaultTag(change.Tag))
+						if err != nil {
+							cm.logger.Printf("Unable to determine the original tag for %s: %w", change.RewrittenReference.Name(), err)
+							imageToPush = change.RewrittenReference
+						}
+					}
+
+					cm.logger.Printf("Pushing %s...\n", imageToPush.Name())
+					err = cm.targetContainerRegistry.Push(change.Image, imageToPush)
 					if err != nil {
 						return err
 					}

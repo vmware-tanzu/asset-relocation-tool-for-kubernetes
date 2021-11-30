@@ -26,12 +26,6 @@ type testPrinter struct {
 	out *Buffer
 }
 
-func newLogger() *testPrinter {
-	return &testPrinter{
-		out: NewBuffer(),
-	}
-}
-
 func (c *testPrinter) print(i ...interface{}) {
 	_, _ = fmt.Fprint(c.out, i...)
 }
@@ -71,6 +65,9 @@ var testchart = test.MakeChart(&test.ChartSeed{
 				"tag":        "5.6.7",
 			},
 		},
+		"imagewithdigest": map[string]interface{}{
+			"repository": "bitnami/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
 	},
 })
 
@@ -101,12 +98,16 @@ func testChartMover(registry internal.ContainerRegistryInterface, logger Logger)
 var _ = Describe("Pull & Push Images", func() {
 	var (
 		fakeRegistry *internalfakes.FakeContainerRegistryInterface
+		printer      *testPrinter
 	)
 	BeforeEach(func() {
 		fakeRegistry = &internalfakes.FakeContainerRegistryInterface{}
+		printer = &testPrinter{
+			out: NewBuffer(),
+		}
 	})
 
-	Describe("ComputeChanges", func() {
+	Describe("computeChanges", func() {
 		It("checks if the rewritten images are present", func() {
 			changes := []*internal.ImageChange{
 				{
@@ -130,7 +131,7 @@ var _ = Describe("Pull & Push Images", func() {
 			fakeRegistry.CheckReturnsOnCall(0, true, nil)  // Pretend it doesn't exist
 			fakeRegistry.CheckReturnsOnCall(1, false, nil) // Pretend it already exists
 
-			cm := testChartMover(fakeRegistry, newLogger())
+			cm := testChartMover(fakeRegistry, printer)
 			newChanges, actions, err := cm.computeChanges(changes, rules)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -198,7 +199,7 @@ var _ = Describe("Pull & Push Images", func() {
 			It("returns an error if no force push is set", func() {
 				fakeRegistry.CheckReturns(false, errors.New("Image exists with different digest")) // Pretend it doesn't exist
 
-				cm := testChartMover(fakeRegistry, newLogger())
+				cm := testChartMover(fakeRegistry, printer)
 				_, _, err := cm.computeChanges(changes, rules)
 				Expect(err).To(HaveOccurred())
 			})
@@ -206,7 +207,7 @@ var _ = Describe("Pull & Push Images", func() {
 			It("sets image to be pushed if forcePush is set", func() {
 				fakeRegistry.CheckReturns(false, errors.New("Image exists with different digest")) // Pretend it doesn't exist
 
-				cm := testChartMover(fakeRegistry, newLogger())
+				cm := testChartMover(fakeRegistry, printer)
 				rules.ForcePush = true
 				newChanges, _, err := cm.computeChanges(changes, rules)
 				Expect(err).ToNot(HaveOccurred())
@@ -244,7 +245,7 @@ var _ = Describe("Pull & Push Images", func() {
 
 				fakeRegistry.CheckReturns(true, nil) // Pretend it doesn't exist
 
-				cm := testChartMover(fakeRegistry, newLogger())
+				cm := testChartMover(fakeRegistry, printer)
 				newChanges, actions, err := cm.computeChanges(changes, rules)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -309,7 +310,7 @@ var _ = Describe("Pull & Push Images", func() {
 				newPattern("{{.observability.image.registry}}/{{.observability.image.repository}}:{{.observability.image.tag}}"),
 			}
 
-			cm := testChartMover(fakeRegistry, newLogger())
+			cm := testChartMover(fakeRegistry, printer)
 			changes, err := cm.loadOriginalImages(patterns)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -324,9 +325,69 @@ var _ = Describe("Pull & Push Images", func() {
 				Expect(changes[0].Pattern).To(Equal(patterns[0]))
 				Expect(changes[0].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
 				Expect(changes[0].Digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+				Expect(changes[0].Tag).To(Equal("1.2.3"))
 				Expect(changes[1].Pattern).To(Equal(patterns[1]))
 				Expect(changes[1].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wavefront:5.6.7"))
 				Expect(changes[1].Digest).To(Equal("sha256:1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+				Expect(changes[1].Tag).To(Equal("5.6.7"))
+			})
+		})
+
+		Context("no tag set in chart", func() {
+			It("assumes the latest tag", func() {
+				digest1 := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				image1 := makeImage(digest1)
+				fakeRegistry.PullReturnsOnCall(0, image1, digest1, nil)
+
+				patterns := []*internal.ImageTemplate{
+					newPattern("{{.secondimage.registry}}/{{.secondimage.repository}}"),
+				}
+
+				cm := testChartMover(fakeRegistry, printer)
+				changes, err := cm.loadOriginalImages(patterns)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("pulling the image with the latest tag", func() {
+					Expect(fakeRegistry.PullCallCount()).To(Equal(1))
+					Expect(fakeRegistry.PullArgsForCall(0).Name()).To(Equal("index.docker.io/bitnami/wordpress:latest"))
+				})
+
+				By("returning the image", func() {
+					Expect(changes).To(HaveLen(1))
+					Expect(changes[0].Pattern).To(Equal(patterns[0]))
+					Expect(changes[0].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wordpress:latest"))
+					Expect(changes[0].Digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+					Expect(changes[0].Tag).To(Equal("latest"))
+				})
+			})
+		})
+
+		Context("image has no tag (digest is set)", func() {
+			It("does not assumed the latest tag", func() {
+				digest1 := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				image1 := makeImage(digest1)
+				fakeRegistry.PullReturnsOnCall(0, image1, digest1, nil)
+
+				patterns := []*internal.ImageTemplate{
+					newPattern("{{.imagewithdigest.repository}}"),
+				}
+
+				cm := testChartMover(fakeRegistry, printer)
+				changes, err := cm.loadOriginalImages(patterns)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("pulling the image with the latest tag", func() {
+					Expect(fakeRegistry.PullCallCount()).To(Equal(1))
+					Expect(fakeRegistry.PullArgsForCall(0).Name()).To(Equal("index.docker.io/bitnami/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+				})
+
+				By("returning the image", func() {
+					Expect(changes).To(HaveLen(1))
+					Expect(changes[0].Pattern).To(Equal(patterns[0]))
+					Expect(changes[0].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wordpress@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+					Expect(changes[0].Digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+					Expect(changes[0].Tag).To(Equal(""))
+				})
 			})
 		})
 
@@ -341,7 +402,7 @@ var _ = Describe("Pull & Push Images", func() {
 					newPattern("{{.secondimage.registry}}/{{.secondimage.repository}}:{{.secondimage.tag}}"),
 				}
 
-				cm := testChartMover(fakeRegistry, newLogger())
+				cm := testChartMover(fakeRegistry, printer)
 				changes, err := cm.loadOriginalImages(patterns)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -355,9 +416,11 @@ var _ = Describe("Pull & Push Images", func() {
 					Expect(changes[0].Pattern).To(Equal(patterns[0]))
 					Expect(changes[0].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
 					Expect(changes[0].Digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+					Expect(changes[0].Tag).To(Equal("1.2.3"))
 					Expect(changes[1].Pattern).To(Equal(patterns[1]))
 					Expect(changes[1].ImageReference.Name()).To(Equal("index.docker.io/bitnami/wordpress:1.2.3"))
 					Expect(changes[1].Digest).To(Equal("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+					Expect(changes[1].Tag).To(Equal("1.2.3"))
 				})
 			})
 		})
@@ -369,7 +432,7 @@ var _ = Describe("Pull & Push Images", func() {
 					newPattern("{{.image.registry}}/{{.image.repository}}"),
 				}
 
-				cm := testChartMover(fakeRegistry, newLogger())
+				cm := testChartMover(fakeRegistry, printer)
 				_, err := cm.loadOriginalImages(patterns)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("failed to pull original images: image pull error"))
@@ -383,14 +446,15 @@ var _ = Describe("Pull & Push Images", func() {
 			images = []*internal.ImageChange{
 				{
 					ImageReference:     name.MustParseReference("acme/busybox:1.2.3"),
-					RewrittenReference: name.MustParseReference("harbor-repo.vmware.com/pwall/busybox:1.2.3"),
+					RewrittenReference: name.MustParseReference("harbor-repo.vmware.com/pwall/busybox@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 					Image:              makeImage("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+					Digest:             "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					Tag:                "1.2.3",
 				},
 			}
 		})
 
 		It("pushes the images", func() {
-			printer := newLogger()
 			cm := testChartMover(fakeRegistry, printer)
 			err := cm.pushRewrittenImages(images)
 			Expect(err).ToNot(HaveOccurred())
@@ -399,7 +463,7 @@ var _ = Describe("Pull & Push Images", func() {
 				Expect(fakeRegistry.PushCallCount()).To(Equal(1))
 				image, ref := fakeRegistry.PushArgsForCall(0)
 				Expect(image).To(Equal(images[0].Image))
-				Expect(ref).To(Equal(images[0].RewrittenReference))
+				Expect(ref.Name()).To(Equal("harbor-repo.vmware.com/pwall/busybox:1.2.3"))
 			})
 
 			By("logging the process", func() {
@@ -407,11 +471,32 @@ var _ = Describe("Pull & Push Images", func() {
 			})
 		})
 
+		Context("tag is not known", func() {
+			It("pushes the digest image", func() {
+				images[0].Tag = ""
+
+				cm := testChartMover(fakeRegistry, printer)
+				err := cm.pushRewrittenImages(images)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("pushing the image", func() {
+					Expect(fakeRegistry.PushCallCount()).To(Equal(1))
+					image, ref := fakeRegistry.PushArgsForCall(0)
+					Expect(image).To(Equal(images[0].Image))
+					Expect(ref).To(Equal(images[0].RewrittenReference))
+				})
+
+				By("logging the process", func() {
+					Expect(printer.out).To(Say("Pushing harbor-repo.vmware.com/pwall/busybox@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...\nDone"))
+				})
+			})
+		})
+
 		Context("rewritten image is the same", func() {
 			It("does not push the image", func() {
 				images[0].RewrittenReference = images[0].ImageReference
 
-				cm := testChartMover(fakeRegistry, newLogger())
+				cm := testChartMover(fakeRegistry, printer)
 				err := cm.pushRewrittenImages(images)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -424,7 +509,7 @@ var _ = Describe("Pull & Push Images", func() {
 		Context("image has already been pushed", func() {
 			It("does not push the image", func() {
 				images[0].AlreadyPushed = true
-				cm := testChartMover(fakeRegistry, newLogger())
+				cm := testChartMover(fakeRegistry, printer)
 				err := cm.pushRewrittenImages(images)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -441,7 +526,6 @@ var _ = Describe("Pull & Push Images", func() {
 			})
 
 			It("retries and passes", func() {
-				printer := newLogger()
 				cm := testChartMover(fakeRegistry, printer)
 				err := cm.pushRewrittenImages(images)
 				Expect(err).ToNot(HaveOccurred())
@@ -464,7 +548,6 @@ var _ = Describe("Pull & Push Images", func() {
 			})
 
 			It("returns an error", func() {
-				printer := newLogger()
 				cm := testChartMover(fakeRegistry, printer)
 				err := cm.pushRewrittenImages(images)
 				Expect(err).To(HaveOccurred())
