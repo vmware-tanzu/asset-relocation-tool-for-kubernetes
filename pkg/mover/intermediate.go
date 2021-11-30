@@ -53,6 +53,7 @@ func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
 	return nil
 }
 
+// tarChart tars all files from the original chart into `original-chart/`
 func tarChart(tfw *tarFileWriter, chart *chart.Chart) error {
 	for _, file := range chart.Raw {
 		if err := tfw.WriteFile(filepath.Join("original-chart", file.Name), file.Data, os.ModePerm); err != nil {
