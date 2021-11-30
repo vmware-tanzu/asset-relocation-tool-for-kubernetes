@@ -23,8 +23,8 @@ const (
 	// DefaultRetries indicates the default number of retries for pull/push operations
 	DefaultRetries = 3
 
-	// HintsFilename to be present in the intermediate archive root path
-	HintsFilename = "hints.yaml"
+	// IntermediateBundleHintsFilename to be present in the intermediate archive root path
+	IntermediateBundleHintsFilename = "hints.yaml"
 )
 
 var (

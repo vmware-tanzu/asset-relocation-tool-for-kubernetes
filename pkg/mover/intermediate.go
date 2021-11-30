@@ -29,9 +29,9 @@ func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
 	}
 
 	// hints file goes first to be extracted quickly on demand
-	log.Printf("Writing %s...\n", HintsFilename)
-	if err := tfw.WriteFile(HintsFilename, cd.rawHints, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to write %s: %w", HintsFilename, err)
+	log.Printf("Writing %s...\n", IntermediateBundleHintsFilename)
+	if err := tfw.WriteFile(IntermediateBundleHintsFilename, cd.rawHints, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to write %s: %w", IntermediateBundleHintsFilename, err)
 	}
 
 	log.Printf("Writing Helm Chart files at %s/...\n", cd.chart.Metadata.Name)
