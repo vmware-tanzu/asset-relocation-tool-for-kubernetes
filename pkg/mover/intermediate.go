@@ -16,6 +16,13 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 )
 
+// saveIntermediateBundle will tar in this order:
+// - The original chart
+// - The hits file
+// - The container images detected as references in the chart
+//
+// The hints file goes first in the tar, followed by the chart files.
+// Finally, images are appended using the go-containerregistry tarball lib
 func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
 	tfw, err := newTarFileWriter(tarFile)
 	if err != nil {
