@@ -87,8 +87,8 @@ type LocalChart struct {
 	Path string
 }
 
-// IntermediateBundle is a self contained version of a chart including
-// container images within and the hints file
+// IntermediateBundle is a self contained version of the original chart with
+// the hints file and container images
 type IntermediateBundle LocalChart
 
 // ContainerRepository defines a private repo name and credentials
