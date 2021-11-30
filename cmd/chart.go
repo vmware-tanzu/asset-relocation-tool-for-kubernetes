@@ -27,6 +27,7 @@ var (
 
 	registryRule         string
 	repositoryPrefixRule string
+	forcePush            bool
 
 	output string
 
@@ -70,10 +71,11 @@ func newChartMoveCmd() *cobra.Command {
 	f := cmd.Flags()
 	// TODO(miguel): Change to image-hints
 	f.StringVarP(&imagePatternsFile, "image-patterns", "i", "", "file with image patterns")
-	f.BoolVarP(&skipConfirmation, "yes", "y", false, "Proceed without prompting for confirmation")
+	f.BoolVarP(&skipConfirmation, "yes", "y", false, "proceed without prompting for confirmation")
 
 	f.StringVar(&registryRule, "registry", "", "hostname of the registry used to push the new images")
 	f.StringVar(&repositoryPrefixRule, "repo-prefix", "", "path prefix to be used when relocating the container images")
+	f.BoolVarP(&forcePush, "force-push", "f", false, "push the container images to destination even if they exist with a different digest")
 
 	f.UintVar(&retries, "retries", defaultRetries, "number of times to retry push operations")
 	f.StringVar(&output, "out", "*.relocated.tgz", "name of the resulting chart")
@@ -88,7 +90,9 @@ func moveChart(cmd *cobra.Command, args []string) error {
 	targetRewriteRules := &mover.RewriteRules{
 		Registry:         registryRule,
 		RepositoryPrefix: repositoryPrefixRule,
+		ForcePush:        forcePush,
 	}
+
 	err := targetRewriteRules.Validate()
 	if err != nil {
 		return err

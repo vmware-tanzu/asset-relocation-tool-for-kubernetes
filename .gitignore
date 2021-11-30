@@ -1,2 +1,10 @@
 build/*
 *.relocated.tgz
+
+# Visual Code
+.vscode
+# intellij / GoLand
+.ijwb
+.idea
+*.iml
+

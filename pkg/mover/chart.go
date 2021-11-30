@@ -286,18 +286,13 @@ func namespacedPath(fullpath, chartName string) string {
   Move performs the relocation.
 
 A regular move executes the Chart relocation which includes
-
-1 - Push all the images to their new locations
-
-2 - Rewrite the Helm Chart and its subcharts
-
-3 - Repackage the Helm chart as toChartFilename
+- Push all the images to their new locations
+- Rewrite the Helm Chart and its subcharts
+- Repackage the Helm chart as toChartFilename
 
 A save to an offline tarball bundle will:
-
-1 - Drop all images to disk, with the original chart (unpacked) and hints file
-
-2 - Package all in a single compressed tarball
+- Drop all images to disk, with the original chart (unpacked) and hints file
+- Package all in a single compressed tarball
 */
 func (cm *ChartMover) Move() error {
 	if cm.targetOfflineTarPath != "" {
@@ -372,13 +367,12 @@ func (cm *ChartMover) pullOriginalImages(pattens []*internal.ImageTemplate) ([]*
 func (cm *ChartMover) computeChanges(imageChanges []*internal.ImageChange, registryRules *RewriteRules) ([]*internal.ImageChange, []*internal.RewriteAction, error) {
 	var chartChanges []*internal.RewriteAction
 	imageCache := map[string]bool{}
+	rewriteRules := &internal.OCIImageLocation{
+		Registry:         registryRules.Registry,
+		RepositoryPrefix: registryRules.RepositoryPrefix,
+	}
 
 	for _, change := range imageChanges {
-		rewriteRules := &internal.OCIImageLocation{
-			Registry:         registryRules.Registry,
-			RepositoryPrefix: registryRules.RepositoryPrefix,
-		}
-
 		newActions, err := change.Pattern.Apply(change.ImageReference.Context(), change.Digest, rewriteRules)
 		if err != nil {
 			return nil, nil, err
@@ -398,12 +392,15 @@ func (cm *ChartMover) computeChanges(imageChanges []*internal.ImageChange, regis
 				// This image has already been checked previously, so just force this one to be skipped
 				change.AlreadyPushed = true
 			} else {
-				needToPush, err := cm.targetContainerRegistry.Check(change.Digest, rewrittenImage)
-				if err != nil {
-					return nil, nil, err
+				// If ForcePush is set we add it to the list of changes to be performed regardless
+				if !registryRules.ForcePush {
+					needToPush, err := cm.targetContainerRegistry.Check(change.Digest, rewrittenImage)
+					if err != nil {
+						return nil, nil, err
+					}
+					change.AlreadyPushed = !needToPush
 				}
 
-				change.AlreadyPushed = !needToPush
 				imageCache[rewrittenImage.Name()] = true
 			}
 		}
