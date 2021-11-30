@@ -402,7 +402,7 @@ func (cm *ChartMover) computeChanges(imageChanges []*internal.ImageChange, regis
 				if !registryRules.ForcePush {
 					needToPush, err := cm.targetContainerRegistry.Check(change.Digest, rewrittenImage)
 					if err != nil {
-						return nil, nil, err
+						return nil, nil, fmt.Errorf("failed check, use forcePush option to override :%w", err)
 					}
 					change.AlreadyPushed = !needToPush
 				}
