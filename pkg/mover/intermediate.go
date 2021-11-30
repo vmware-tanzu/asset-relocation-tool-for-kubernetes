@@ -24,7 +24,8 @@ import (
 // The hints file goes first in the tar, followed by the chart files.
 // Finally, images are appended using the go-containerregistry tarball lib
 func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
-	tfw, err := newTarFileWriter(tarFile)
+	tmpTarfile := fmt.Sprintf("%s.tmp", tarFile)
+	tfw, err := newTarFileWriter(tmpTarfile)
 	if err != nil {
 		return err
 	}
@@ -47,7 +48,10 @@ func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
 	}
 
 	if err := tfw.Close(); err != nil {
-		return fmt.Errorf("failed closing intermediate bundle at %s: %w", tarFile, err)
+		return fmt.Errorf("failed closing intermediate bundle %s: %w", tmpTarfile, err)
+	}
+	if err := os.Rename(tmpTarfile, tarFile); err != nil {
+		return fmt.Errorf("failed renaming %s -> %s: %w", tmpTarfile, tarFile, err)
 	}
 	log.Printf("Intermediate bundle complete at %s\n", tarFile)
 	return nil
