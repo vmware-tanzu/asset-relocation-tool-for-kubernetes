@@ -177,8 +177,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 
 	if req.Target.Chart.IntermediateBundle != nil {
 		cm.targetIntermediateTarPath = req.Target.Chart.IntermediateBundle.Path
-	}
-	if req.Target.Chart.Local != nil {
+	} else if req.Target.Chart.Local != nil {
 		cm.chartDestination =
 			targetOutput(req.Target.Chart.Local.Path, cm.chart.Name(), cm.chart.Metadata.Version)
 	}
