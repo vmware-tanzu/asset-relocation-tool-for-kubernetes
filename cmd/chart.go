@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strings"
 
@@ -80,16 +81,13 @@ func newChartMoveCmd() *cobra.Command {
 	f.UintVar(&retries, "retries", defaultRetries, "number of times to retry push operations")
 	f.StringVar(&output, "out", "*.relocated.tgz", "name of the resulting chart")
 
-	if experimentalFlagOn() {
-		f.StringVar(&toArchive, "to-archive", "", "save the chart and all its dependencies to an intermediate archive tarball")
+	f.StringVar(&toArchive, "to-archive", "", "save the chart and all its dependencies to an intermediate archive tarball")
+
+	if err := cmd.Flags().MarkHidden("to-archive"); err != nil {
+		log.Fatalf("failed to hide flag: %v", err)
 	}
 
 	return cmd
-}
-
-func experimentalFlagOn() bool {
-	experimental := strings.ToLower(os.Getenv("RELOK8S_EXPERIMENTAL"))
-	return experimental == "true" || experimental == "yes"
 }
 
 func moveChart(cmd *cobra.Command, args []string) error {
