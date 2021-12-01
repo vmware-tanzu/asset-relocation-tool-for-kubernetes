@@ -34,39 +34,43 @@ type bundledChartData struct {
 // The hints file goes first in the tar, followed by the chart files.
 // Finally, images are appended using the go-containerregistry tarball lib
 func saveIntermediateBundle(bcd *bundledChartData, tarFile string, log Logger) error {
-	tmpTarball, err := os.CreateTemp("", "intermediate-bundle-tar-*")
+	tmpTarballFilename, err := tarChartData(bcd, log)
 	if err != nil {
 		return err
 	}
-	tmpTarballFilename := tmpTarball.Name()
-	tfw := wrapAsTarFileWriter(tmpTarball)
-
-	// hints file goes first to be extracted quickly on demand
-	log.Printf("Writing %s...\n", IntermediateBundleHintsFilename)
-	if err := tfw.WriteMemFile(IntermediateBundleHintsFilename, bcd.rawHints, defaultPerm); err != nil {
-		return fmt.Errorf("failed to write %s: %w", IntermediateBundleHintsFilename, err)
-	}
-
-	log.Printf("Writing Helm Chart files at %s/...\n", bcd.chart.Metadata.Name)
-	if err := tarChart(tfw, bcd.chart); err != nil {
-		return fmt.Errorf("failed archiving original-chart/: %w", err)
-	}
-
-	if err := packImages(tfw, bcd.imageChanges, log); err != nil {
-		return fmt.Errorf("failed archiving images: %w", err)
-	}
-
-	if err := tfw.Close(); err != nil {
-		return fmt.Errorf("failed closing intermediate bundle temp file %s: %w",
-			tmpTarballFilename, err)
-	}
-
-	// TODO: check if this may fail across different mounts
+	// TODO(josvaz): check if this may fail across different mounts
 	if err := os.Rename(tmpTarballFilename, tarFile); err != nil {
 		return fmt.Errorf("failed renaming %s -> %s: %w", tmpTarballFilename, tarFile, err)
 	}
 	log.Printf("Intermediate bundle complete at %s\n", tarFile)
 	return nil
+}
+
+func tarChartData(bcd *bundledChartData, log Logger) (string, error) {
+	tmpTarball, err := os.CreateTemp("", "intermediate-bundle-tar-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary tar file: %w", err)
+	}
+	tmpTarballFilename := tmpTarball.Name()
+	tfw := wrapAsTarFileWriter(tmpTarball)
+	defer tfw.Close()
+
+	// hints file goes first to be extracted quickly on demand
+	log.Printf("Writing %s...\n", IntermediateBundleHintsFilename)
+	if err := tfw.WriteMemFile(IntermediateBundleHintsFilename, bcd.rawHints, defaultPerm); err != nil {
+		return "", fmt.Errorf("failed to write %s: %w", IntermediateBundleHintsFilename, err)
+	}
+
+	log.Printf("Writing Helm Chart files at %s/...\n", bcd.chart.Metadata.Name)
+	if err := tarChart(tfw, bcd.chart); err != nil {
+		return "", fmt.Errorf("failed archiving original-chart/: %w", err)
+	}
+
+	if err := packImages(tfw, bcd.imageChanges, log); err != nil {
+		return "", fmt.Errorf("failed archiving images: %w", err)
+	}
+
+	return tmpTarballFilename, nil
 }
 
 // tarChart tars all files from the original chart into `original-chart/`
