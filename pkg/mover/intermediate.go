@@ -5,7 +5,6 @@ package mover
 
 import (
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -44,7 +43,7 @@ func saveIntermediateBundle(bcd *bundledChartData, tarFile string, log Logger) e
 
 	// hints file goes first to be extracted quickly on demand
 	log.Printf("Writing %s...\n", IntermediateBundleHintsFilename)
-	if err := tfw.WriteMemoryFile(IntermediateBundleHintsFilename, bcd.rawHints, defaultPerm); err != nil {
+	if err := tfw.WriteMemFile(IntermediateBundleHintsFilename, bcd.rawHints, defaultPerm); err != nil {
 		return fmt.Errorf("failed to write %s: %w", IntermediateBundleHintsFilename, err)
 	}
 
@@ -62,36 +61,18 @@ func saveIntermediateBundle(bcd *bundledChartData, tarFile string, log Logger) e
 			tmpTarballFilename, err)
 	}
 
-	if err := copyAs(tmpTarballFilename, tarFile); err != nil {
-		return fmt.Errorf("failed copying  %s -> %s: %w", tmpTarballFilename, tarFile, err)
+	// TODO: check if this may fail across different mounts
+	if err := os.Rename(tmpTarballFilename, tarFile); err != nil {
+		return fmt.Errorf("failed renaming %s -> %s: %w", tmpTarballFilename, tarFile, err)
 	}
 	log.Printf("Intermediate bundle complete at %s\n", tarFile)
-	return nil
-}
-
-func copyAs(src, dst string) error {
-	tmpFilename := fmt.Sprintf("%s.tmp", dst)
-	dstFile, err := os.Create(tmpFilename)
-	if err != nil {
-		return fmt.Errorf("failed to create temporary destination file %s: %w", tmpFilename, err)
-	}
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("failed to open source %s: %w", src, err)
-	}
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		return fmt.Errorf("failed copying %s -> %s: %w", src, dst, err)
-	}
-	if err := os.Rename(tmpFilename, dst); err != nil {
-		return fmt.Errorf("failed renaming %s -> %s: %w", tmpFilename, dst, err)
-	}
 	return nil
 }
 
 // tarChart tars all files from the original chart into `original-chart/`
 func tarChart(tfw *tarFileWriter, chart *chart.Chart) error {
 	for _, file := range chart.Raw {
-		if err := tfw.WriteMemoryFile(filepath.Join("original-chart", file.Name), file.Data, defaultPerm); err != nil {
+		if err := tfw.WriteMemFile(filepath.Join("original-chart", file.Name), file.Data, defaultPerm); err != nil {
 			return fmt.Errorf("failed to write chart's inner file %s: %v", file.Name, err)
 		}
 	}
@@ -99,18 +80,21 @@ func tarChart(tfw *tarFileWriter, chart *chart.Chart) error {
 }
 
 func packImages(tfw *tarFileWriter, imageChanges []*internal.ImageChange, logger Logger) error {
-	root := "/"
-	fsys := os.DirFS(root)
 	imagesTarFilename, err := tarImages(imageChanges, logger)
 	if err != nil {
 		return fmt.Errorf("failed to pack images: %w", err)
 	}
 	defer os.Remove(imagesTarFilename)
-	fsImagesTarFilename, err := filepath.Rel(root, imagesTarFilename)
+	f, err := os.Open(imagesTarFilename)
 	if err != nil {
-		return fmt.Errorf("failed to get relative path of %s on %s: %w", imagesTarFilename, root, err)
+		return fmt.Errorf("failed to reopen %s for tarring: %w", imagesTarFilename, err)
 	}
-	return tfw.WriteFSFile(fsys, fsImagesTarFilename, defaultPerm)
+	defer f.Close()
+	info, err := os.Stat(imagesTarFilename)
+	if err != nil {
+		return fmt.Errorf("failed to stat %s: %w", imagesTarFilename, err)
+	}
+	return tfw.WriteIOFile("images.tar", info.Size(), f, defaultPerm)
 }
 
 func tarImages(imageChanges []*internal.ImageChange, logger Logger) (string, error) {

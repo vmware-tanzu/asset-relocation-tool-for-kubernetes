@@ -36,7 +36,7 @@ func (tfw *tarFileWriter) Close() error {
 	return tfw.WriteCloser.Close()
 }
 
-func (tfw *tarFileWriter) WriteMemoryFile(name string, data []byte, permission fs.FileMode) error {
+func (tfw *tarFileWriter) WriteMemFile(name string, data []byte, permission fs.FileMode) error {
 	hdr := &tar.Header{
 		Name: name,
 		Mode: int64(permission),
@@ -51,30 +51,17 @@ func (tfw *tarFileWriter) WriteMemoryFile(name string, data []byte, permission f
 	return nil
 }
 
-func (tfw *tarFileWriter) WriteFSFile(fsys fs.FS, name string, permission fs.FileMode) error {
-	info, err := fs.Stat(fsys, name)
-	if err != nil {
-		return fmt.Errorf("failed to stat file %s: %w", name, err)
-	}
-	mode := int64(permission)
-	if permission == 0 {
-		mode = int64(info.Mode())
-	}
+func (tfw *tarFileWriter) WriteIOFile(name string, size int64, r io.Reader, permission fs.FileMode) error {
 	hdr := &tar.Header{
 		Name: name,
-		Mode: mode,
-		Size: info.Size(),
+		Mode: int64(permission),
+		Size: int64(size),
 	}
 	if err := tfw.WriteHeader(hdr); err != nil {
 		log.Fatal(err)
 	}
-	f, err := fsys.Open(name)
-	if err != nil {
-		return fmt.Errorf("failed to open file %s: %w", name, err)
-	}
-	defer f.Close()
-	if _, err := io.Copy(tfw.Writer, f); err != nil {
-		return fmt.Errorf("failed to tar stream of %d bytes as file %s: %w", info.Size(), name, err)
+	if _, err := io.Copy(tfw.Writer, r); err != nil {
+		return fmt.Errorf("failed to tar stream of %d bytes as file %s: %w", size, name, err)
 	}
 	return nil
 }
