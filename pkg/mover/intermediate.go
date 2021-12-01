@@ -5,6 +5,7 @@ package mover
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -28,11 +29,12 @@ const (
 // The hints file goes first in the tar, followed by the chart files.
 // Finally, images are appended using the go-containerregistry tarball lib
 func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
-	tmpTarfile := fmt.Sprintf("%s.tmp", tarFile)
-	tfw, err := newTarFileWriter(tmpTarfile)
+	tmpTarball, err := os.CreateTemp("", "intermediate-bundle-tar-*")
 	if err != nil {
 		return err
 	}
+	tmpTarballFilename := tmpTarball.Name()
+	tfw := wrapAsTarFileWriter(tmpTarball)
 
 	// hints file goes first to be extracted quickly on demand
 	log.Printf("Writing %s...\n", IntermediateBundleHintsFilename)
@@ -50,12 +52,33 @@ func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
 	}
 
 	if err := tfw.Close(); err != nil {
-		return fmt.Errorf("failed closing intermediate bundle %s: %w", tmpTarfile, err)
+		return fmt.Errorf("failed closing intermediate bundle temp file %s: %w",
+			tmpTarballFilename, err)
 	}
-	if err := os.Rename(tmpTarfile, tarFile); err != nil {
-		return fmt.Errorf("failed renaming %s -> %s: %w", tmpTarfile, tarFile, err)
+
+	if err := copyAs(tmpTarballFilename, tarFile); err != nil {
+		return fmt.Errorf("failed copying  %s -> %s: %w", tmpTarballFilename, tarFile, err)
 	}
 	log.Printf("Intermediate bundle complete at %s\n", tarFile)
+	return nil
+}
+
+func copyAs(src, dst string) error {
+	tmpFilename := fmt.Sprintf("%s.tmp", dst)
+	dstFile, err := os.Create(tmpFilename)
+	if err != nil {
+		return fmt.Errorf("failed to create temporary destination file %s: %w", tmpFilename, err)
+	}
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source %s: %w", src, err)
+	}
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		return fmt.Errorf("failed copying %s -> %s: %w", src, dst, err)
+	}
+	if err := os.Rename(tmpFilename, dst); err != nil {
+		return fmt.Errorf("failed renaming %s -> %s: %w", tmpFilename, dst, err)
+	}
 	return nil
 }
 

@@ -22,7 +22,11 @@ func newTarFileWriter(tarFile string) (*tarFileWriter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tar file %s: %v", tarFile, err)
 	}
-	return &tarFileWriter{Writer: tar.NewWriter(f), WriteCloser: f}, nil
+	return wrapAsTarFileWriter(f), nil
+}
+
+func wrapAsTarFileWriter(wc io.WriteCloser) *tarFileWriter {
+	return &tarFileWriter{Writer: tar.NewWriter(wc), WriteCloser: wc}
 }
 
 func (tfw *tarFileWriter) Close() error {
