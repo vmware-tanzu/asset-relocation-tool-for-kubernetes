@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"testing/fstest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -27,6 +28,14 @@ var testDirContents = []testFile{
 	{path: "dir1/dir2/somedeepfile", data: "deep data"},
 }
 
+func newTestMapFS(files []testFile) fstest.MapFS {
+	tfs := fstest.MapFS{}
+	for _, file := range files {
+		tfs[file.path] = &fstest.MapFile{Data: []byte(file.data)}
+	}
+	return tfs
+}
+
 func newDir(label string) string {
 	dir, err := os.MkdirTemp("", label+"-*")
 	if err != nil {
@@ -35,14 +44,29 @@ func newDir(label string) string {
 	return dir
 }
 
-func tarTestFiles(tarFile string, testFiles []testFile) error {
+func tarTestMemoryFiles(tarFile string, testFiles []testFile) error {
 	tfw, err := newTarFileWriter(tarFile)
 	if err != nil {
 		return fmt.Errorf("failed to create tar file %s: %w", tarFile, err)
 	}
 	defer tfw.Close()
 	for _, testFile := range testFiles {
-		if err := tfw.WriteFile(testFile.path, []byte(testFile.data), os.ModePerm); err != nil {
+		if err := tfw.WriteMemoryFile(testFile.path, []byte(testFile.data), defaultPerm); err != nil {
+			log.Fatalf("failed to create test file %s: %v", testFile.path, err)
+		}
+	}
+	return nil
+}
+
+func tarTestFSFiles(tarFile string, testFiles []testFile) error {
+	tfw, err := newTarFileWriter(tarFile)
+	if err != nil {
+		return fmt.Errorf("failed to create tar file %s: %w", tarFile, err)
+	}
+	defer tfw.Close()
+	tmfs := newTestMapFS(testFiles)
+	for _, testFile := range testFiles {
+		if err := tfw.WriteFSFile(tmfs, testFile.path, defaultPerm); err != nil {
 			log.Fatalf("failed to create test file %s: %v", testFile.path, err)
 		}
 	}
@@ -85,9 +109,17 @@ func cleanup(dirs ...string) {
 
 var _ = Describe("Tar", func() {
 	Context("directory", func() {
-		It("tar all test files as expected", func() {
+		It("tar all test memory files as expected", func() {
 			tarFile := newTarFilePath()
-			err := tarTestFiles(tarFile, testDirContents)
+			err := tarTestMemoryFiles(tarFile, testDirContents)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(testDirContents).To(Equal(dumpTar(tarFile)))
+			cleanup(filepath.Dir(tarFile))
+		})
+
+		It("tar all test fs files as expected", func() {
+			tarFile := newTarFilePath()
+			err := tarTestFSFiles(tarFile, testDirContents)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(testDirContents).To(Equal(dumpTar(tarFile)))
 			cleanup(filepath.Dir(tarFile))

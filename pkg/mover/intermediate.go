@@ -5,7 +5,7 @@ package mover
 
 import (
 	"fmt"
-	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -14,6 +14,10 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 	"helm.sh/helm/v3/pkg/chart"
+)
+
+const (
+	defaultPerm fs.FileMode = 0644
 )
 
 // saveIntermediateBundle will tar in this order:
@@ -32,7 +36,7 @@ func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
 
 	// hints file goes first to be extracted quickly on demand
 	log.Printf("Writing %s...\n", IntermediateBundleHintsFilename)
-	if err := tfw.WriteFile(IntermediateBundleHintsFilename, cd.rawHints, os.ModePerm); err != nil {
+	if err := tfw.WriteMemoryFile(IntermediateBundleHintsFilename, cd.rawHints, defaultPerm); err != nil {
 		return fmt.Errorf("failed to write %s: %w", IntermediateBundleHintsFilename, err)
 	}
 
@@ -41,9 +45,7 @@ func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
 		return fmt.Errorf("failed archiving original-chart/: %w", err)
 	}
 
-	// Need to give a raw writer to the tarball lib, ready to append tar entries
-	w := tfw.ContinueWithRawWriter()
-	if err := packImages(w, cd.imageChanges, log); err != nil {
+	if err := packImages(tfw, cd.imageChanges, log); err != nil {
 		return fmt.Errorf("failed archiving images: %w", err)
 	}
 
@@ -60,14 +62,35 @@ func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
 // tarChart tars all files from the original chart into `original-chart/`
 func tarChart(tfw *tarFileWriter, chart *chart.Chart) error {
 	for _, file := range chart.Raw {
-		if err := tfw.WriteFile(filepath.Join("original-chart", file.Name), file.Data, os.ModePerm); err != nil {
+		if err := tfw.WriteMemoryFile(filepath.Join("original-chart", file.Name), file.Data, defaultPerm); err != nil {
 			return fmt.Errorf("failed to write chart's inner file %s: %v", file.Name, err)
 		}
 	}
 	return nil
 }
 
-func packImages(w io.Writer, imageChanges []*internal.ImageChange, logger Logger) error {
+func packImages(tfw *tarFileWriter, imageChanges []*internal.ImageChange, logger Logger) error {
+	root := "/"
+	fsys := os.DirFS(root)
+	imagesTarFilename, err := tarImages(imageChanges, logger)
+	if err != nil {
+		return fmt.Errorf("failed to pack images: %w", err)
+	}
+	defer os.Remove(imagesTarFilename)
+	fsImagesTarFilename, err := filepath.Rel(root, imagesTarFilename)
+	if err != nil {
+		return fmt.Errorf("failed to get relative path of %s on %s: %w", imagesTarFilename, root, err)
+	}
+	return tfw.WriteFSFile(fsys, fsImagesTarFilename, defaultPerm)
+}
+
+func tarImages(imageChanges []*internal.ImageChange, logger Logger) (string, error) {
+	imagesFile, err := os.CreateTemp("", "image-tar-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary images tar file: %w", err)
+	}
+	defer imagesFile.Close()
+
 	refToImage := map[name.Reference]v1.Image{}
 	for _, change := range imageChanges {
 		if _, ok := refToImage[change.ImageReference]; ok {
@@ -78,8 +101,8 @@ func packImages(w io.Writer, imageChanges []*internal.ImageChange, logger Logger
 	}
 
 	logger.Printf("Writing all %d images...\n", len(refToImage))
-	if err := tarball.MultiRefWrite(refToImage, w); err != nil {
-		return err
+	if err := tarball.MultiRefWrite(refToImage, imagesFile); err != nil {
+		return "", err
 	}
-	return nil
+	return imagesFile.Name(), nil
 }
