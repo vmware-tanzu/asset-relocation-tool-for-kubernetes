@@ -117,7 +117,13 @@ func moveChart(cmd *cobra.Command, args []string) error {
 			Rules: *targetRewriteRules,
 		},
 	}
-	moveRequest.Source.Chart.Local = &mover.LocalChart{Path: args[0]}
+	inputChartPath := args[0]
+	if mover.IsIntermediateBundle(inputChartPath) {
+		cmd.Printf("Detected intermediate bundle as input at %s\n", inputChartPath)
+		moveRequest.Source.Chart.IntermediateBundle = &mover.IntermediateBundle{Path: inputChartPath}
+	} else {
+		moveRequest.Source.Chart.Local = &mover.LocalChart{Path: inputChartPath}
+	}
 	if toArchive != "" {
 		moveRequest.Target.Chart.IntermediateBundle = &mover.IntermediateBundle{Path: toArchive}
 	} else {

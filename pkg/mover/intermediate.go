@@ -4,7 +4,11 @@
 package mover
 
 import (
+	"archive/tar"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -13,11 +17,18 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
+	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/chart"
+)
+
+var (
+	// ErrNotIntermediateBundle when a verified path does not have expected intermediate bundle contents
+	ErrNotIntermediateBundle = errors.New("not an intermediate chart bundle")
 )
 
 const (
 	originalChart = "original-chart"
+	imagesTar     = "images.tar"
 
 	defaultPerm fs.FileMode = 0644
 )
@@ -100,7 +111,7 @@ func packImages(tfw *tarFileWriter, imageChanges []*internal.ImageChange, logger
 	if err != nil {
 		return fmt.Errorf("failed to stat %s: %w", imagesTarFilename, err)
 	}
-	return tfw.WriteIOFile("images.tar", info.Size(), f, defaultPerm)
+	return tfw.WriteIOFile(imagesTar, info.Size(), f, defaultPerm)
 }
 
 func tarImages(imageChanges []*internal.ImageChange, logger Logger) (string, error) {
@@ -119,9 +130,122 @@ func tarImages(imageChanges []*internal.ImageChange, logger Logger) (string, err
 		logger.Printf("Processing image %s\n", change.ImageReference.Name())
 	}
 
-	logger.Printf("Writing all %d images...\n", len(refToImage))
+	logger.Printf("Writing %d images...\n", len(refToImage))
 	if err := tarball.MultiRefWrite(refToImage, imagesFile); err != nil {
 		return "", err
 	}
 	return imagesFile.Name(), nil
+}
+
+// IsIntermediateBundle returns tue only if VerifyIntermediateBundle finds no errors
+func IsIntermediateBundle(bundlePath string) bool {
+	return VerifyIntermediateBundle(bundlePath) == nil
+}
+
+type fileValidations struct {
+	filename, format string
+	validate         func(io.Reader) error
+}
+
+// VerifyIntermediateBundle returns true if the path points to an uncompressed
+// tarball with:
+//  A hints.yaml YAML file
+//  A manifest.json for the images
+//  A directory container an unpacked chart directory with valid YAMLs Chart.yaml & values.yaml
+func VerifyIntermediateBundle(bundlePath string) error {
+	validations := []fileValidations{
+		{filename: "hints.yaml", format: "YAML", validate: validateYAML},
+		{filename: originalChart + "/Chart.yaml", format: "YAML", validate: validateYAML},
+		{filename: originalChart + "/values.yaml", format: "YAML", validate: validateYAML},
+		{filename: imagesTar, format: "TAR", validate: validateTAR},
+	}
+	for _, fv := range validations {
+		r, err := openFromTar(bundlePath, fv.filename)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s from tar: %w", fv.filename, err)
+		}
+		defer r.Close()
+		if err := fv.validate(r); err != nil {
+			return fmt.Errorf("%w: %s is not valid %s: %v",
+				ErrNotIntermediateBundle, fv.filename, fv.format, err)
+		}
+	}
+	return nil
+}
+
+type intermediateBundle struct {
+	bundlePath string
+}
+
+func openBundle(bundlePath string) (*intermediateBundle, error) {
+	if err := VerifyIntermediateBundle(bundlePath); err != nil {
+		return nil, err
+	}
+	return &intermediateBundle{bundlePath}, nil
+}
+
+func (ib *intermediateBundle) ExtractChartTo(dir string) error {
+	err := untar(ib.bundlePath, originalChart, dir)
+	if err != nil {
+		return fmt.Errorf("failed to untar chart from bundle %s into %s: %w",
+			ib.bundlePath, dir, err)
+	}
+	return nil
+}
+
+func (ib *intermediateBundle) LoadHints(log Logger) ([]byte, error) {
+	r, err := openFromTar(ib.bundlePath, IntermediateBundleHintsFilename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract %s from bundle at %s: %w",
+			IntermediateBundleHintsFilename, ib.bundlePath, err)
+	}
+	return io.ReadAll(r)
+}
+
+func refToTag(imageRef name.Reference) (name.Tag, error) {
+	// more often that not an name.Reference is actually backed by a name.Tag
+	if tag, ok := (imageRef).(name.Tag); ok {
+		return tag, nil
+	}
+	return name.NewTag(fmt.Sprintf("%s:%s", imageRef.Context().Name(), imageRef.Identifier()))
+}
+
+func (ib *intermediateBundle) LoadImage(imageRef name.Reference) (v1.Image, string, error) {
+	tag, err := refToTag(imageRef)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to make tag from %s: %w", imageRef.Name(), err)
+	}
+	image, err := tarball.Image(newTarInTarOpener(ib.bundlePath, imagesTar), &tag)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to export image %s from tarball %s: %w", tag.Name(), ib.bundlePath, err)
+	}
+	digest, err := image.Digest()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get image digest for %s: %w", tag.Name(), err)
+	}
+	return image, digest.String(), nil
+}
+
+func validateYAML(r io.Reader) error {
+	yamlContents, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	var data interface{}
+	return yaml.Unmarshal(yamlContents, &data)
+}
+
+func validateJSON(r io.Reader) error {
+	jsonContents, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	var data interface{}
+	return json.Unmarshal(jsonContents, &data)
+}
+
+func validateTAR(r io.Reader) error {
+	tr := tar.NewReader(r)
+	_, err := tr.Next()
+	return err
 }
