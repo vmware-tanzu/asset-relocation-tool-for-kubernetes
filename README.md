@@ -29,26 +29,32 @@ New chart: mysql-8.5.8.rewritten.tgz
 
 The Asset Relocation Tool for Kubernetes requires a few inputs for the various commands.
 
-### Chart
+### Helm Chart
 
 Each command requires a Helm chart.
 The chart can be in directory format, or TGZ bundle.
 It can contain dependent charts.
 
-### Image Patterns File
+### Image Hints File
 
-The Asset Relocation Tool for Kubernetes requires an image patterns file.
-This file determines the list of images encoded in the Helm chart.
+The tool requires an image hints file which
+will be used to determine the list of images encoded in the Helm chart.
+
+This file can be either explicitly provided to the relok8s tool at runtime or **embedded inside the Helm Chart with the name `.relok8s-images.yaml`**
 
 ```yaml
 ---
 - "{{ .image }}:{{ .tag }}",
 - "{{ .proxy.image }}:{{ .proxy.tag }}",
-- "{{ .dependent-chart.image.repository }}@{{ .dependent-chart.image.digest }}",
+# You can also reference subcharts by prepending the subchart name
+- "{{ .mysubchart.image.repository }}@{{ .mysubchart.image.digest }}",
 ```
 
-This file is a list of strings which reference the fully detailed image path.
+The content is a list of string patterns referencing each container image path encoded
+in the chart/subcharts `values.yaml` files. Both :tags and @digest formats are allowed.
 To reference images encoded inside a dependent chart, the first key should be the dependent chart's name.
+
+For more information refer to [this example](examples/chart-with-subcharts).
 
 ### Rules
 
