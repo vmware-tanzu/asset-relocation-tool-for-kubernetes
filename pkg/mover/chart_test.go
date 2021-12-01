@@ -90,7 +90,7 @@ func makeImage(digest string) *moverfakes.FakeImage {
 
 func testChartMover(registry internal.ContainerRegistryInterface, logger Logger) *ChartMover {
 	return &ChartMover{
-		ChartData:               ChartData{chart: testchart},
+		chart:                   testchart,
 		sourceContainerRegistry: registry,
 		targetContainerRegistry: registry,
 		logger:                  logger,

@@ -128,26 +128,20 @@ type ChartMoveRequest struct {
 	Target Target
 }
 
-// ChartData is the part of the Chart mover data that should be saved for a move to complete
-// without any network access to the original chart resources
-type ChartData struct {
-	chart        *chart.Chart
-	imageChanges []*internal.ImageChange
-	// raw contents of the hints file. Sample:
-	// test/fixtures/testchart.images.yaml
-	rawHints []byte
-}
-
 // ChartMover represents a Helm Chart moving relocation. It's initialization must be done view NewChartMover
 type ChartMover struct {
-	ChartData
 	chartDestination          string
+	imageChanges              []*internal.ImageChange
 	chartChanges              []*internal.RewriteAction
 	sourceContainerRegistry   internal.ContainerRegistryInterface
 	targetContainerRegistry   internal.ContainerRegistryInterface
 	targetIntermediateTarPath string
+	chart                     *chart.Chart
 	logger                    Logger
 	retries                   uint
+	// raw contents of the hints file. Sample:
+	// test/fixtures/testchart.images.yaml
+	rawHints []byte
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
@@ -309,7 +303,12 @@ A save to an offline tarball bundle will:
 */
 func (cm *ChartMover) Move() error {
 	if cm.targetIntermediateTarPath != "" {
-		return saveIntermediateBundle(&cm.ChartData, cm.targetIntermediateTarPath, cm.logger)
+		bcd := &bundledChartData{
+			chart:        cm.chart,
+			imageChanges: cm.imageChanges,
+			rawHints:     cm.rawHints,
+		}
+		return saveIntermediateBundle(bcd, cm.targetIntermediateTarPath, cm.logger)
 	}
 	return cm.moveChart()
 }

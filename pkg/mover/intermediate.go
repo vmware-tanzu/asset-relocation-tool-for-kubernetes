@@ -21,6 +21,12 @@ const (
 	defaultPerm fs.FileMode = 0644
 )
 
+type bundledChartData struct {
+	chart        *chart.Chart
+	imageChanges []*internal.ImageChange
+	rawHints     []byte
+}
+
 // saveIntermediateBundle will tar in this order:
 // - The original chart
 // - The hits file
@@ -28,7 +34,7 @@ const (
 //
 // The hints file goes first in the tar, followed by the chart files.
 // Finally, images are appended using the go-containerregistry tarball lib
-func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
+func saveIntermediateBundle(bcd *bundledChartData, tarFile string, log Logger) error {
 	tmpTarball, err := os.CreateTemp("", "intermediate-bundle-tar-*")
 	if err != nil {
 		return err
@@ -38,16 +44,16 @@ func saveIntermediateBundle(cd *ChartData, tarFile string, log Logger) error {
 
 	// hints file goes first to be extracted quickly on demand
 	log.Printf("Writing %s...\n", IntermediateBundleHintsFilename)
-	if err := tfw.WriteMemoryFile(IntermediateBundleHintsFilename, cd.rawHints, defaultPerm); err != nil {
+	if err := tfw.WriteMemoryFile(IntermediateBundleHintsFilename, bcd.rawHints, defaultPerm); err != nil {
 		return fmt.Errorf("failed to write %s: %w", IntermediateBundleHintsFilename, err)
 	}
 
-	log.Printf("Writing Helm Chart files at %s/...\n", cd.chart.Metadata.Name)
-	if err := tarChart(tfw, cd.chart); err != nil {
+	log.Printf("Writing Helm Chart files at %s/...\n", bcd.chart.Metadata.Name)
+	if err := tarChart(tfw, bcd.chart); err != nil {
 		return fmt.Errorf("failed archiving original-chart/: %w", err)
 	}
 
-	if err := packImages(tfw, cd.imageChanges, log); err != nil {
+	if err := packImages(tfw, bcd.imageChanges, log); err != nil {
 		return fmt.Errorf("failed archiving images: %w", err)
 	}
 
