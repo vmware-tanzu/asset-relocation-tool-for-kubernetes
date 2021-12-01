@@ -183,7 +183,7 @@ var _ = Describe("External tests", func() {
 		})
 
 		define.Then(`^the command says it is writing the Helm Chart files$`, func() {
-			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Writing Helm Chart files at testchart/..."))
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Writing Helm Chart files at original-chart/..."))
 		})
 
 		define.Then(`^the command says it is writing the container images$`, func() {

@@ -17,6 +17,8 @@ import (
 )
 
 const (
+	originalChart = "original-chart"
+
 	defaultPerm fs.FileMode = 0644
 )
 
@@ -61,9 +63,9 @@ func tarChartData(bcd *bundledChartData, log Logger) (string, error) {
 		return "", fmt.Errorf("failed to write %s: %w", IntermediateBundleHintsFilename, err)
 	}
 
-	log.Printf("Writing Helm Chart files at %s/...\n", bcd.chart.Metadata.Name)
+	log.Printf("Writing Helm Chart files at %s/...\n", originalChart)
 	if err := tarChart(tfw, bcd.chart); err != nil {
-		return "", fmt.Errorf("failed archiving original-chart/: %w", err)
+		return "", fmt.Errorf("failed archiving %s/: %w", originalChart, err)
 	}
 
 	if err := packImages(tfw, bcd.imageChanges, log); err != nil {
@@ -76,7 +78,7 @@ func tarChartData(bcd *bundledChartData, log Logger) (string, error) {
 // tarChart tars all files from the original chart into `original-chart/`
 func tarChart(tfw *tarFileWriter, chart *chart.Chart) error {
 	for _, file := range chart.Raw {
-		if err := tfw.WriteMemFile(filepath.Join("original-chart", file.Name), file.Data, defaultPerm); err != nil {
+		if err := tfw.WriteMemFile(filepath.Join(originalChart, file.Name), file.Data, defaultPerm); err != nil {
 			return fmt.Errorf("failed to write chart's inner file %s: %v", file.Name, err)
 		}
 	}
