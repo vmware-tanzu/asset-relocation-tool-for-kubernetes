@@ -5,7 +5,6 @@ package mover
 
 import (
 	"archive/tar"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -233,15 +232,6 @@ func validateYAML(r io.Reader) error {
 	}
 	var data interface{}
 	return yaml.Unmarshal(yamlContents, &data)
-}
-
-func validateJSON(r io.Reader) error {
-	jsonContents, err := io.ReadAll(r)
-	if err != nil {
-		return err
-	}
-	var data interface{}
-	return json.Unmarshal(jsonContents, &data)
 }
 
 func validateTAR(r io.Reader) error {
