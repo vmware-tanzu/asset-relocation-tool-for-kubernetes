@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strings"
 
@@ -80,8 +81,11 @@ func newChartMoveCmd() *cobra.Command {
 	f.UintVar(&retries, "retries", defaultRetries, "number of times to retry push operations")
 	f.StringVar(&output, "out", "*.relocated.tgz", "name of the resulting chart")
 
-	// TODO: uncomment "coming soon" to add save and load support for airgap environments
-	// f.StringVar(&toArchive, "to-archive", "", "save the chart and all its dependencies to and offline archive tarball")
+	f.StringVar(&toArchive, "to-archive", "", "save the chart and all its dependencies to an intermediate archive tarball")
+
+	if err := cmd.Flags().MarkHidden("to-archive"); err != nil {
+		log.Fatalf("failed to hide flag: %v", err)
+	}
 
 	return cmd
 }
@@ -105,9 +109,7 @@ func moveChart(cmd *cobra.Command, args []string) error {
 
 	moveRequest := mover.ChartMoveRequest{
 		Source: mover.Source{
-			Chart: mover.ChartSpec{
-				Local: &mover.LocalChart{Path: args[0]},
-			},
+			Chart:          mover.ChartSpec{},
 			ImageHintsFile: imagePatternsFile,
 		},
 		Target: mover.Target{
@@ -115,8 +117,9 @@ func moveChart(cmd *cobra.Command, args []string) error {
 			Rules: *targetRewriteRules,
 		},
 	}
+	moveRequest.Source.Chart.Local = &mover.LocalChart{Path: args[0]}
 	if toArchive != "" {
-		moveRequest.Target.Chart.Archive = &mover.OfflineArchive{Path: toArchive}
+		moveRequest.Target.Chart.IntermediateBundle = &mover.IntermediateBundle{Path: toArchive}
 	} else {
 		moveRequest.Target.Chart.Local = &mover.LocalChart{Path: outputPathFmt}
 	}

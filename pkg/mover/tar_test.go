@@ -4,35 +4,28 @@
 package mover
 
 import (
-	"io/fs"
+	"archive/tar"
+	"bytes"
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var testDirContents = []struct {
+type testFile struct {
 	path, data string
-	dir        bool
-}{
+}
+
+var testDirContents = []testFile{
 	{path: "file-at-root.txt", data: "somedata in the root"},
 	{path: ".hiddenfile", data: "somehiddenfile data"},
 	{path: "emptyfile"},
 	{path: "dir1/somefile", data: "more data"},
 	{path: "dir1/dir2/somedeepfile", data: "deep data"},
-	{path: "emptydir/", dir: true},
-}
-
-func mkdirAll(path string) {
-	if path == "" {
-		return
-	}
-	if err := os.MkdirAll(path, defaultTarPermissions); err != nil {
-		log.Fatalf("failed to create test dir %s: %v", path, err)
-	}
 }
 
 func newDir(label string) string {
@@ -43,40 +36,58 @@ func newDir(label string) string {
 	return dir
 }
 
-func newTestDir() string {
-	dir := newDir("testDir")
-	for _, entry := range testDirContents {
-		fullpath := filepath.Join(dir, entry.path)
-		if entry.dir {
-			mkdirAll(fullpath)
-			continue
-		}
-		mkdirAll(filepath.Dir(fullpath))
-		err := os.WriteFile(fullpath, []byte(entry.data), defaultTarPermissions)
-		if err != nil {
-			log.Fatalf("failed to create test file %s: %v", fullpath, err)
+func tarTestMemoryFiles(tarFile string, testFiles []testFile) error {
+	tfw, err := newTarFileWriter(tarFile)
+	if err != nil {
+		return fmt.Errorf("failed to create tar file %s: %w", tarFile, err)
+	}
+	defer tfw.Close()
+	for _, testFile := range testFiles {
+		if err := tfw.WriteMemFile(testFile.path, []byte(testFile.data), defaultPerm); err != nil {
+			log.Fatalf("failed to create test file %s: %v", testFile.path, err)
 		}
 	}
-	return dir
+	return nil
+}
+
+func tarTestIOFiles(tarFile string, testFiles []testFile) error {
+	tfw, err := newTarFileWriter(tarFile)
+	if err != nil {
+		return fmt.Errorf("failed to create tar file %s: %w", tarFile, err)
+	}
+	defer tfw.Close()
+	for _, testFile := range testFiles {
+		r := bytes.NewBufferString(testFile.data)
+		if err := tfw.WriteIOFile(testFile.path, int64(len(testFile.data)), r, defaultPerm); err != nil {
+			log.Fatalf("failed to create test file %s: %v", testFile.path, err)
+		}
+	}
+	return nil
 }
 
 func newTarFilePath() string {
 	return filepath.Join(newDir("test-tar-dir"), "test.tar")
 }
 
-func lsRecursive(dir string) []string {
-	paths := []string{}
-	err := filepath.Walk(dir, func(path string, _ fs.FileInfo, err error) error {
-		if path == dir {
-			return nil
-		}
-		paths = append(paths, strings.TrimPrefix(path, dir+"/"))
-		return nil
-	})
+func dumpTar(tarFile string) []testFile {
+	tarredFiles := []testFile{}
+	f, err := os.Open(tarFile)
 	if err != nil {
-		log.Fatalf("failed to ls recursive on %s: %v", dir, err)
+		log.Fatalf("failed to dumpTar %s: %v", tarFile, err)
 	}
-	return paths
+	defer f.Close()
+	tr := tar.NewReader(f)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF || hdr == nil {
+			return tarredFiles
+		}
+		data, err := io.ReadAll(tr)
+		if err != nil {
+			log.Fatalf("failed to dump tarred file %s: %v", hdr.Name, err)
+		}
+		tarredFiles = append(tarredFiles, testFile{path: hdr.Name, data: string(data)})
+	}
 }
 
 func cleanup(dirs ...string) {
@@ -90,16 +101,20 @@ func cleanup(dirs ...string) {
 
 var _ = Describe("Tar", func() {
 	Context("directory", func() {
-		It("tar and untar reproduces original files", func() {
-			dir := newTestDir()
+		It("tar all test memory files as expected", func() {
 			tarFile := newTarFilePath()
-			err := tarDirectory(dir, tarFile)
+			err := tarTestMemoryFiles(tarFile, testDirContents)
 			Expect(err).ToNot(HaveOccurred())
-			targetDir := newDir("test-target")
-			err = untar(tarFile, targetDir)
+			Expect(testDirContents).To(Equal(dumpTar(tarFile)))
+			cleanup(filepath.Dir(tarFile))
+		})
+
+		It("tar all test fs files as expected", func() {
+			tarFile := newTarFilePath()
+			err := tarTestIOFiles(tarFile, testDirContents)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(lsRecursive(targetDir)).To(Equal(lsRecursive(dir)))
-			cleanup()
+			Expect(testDirContents).To(Equal(dumpTar(tarFile)))
+			cleanup(filepath.Dir(tarFile))
 		})
 	})
 })
