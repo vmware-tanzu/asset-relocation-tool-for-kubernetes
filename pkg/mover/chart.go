@@ -141,7 +141,7 @@ type ChartMover struct {
 	chart                     *chart.Chart
 	logger                    Logger
 	retries                   uint
-	bundle                    *intermediateBundle
+	intermediateBundle        *intermediateBundle
 	// raw contents of the hints file. Sample:
 	// test/fixtures/testchart.images.yaml
 	rawHints []byte
@@ -240,7 +240,7 @@ func (cm *ChartMover) loadChart(src *Source) error {
 
 func (cm *ChartMover) loadChartFromIntermediateBundle(bundlePath string) error {
 	var err error
-	cm.bundle, err = openBundle(bundlePath)
+	cm.intermediateBundle, err = openBundle(bundlePath)
 	if err != nil {
 		return err
 	}
@@ -248,11 +248,11 @@ func (cm *ChartMover) loadChartFromIntermediateBundle(bundlePath string) error {
 	chartPath, err := os.MkdirTemp("", "bundle-chart-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory to extract bundled chart %s: %w",
-			cm.bundle.bundlePath, err)
+			cm.intermediateBundle.bundlePath, err)
 	}
 	defer os.RemoveAll(chartPath)
 
-	if err := cm.bundle.ExtractChartTo(chartPath); err != nil {
+	if err := cm.intermediateBundle.ExtractChartTo(chartPath); err != nil {
 		return err
 	}
 
@@ -270,7 +270,7 @@ func (cm *ChartMover) loadHints(src *Source) error {
 			return fmt.Errorf("intermediate bundles already embed the hints file" +
 				", skip explicit hints, they will be ignored")
 		}
-		cm.rawHints, err = cm.bundle.LoadHints(cm.logger)
+		cm.rawHints, err = cm.intermediateBundle.LoadHints(cm.logger)
 	} else {
 		cm.rawHints, err = loadHints(src.ImageHintsFile, cm.chart, cm.logger)
 	}
@@ -310,8 +310,8 @@ func (cm *ChartMover) printMove() {
 			pushRequiredTxt = "push required"
 		}
 		src := change.ImageReference.Name()
-		if cm.bundle != nil {
-			src = fmt.Sprintf("(bundle %s:%s)", cm.bundle.bundlePath, src)
+		if cm.intermediateBundle != nil {
+			src = fmt.Sprintf("(bundle %s:%s)", cm.intermediateBundle.bundlePath, src)
 		}
 		log.Printf(" %s => %s (%s) (%s)\n",
 			src, change.RewrittenReference.Name(), change.Digest, pushRequiredTxt)
@@ -398,9 +398,9 @@ func (cm *ChartMover) loadImages(imagePatterns []*internal.ImageTemplate) ([]*in
 		return cm.sourceContainerRegistry.Pull(originalImage)
 	}
 	action := "pull"
-	if cm.bundle != nil {
+	if cm.intermediateBundle != nil {
 		loadFn = func(originalImage name.Reference) (v1.Image, string, error) {
-			return cm.bundle.LoadImage(originalImage)
+			return cm.intermediateBundle.LoadImage(originalImage)
 		}
 		action = "load"
 	}
