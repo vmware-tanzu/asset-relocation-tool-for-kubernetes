@@ -284,16 +284,22 @@ func (cm *ChartMover) loadImageHints(src *Source) error {
 // loadImageHintsFromBundle loads the image hints from the intermediate bundle
 func (cm *ChartMover) loadImageHintsFromBundle() error {
 	rawHints, err := cm.intermediateBundle.loadImageHints(cm.logger)
+	if err != nil {
+		return err
+	}
 	cm.rawHints = rawHints
-	return err
+	return nil
 }
 
 // loadImageHintsFromFileOrChart loads the image hints from a given file or the
 // chart, if the hints file is present inside.
 func (cm *ChartMover) loadImageHintsFromFileOrChart(imageHintsFile string) error {
 	rawHints, err := loadImageHints(imageHintsFile, cm.chart, cm.logger)
+	if err != nil {
+		return err
+	}
 	cm.rawHints = rawHints
-	return err
+	return nil
 }
 
 func (cm *ChartMover) printSaveIntermediateBundle() {
