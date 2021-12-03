@@ -138,7 +138,7 @@ func tarImages(imageChanges []*internal.ImageChange, logger Logger) (string, err
 
 // IsIntermediateBundle returns tue only if VerifyIntermediateBundle finds no errors
 func IsIntermediateBundle(bundlePath string) bool {
-	return VerifyIntermediateBundle(bundlePath) == nil
+	return verifyIntermediateBundle(bundlePath) == nil
 }
 
 type fileValidations struct {
@@ -151,7 +151,7 @@ type fileValidations struct {
 //  A hints.yaml YAML file
 //  A manifest.json for the images
 //  A directory container an unpacked chart directory with valid YAMLs Chart.yaml & values.yaml
-func VerifyIntermediateBundle(bundlePath string) error {
+func verifyIntermediateBundle(bundlePath string) error {
 	validations := []fileValidations{
 		{filename: "hints.yaml", format: "YAML", validate: validateYAML},
 		{filename: originalChart + "/Chart.yaml", format: "YAML", validate: validateYAML},
@@ -177,13 +177,13 @@ type intermediateBundle struct {
 }
 
 func openBundle(bundlePath string) (*intermediateBundle, error) {
-	if err := VerifyIntermediateBundle(bundlePath); err != nil {
+	if err := verifyIntermediateBundle(bundlePath); err != nil {
 		return nil, err
 	}
 	return &intermediateBundle{bundlePath}, nil
 }
 
-func (ib *intermediateBundle) ExtractChartTo(dir string) error {
+func (ib *intermediateBundle) extractChartTo(dir string) error {
 	err := untar(ib.bundlePath, originalChart, dir)
 	if err != nil {
 		return fmt.Errorf("failed to untar chart from bundle %s into %s: %w",
@@ -209,7 +209,7 @@ func refToTag(imageRef name.Reference) (name.Tag, error) {
 	return name.NewTag(fmt.Sprintf("%s:%s", imageRef.Context().Name(), imageRef.Identifier()))
 }
 
-func (ib *intermediateBundle) LoadImage(imageRef name.Reference) (v1.Image, string, error) {
+func (ib *intermediateBundle) loadImage(imageRef name.Reference) (v1.Image, string, error) {
 	tag, err := refToTag(imageRef)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to make tag from %s: %w", imageRef.Name(), err)

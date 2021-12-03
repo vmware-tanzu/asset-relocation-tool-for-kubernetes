@@ -250,7 +250,7 @@ func (cm *ChartMover) loadChartFromIntermediateBundle(bundlePath string) error {
 	}
 	defer os.RemoveAll(chartPath)
 
-	if err := cm.intermediateBundle.ExtractChartTo(chartPath); err != nil {
+	if err := cm.intermediateBundle.extractChartTo(chartPath); err != nil {
 		return err
 	}
 
@@ -422,7 +422,7 @@ func (cm *ChartMover) loadOriginalImages(imagePatterns []*internal.ImageTemplate
 	action := "pull"
 	if cm.intermediateBundle != nil {
 		loadFn = func(originalImage name.Reference) (v1.Image, string, error) {
-			return cm.intermediateBundle.LoadImage(originalImage)
+			return cm.intermediateBundle.loadImage(originalImage)
 		}
 		action = "load"
 	}
