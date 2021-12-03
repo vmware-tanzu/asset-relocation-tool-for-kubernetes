@@ -4,7 +4,6 @@
 package mover
 
 import (
-	"archive/tar"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +15,6 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
-	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/chart"
 )
 
@@ -141,33 +139,24 @@ func IsIntermediateBundle(bundlePath string) bool {
 	return verifyIntermediateBundle(bundlePath) == nil
 }
 
-type fileValidations struct {
-	filename, format string
-	validate         func(io.Reader) error
-}
-
 // VerifyIntermediateBundle returns true if the path points to an uncompressed
 // tarball with:
 //  A hints.yaml YAML file
 //  A manifest.json for the images
 //  A directory container an unpacked chart directory with valid YAMLs Chart.yaml & values.yaml
 func verifyIntermediateBundle(bundlePath string) error {
-	validations := []fileValidations{
-		{filename: "hints.yaml", format: "YAML", validate: validateYAML},
-		{filename: originalChart + "/Chart.yaml", format: "YAML", validate: validateYAML},
-		{filename: originalChart + "/values.yaml", format: "YAML", validate: validateYAML},
-		{filename: imagesTar, format: "TAR", validate: validateTAR},
+	expectedFiles := []string{
+		"hints.yaml",
+		originalChart + "/Chart.yaml",
+		originalChart + "/values.yaml",
+		imagesTar,
 	}
-	for _, fv := range validations {
-		r, err := openFromTar(bundlePath, fv.filename)
+	for _, filename := range expectedFiles {
+		r, err := openFromTar(bundlePath, filename)
 		if err != nil {
-			return fmt.Errorf("failed to open file %s from tar: %w", fv.filename, err)
+			return fmt.Errorf("failed to open file %s from tar: %w", filename, err)
 		}
 		defer r.Close()
-		if err := fv.validate(r); err != nil {
-			return fmt.Errorf("%w: %s is not valid %s: %v",
-				ErrNotIntermediateBundle, fv.filename, fv.format, err)
-		}
 	}
 	return nil
 }
@@ -220,19 +209,4 @@ func (ib *intermediateBundle) loadImage(imageRef name.Reference) (v1.Image, stri
 		return nil, "", fmt.Errorf("failed to get image digest for %s: %w", tag.Name(), err)
 	}
 	return image, digest.String(), nil
-}
-
-func validateYAML(r io.Reader) error {
-	yamlContents, err := io.ReadAll(r)
-	if err != nil {
-		return err
-	}
-	var data interface{}
-	return yaml.Unmarshal(yamlContents, &data)
-}
-
-func validateTAR(r io.Reader) error {
-	tr := tar.NewReader(r)
-	_, err := tr.Next()
-	return err
 }
