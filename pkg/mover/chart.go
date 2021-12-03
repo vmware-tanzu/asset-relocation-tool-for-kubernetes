@@ -182,7 +182,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	}
 
 	if err := cm.loadImageHints(&req.Source); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load hints file: %w", err)
 	}
 
 	imagePatterns, err := internal.ParseImagePatterns(cm.rawHints)
@@ -267,6 +267,7 @@ func (cm *ChartMover) loadChartFromPath(path string) error {
 }
 
 // loadImageHints loads the image hints in memory.
+// Uses loadImageHintsFromBundle or loadImageHintsFromFileOrChart.
 func (cm *ChartMover) loadImageHints(src *Source) error {
 	if src.Chart.IntermediateBundle != nil {
 		if src.ImageHintsFile != "" {
@@ -566,33 +567,36 @@ func saveChart(chart *chart.Chart, toChartFilename string) error {
 // load hints from either a given hints file or a chart-embedded hints file
 func loadImageHints(imageHintsFile string, chart *chart.Chart, log Logger) ([]byte, error) {
 	if imageHintsFile != "" {
-		rawHints, err := loadImageHintsFromFile(imageHintsFile, log)
+		rawHints, err := notNilData(loadImageHintsFromFile(imageHintsFile, log))
 		if err != nil {
 			return nil, err
 		}
 		return rawHints, nil
 	}
 	// If the hints file is not provided, try to find the hints inside the Chart
-	return loadImageHintsFromChart(chart, log), nil
+	return loadImageHintsFromChart(chart, log)
 }
 
-func loadImageHintsFromChart(chart *chart.Chart, log Logger) []byte {
+func loadImageHintsFromChart(chart *chart.Chart, log Logger) ([]byte, error) {
 	// We get the file form the parsed chart object, otherwise the chart might
 	// have come from a tar or tgz, so its files might not be directly available
 	// on disk at this point.
 	// In the general case, retrieving the hints file from disk is more work.
 	for _, file := range chart.Files {
-		if file.Name == EmbeddedHintsFilename && file.Data != nil {
+		if file.Name == EmbeddedHintsFilename {
+			if file.Data == nil {
+				return nil, errors.New("empty hints file in chart")
+			}
 			log.Printf("%s hints file found\n", EmbeddedHintsFilename)
-			return file.Data
+			return file.Data, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // loadImageHintsFromFile from a file
 func loadImageHintsFromFile(hintsFile string, log Logger) ([]byte, error) {
-	contents, err := os.ReadFile(hintsFile)
+	contents, err := notNilData(os.ReadFile(hintsFile))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the image patterns file: %w", err)
 	}
@@ -618,4 +622,11 @@ func WithLogger(l Logger) Option {
 
 func targetOutput(targetFormat, name, version string) string {
 	return fmt.Sprintf(targetFormat, name, version)
+}
+
+func notNilData(data []byte, err error) ([]byte, error) {
+	if err == nil && data == nil {
+		return nil, errors.New("no data loaded")
+	}
+	return data, err
 }
