@@ -93,9 +93,15 @@ test-features: deps test-fixtures
 test-external: deps test-fixtures
 	ginkgo -r test/external
 
-test-registry: deps test
+local-registry-image: deps test
 	docker build -f test/registry/Dockerfile -t registry-tester .
-	docker run -it --rm -p 5443:443 registry-tester
+
+test-registry: local-registry-image
+	docker run -it --rm -p 5443:443 registry-tester /bin/registry-test -test.v -test.run=TestRegistry
+
+test-performance: local-registry-image
+	docker run -it --rm -p 5443:443 registry-tester /bin/registry-test -test.v -test.run=TestMove
+	docker run -it --rm -p 5443:443 registry-tester /bin/registry-test -test.v -test.run=TestSaveNLoad
 
 test: deps lint test-units test-features
 

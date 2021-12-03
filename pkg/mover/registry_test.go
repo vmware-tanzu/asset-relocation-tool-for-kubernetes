@@ -21,6 +21,10 @@ const (
 
 	BadUser   = "notauser"
 	BadPasswd = "notapassword"
+
+	ComplexChart = "/data/examples/chart-with-subcharts/wordpress-chart"
+	ComplexHints = "/data/examples/chart-with-subcharts/image-hints.yaml"
+	Bundle       = "/data/wordpress-chart.rib.tar"
 )
 
 var logger = mover.NoLogger // change to mover.DefaultLogger for debug
@@ -74,6 +78,38 @@ func NewMoveRequest(chartPath, hints, target, targetRegistry, targetPrefix strin
 	}
 }
 
+func NewSaveRequest(chartPath, hints, bundle string) *mover.ChartMoveRequest {
+	return &mover.ChartMoveRequest{
+		Source: mover.Source{
+			// The Helm Chart can be provided in either tarball or directory form
+			Chart: mover.ChartSpec{Local: &mover.LocalChart{Path: chartPath}},
+			// path to file containing rules such as // {{.image.registry}}:{{.image.tag}}
+			ImageHintsFile: hints,
+		},
+		Target: mover.Target{
+			Chart: mover.ChartSpec{IntermediateBundle: &mover.IntermediateBundle{Path: bundle}},
+		},
+	}
+}
+
+func NewLoadRequest(bundle, target, targetRegistry, targetPrefix string) *mover.ChartMoveRequest {
+	return &mover.ChartMoveRequest{
+		Source: mover.Source{
+			// The Helm Chart can be provided in either tarball or directory form
+			Chart: mover.ChartSpec{IntermediateBundle: &mover.IntermediateBundle{Path: bundle}},
+		},
+		Target: mover.Target{
+			Chart: mover.ChartSpec{Local: &mover.LocalChart{Path: target}},
+			// Where to push and how to rewrite the found images
+			// i.e docker.io/bitnami/mariadb => myregistry.com/myteam/mariadb
+			Rules: mover.RewriteRules{
+				Registry:         targetRegistry,
+				RepositoryPrefix: targetPrefix,
+			},
+		},
+	}
+}
+
 func repo(domain, user, passwd string) mover.ContainerRepository {
 	return mover.ContainerRepository{
 		Server:   domain,
@@ -94,7 +130,7 @@ type Params struct {
 	certFile, domain, user, passwd string
 }
 
-func loadParams() Params {
+func loadParamsFromEnv() Params {
 	return Params{
 		certFile: os.Getenv("SSL_CERT_FILE"),
 		domain:   os.Getenv("DOMAIN"),
@@ -103,9 +139,9 @@ func loadParams() Params {
 	}
 }
 
-func TestDockerCredentials(t *testing.T) {
+func TestRegistryDockerCredentials(t *testing.T) {
 	skipUnitTest(t)
-	params := loadParams()
+	params := loadParamsFromEnv()
 	prepareDockerCA(t, params.certFile)
 	dockerLogin(t, params.domain, params.user, params.passwd)
 	got := relok8s(t, NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix))
@@ -115,9 +151,9 @@ func TestDockerCredentials(t *testing.T) {
 	}
 }
 
-func TestCustomCredentials(t *testing.T) {
+func TestRegistryCustomCredentials(t *testing.T) {
 	skipUnitTest(t)
-	params := loadParams()
+	params := loadParamsFromEnv()
 	prepareDockerCA(t, params.certFile)
 	dockerLogout(t, params.domain)
 	req := NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix)
@@ -129,9 +165,9 @@ func TestCustomCredentials(t *testing.T) {
 	}
 }
 
-func TestBadDockerCredentials(t *testing.T) {
+func TestRegistryBadDockerCredentials(t *testing.T) {
 	skipUnitTest(t)
-	params := loadParams()
+	params := loadParamsFromEnv()
 	prepareDockerCA(t, params.certFile)
 	dockerLogin(t, params.domain, BadUser, BadPasswd)
 	got := relok8s(t, NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix))
@@ -142,9 +178,9 @@ func TestBadDockerCredentials(t *testing.T) {
 	}
 }
 
-func TestBadCustomCredentials(t *testing.T) {
+func TestRegistryBadCustomCredentials(t *testing.T) {
 	skipUnitTest(t)
-	params := loadParams()
+	params := loadParamsFromEnv()
 	prepareDockerCA(t, params.certFile)
 	dockerLogout(t, params.domain)
 	req := NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix)
@@ -154,5 +190,33 @@ func TestBadCustomCredentials(t *testing.T) {
 	_, ok := got.(retry.Error)
 	if !ok {
 		t.Fatalf("want error.retry got %v", got)
+	}
+}
+
+func TestMovePerformance(t *testing.T) {
+	skipUnitTest(t)
+	params := loadParamsFromEnv()
+	prepareDockerCA(t, params.certFile)
+	dockerLogin(t, params.domain, params.user, params.passwd)
+	got := relok8s(t, NewMoveRequest(ComplexChart, ComplexHints, Target, params.domain, Prefix))
+	var want error
+	if got != want {
+		t.Fatalf("want error %v got %v", want, got)
+	}
+}
+
+func TestSaveNLoadPerformance(t *testing.T) {
+	skipUnitTest(t)
+	params := loadParamsFromEnv()
+	prepareDockerCA(t, params.certFile)
+	dockerLogin(t, params.domain, params.user, params.passwd)
+	got := relok8s(t, NewSaveRequest(ComplexChart, ComplexHints, Bundle))
+	var want error
+	if got != want {
+		t.Fatalf("want error %v got %v", want, got)
+	}
+	got = relok8s(t, NewLoadRequest(Bundle, Target, params.domain, Prefix))
+	if got != want {
+		t.Fatalf("want error %v got %v", want, got)
 	}
 }
