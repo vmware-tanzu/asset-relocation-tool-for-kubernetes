@@ -70,7 +70,14 @@ func (tfw *tarFileWriter) WriteIOFile(name string, size int64, r io.Reader, perm
 	return nil
 }
 
-func untar(tarFile, src, dst string) error {
+// untar extracts tarPath from tarFile onto the given dstDir.
+// The tarPath can be a single file or a directory. On the second case,
+// all files prefixed by that directory will be extracted to dstDir.
+func untar(tarFile, tarPath, dstDir string) error {
+	pathPrefix := tarPath
+	if tarPath == "" {
+		pathPrefix = "*"
+	}
 	f, err := os.Open(tarFile)
 	if err != nil {
 		return fmt.Errorf("failed to open tar file %s: %w", tarFile, err)
@@ -85,29 +92,30 @@ func untar(tarFile, src, dst string) error {
 		if err != nil {
 			return fmt.Errorf("failed to untar %s: %w", tarFile, err)
 		}
-		if src != "" && !strings.HasPrefix(hdr.Name, src) { // skip if not under src
+		// skip files not under pathPrefix
+		if pathPrefix != "*" && !strings.HasPrefix(hdr.Name, pathPrefix) {
 			continue
 		}
-		path := filepath.Join(dst, strings.TrimPrefix(hdr.Name, src))
+		fullpath := filepath.Join(dstDir, strings.TrimPrefix(hdr.Name, pathPrefix))
 		if hdr.Typeflag == tar.TypeDir {
-			if err := os.MkdirAll(path, os.ModePerm); err != nil {
-				return fmt.Errorf("failed to extract directory %s: %w", path, err)
+			if err := os.MkdirAll(fullpath, os.ModePerm); err != nil {
+				return fmt.Errorf("failed to create extract directory %s: %w", fullpath, err)
 			}
 			continue
 		}
-		dir := filepath.Dir(path)
+		dir := filepath.Dir(fullpath)
 		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 			return fmt.Errorf("failed to create extraction subdir %s: %w", dir, err)
 		}
-		f, err := os.Create(path)
+		f, err := os.Create(fullpath)
 		if err != nil {
-			return fmt.Errorf("failed to extract file %s: %w", path, err)
+			return fmt.Errorf("failed to extract file %s to %s: %w", hdr.Name, fullpath, err)
 		}
 		if _, err := io.Copy(f, tr); err != nil {
-			return fmt.Errorf("failed extracting file %s: %w", path, err)
+			return fmt.Errorf("failed extracting file %s to %s: %w", hdr.Name, fullpath, err)
 		}
 		if err := f.Close(); err != nil {
-			return fmt.Errorf("failed closing extracted file %s: %w", path, err)
+			return fmt.Errorf("failed closing extracted file %s: %w", fullpath, err)
 		}
 	}
 }
@@ -118,6 +126,7 @@ type tarredFile struct {
 	io.Closer
 }
 
+// openFromTar opens filePath as a read-only file stream from a tarFile tarball
 func openFromTar(tarFile, filePath string) (io.ReadCloser, error) {
 	f, err := os.Open(tarFile)
 	if err != nil {
@@ -154,6 +163,8 @@ func openFromTar(tarFile, filePath string) (io.ReadCloser, error) {
 	return nil, fmt.Errorf("file %s not found in tar", filePath)
 }
 
+// newTarInTarOpener is a openFromTar thunk wrapper so that a consumer, such as
+// the tarball lib's Image can open a read-only file within a tarball on demand.
 func newTarInTarOpener(tarFile, tarInTarFile string) func() (io.ReadCloser, error) {
 	return func() (io.ReadCloser, error) {
 		return openFromTar(tarFile, tarInTarFile)
