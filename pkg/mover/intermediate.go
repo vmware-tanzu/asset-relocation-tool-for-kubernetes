@@ -176,11 +176,8 @@ type intermediateBundle struct {
 	bundlePath string
 }
 
-func openBundle(bundlePath string) (*intermediateBundle, error) {
-	if err := verifyIntermediateBundle(bundlePath); err != nil {
-		return nil, err
-	}
-	return &intermediateBundle{bundlePath}, nil
+func newBundle(bundlePath string) *intermediateBundle {
+	return &intermediateBundle{bundlePath}
 }
 
 func (ib *intermediateBundle) extractChartTo(dir string) error {

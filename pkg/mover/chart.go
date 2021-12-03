@@ -237,11 +237,7 @@ func (cm *ChartMover) loadChart(src *Source) error {
 // loadChartFromIntermediateBundle loads the chart in memory after extracting
 // its files from the bundle into a temporary directory
 func (cm *ChartMover) loadChartFromIntermediateBundle(bundlePath string) error {
-	var err error
-	cm.intermediateBundle, err = openBundle(bundlePath)
-	if err != nil {
-		return err
-	}
+	cm.intermediateBundle = newBundle(bundlePath)
 
 	chartPath, err := os.MkdirTemp("", "bundle-chart-*")
 	if err != nil {
