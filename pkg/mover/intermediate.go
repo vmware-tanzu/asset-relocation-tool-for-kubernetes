@@ -192,7 +192,7 @@ func (ib *intermediateBundle) ExtractChartTo(dir string) error {
 	return nil
 }
 
-func (ib *intermediateBundle) LoadHints(log Logger) ([]byte, error) {
+func (ib *intermediateBundle) loadImageHints(log Logger) ([]byte, error) {
 	r, err := openFromTar(ib.bundlePath, IntermediateBundleHintsFilename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract %s from bundle at %s: %w",
