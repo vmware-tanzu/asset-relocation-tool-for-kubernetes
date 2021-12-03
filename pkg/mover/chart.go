@@ -225,13 +225,8 @@ func (cm *ChartMover) Print() {
 }
 
 func (cm *ChartMover) loadChart(src *Source) error {
-	var err error
 	if src.Chart.Local != nil {
-		cm.chart, err = loader.Load(src.Chart.Local.Path)
-		if err != nil {
-			return &ChartLoadingError{Path: src.Chart.Local.Path, Inner: err}
-		}
-		return nil
+		return cm.loadChartFromPath(src.Chart.Local.Path)
 	} else if src.Chart.IntermediateBundle != nil {
 		return cm.loadChartFromIntermediateBundle(src.Chart.IntermediateBundle.Path)
 	}
@@ -256,9 +251,13 @@ func (cm *ChartMover) loadChartFromIntermediateBundle(bundlePath string) error {
 		return err
 	}
 
-	cm.chart, err = loader.Load(chartPath)
-	if err != nil {
-		return &ChartLoadingError{Path: chartPath, Inner: err}
+	return cm.loadChartFromPath(chartPath)
+}
+
+func (cm *ChartMover) loadChartFromPath(path string) error {
+	var err error
+	if cm.chart, err = loader.Load(path); err != nil {
+		return &ChartLoadingError{Path: path, Inner: err}
 	}
 	return nil
 }
