@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	TestChart = "/data/wordpress-chart"
-	Hints     = "/data/image-hints.yaml"
-	Target    = "*-wp-relocated.tgz"
+	TestChart = "/data/examples/simple-chart/mariadb-chart"
+	Hints     = "/data/examples/simple-chart/image-hints.yaml"
+	Target    = "*-testchart-relocated.tgz"
 	Prefix    = "relocated/local-example"
 
 	BadUser   = "notauser"

@@ -22,7 +22,7 @@ ENV HOME /data
 COPY --from=compiled /go/bin/mkcert /bin/mkcert
 COPY --from=compiled /app/registry_test /bin/registry-test
 COPY --from=compiled /app/assets/docker-login.sh /bin/docker-login.sh
-COPY --from=compiled /app/examples/chart-with-subcharts/ /data/
+COPY --from=compiled /app/examples/ /data/examples
 COPY --from=registry /bin/registry /bin/registry
 COPY --from=registry /etc/docker/registry/config.yml /data/registry-config.yml
 COPY test/registry/local-registry.sh /bin/local-registry.sh
