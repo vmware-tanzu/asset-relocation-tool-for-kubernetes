@@ -191,7 +191,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	}
 
 	cm.logger.Println("Computing relocation...\n")
-	imageChanges, err := cm.loadImages(imagePatterns)
+	imageChanges, err := cm.loadOriginalImages(imagePatterns)
 	if err != nil {
 		return nil, err
 	}
@@ -409,9 +409,13 @@ func validateTarget(target *Target) error {
 	return nil
 }
 
+// imageLoadFn defines how an image is loaded
 type imageLoadFn func(name.Reference) (v1.Image, string, error)
 
-func (cm *ChartMover) loadImages(imagePatterns []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
+// loadOriginalImages will load container images from a remote registry or a local intermediate bundle.
+// The heavy lifting is done by loadImageChanges, but here the actual image load
+// function is selected.
+func (cm *ChartMover) loadOriginalImages(imagePatterns []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
 	loadFn := func(originalImage name.Reference) (v1.Image, string, error) {
 		return cm.sourceContainerRegistry.Pull(originalImage)
 	}
@@ -429,6 +433,9 @@ func (cm *ChartMover) loadImages(imagePatterns []*internal.ImageTemplate) ([]*in
 	return imageChanges, nil
 }
 
+// loadImageChanges loads images from a loader function load and wraps them as
+// ImageChange appropriately. As the load function is abstracted away this
+// can be loading remote or local images the same way.
 func loadImageChanges(chart *chart.Chart, patterns []*internal.ImageTemplate, load imageLoadFn) ([]*internal.ImageChange, error) {
 	var changes []*internal.ImageChange
 	imageCache := map[string]*internal.ImageChange{}

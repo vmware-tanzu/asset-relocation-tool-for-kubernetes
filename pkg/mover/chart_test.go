@@ -310,7 +310,7 @@ var _ = Describe("Pull & Push Images", func() {
 			}
 
 			cm := testChartMover(fakeRegistry, newLogger())
-			changes, err := cm.loadImages(patterns)
+			changes, err := cm.loadOriginalImages(patterns)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("pulling the images", func() {
@@ -342,7 +342,7 @@ var _ = Describe("Pull & Push Images", func() {
 				}
 
 				cm := testChartMover(fakeRegistry, newLogger())
-				changes, err := cm.loadImages(patterns)
+				changes, err := cm.loadOriginalImages(patterns)
 				Expect(err).ToNot(HaveOccurred())
 
 				By("pulling the image once", func() {
@@ -370,7 +370,7 @@ var _ = Describe("Pull & Push Images", func() {
 				}
 
 				cm := testChartMover(fakeRegistry, newLogger())
-				_, err := cm.loadImages(patterns)
+				_, err := cm.loadOriginalImages(patterns)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("failed to pull original images: image pull error"))
 			})
