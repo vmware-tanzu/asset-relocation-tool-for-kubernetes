@@ -187,16 +187,19 @@ func (ib *intermediateBundle) loadImageHints(log Logger) ([]byte, error) {
 	return io.ReadAll(r)
 }
 
-func refToTag(imageRef name.Reference) (name.Tag, error) {
-	// more often that not an name.Reference is actually backed by a name.Tag
+// tag gets us a name.Tag from a name.Reference interface
+// for some reason we do have name.Reference, which is accepted as is by the
+// saving code using tarball.MultiRefWrite, but for loading the tarball.Image
+// requires a name.Tag
+func tag(imageRef name.Reference) (name.Tag, error) {
 	if tag, ok := (imageRef).(name.Tag); ok {
 		return tag, nil
 	}
-	return name.NewTag(fmt.Sprintf("%s:%s", imageRef.Context().Name(), imageRef.Identifier()))
+	return name.Tag{}, fmt.Errorf("not sure how to convert imageRef %+#v to a tag", imageRef)
 }
 
 func (ib *intermediateBundle) loadImage(imageRef name.Reference) (v1.Image, string, error) {
-	tag, err := refToTag(imageRef)
+	tag, err := tag(imageRef)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to make tag from %s: %w", imageRef.Name(), err)
 	}
