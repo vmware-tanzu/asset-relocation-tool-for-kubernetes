@@ -119,9 +119,10 @@ func moveChart(cmd *cobra.Command, args []string) error {
 	}
 	inputChartPath := args[0]
 	if mover.IsIntermediateBundle(inputChartPath) {
-		cmd.Printf("Detected intermediate bundle as input at %s\n", inputChartPath)
+		cmd.Println("Intermediate bundle provided")
 		moveRequest.Source.Chart.IntermediateBundle = &mover.IntermediateBundle{Path: inputChartPath}
 	} else {
+		cmd.Println("Chart provided")
 		moveRequest.Source.Chart.Local = &mover.LocalChart{Path: inputChartPath}
 	}
 	if toArchive != "" {
