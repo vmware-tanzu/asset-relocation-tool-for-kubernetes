@@ -267,8 +267,7 @@ func (cm *ChartMover) loadChartFromPath(path string) error {
 func (cm *ChartMover) loadImageHints(src *Source) error {
 	if src.Chart.IntermediateBundle != nil {
 		if src.ImageHintsFile != "" {
-			return fmt.Errorf("intermediate bundles already embed the hints file" +
-				", skip explicit hints, they would have been be ignored")
+			return fmt.Errorf("do not set a hints filename, the bundle already provides it")
 		}
 		if err := cm.loadImageHintsFromBundle(); err != nil {
 			return err
