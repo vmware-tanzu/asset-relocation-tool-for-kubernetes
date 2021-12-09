@@ -21,7 +21,7 @@ func Example_load() {
 					// The source intermediate bundle path to place the charts and all its dependencies
 					IntermediateBundle: &IntermediateBundle{Path: "helm_chart.intermediate-bundle.tar"},
 				},
-				// no path to hints file as it is already comming inside the intermediate bundle
+				// no path to hints file as it is already coming inside the intermediate bundle
 				ImageHintsFile: "./image-hints.yaml",
 			},
 			Target: Target{
