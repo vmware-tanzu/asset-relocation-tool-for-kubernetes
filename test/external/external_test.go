@@ -65,7 +65,7 @@ var _ = Describe("External tests", func() {
 	})
 
 	Scenario("running chart move to intermediate bundle", func() {
-		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-archive %s/testchart-intermediate.tar", tmpDir))
+		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate.tar", tmpDir))
 		steps.And("the move is computed")
 		steps.Then("the command says it will archive the chart")
 		steps.Then("the command says it is writing the hints file")
