@@ -7,8 +7,9 @@ import (
 	"fmt"
 )
 
-// Move a chart and its dependencies to another registry and or repository
-func Example() {
+// Load a chart and its dependencies from a local intermediate bundle tarball
+// into a registry and or repository
+func Example_load() {
 	// i.e ./mariadb-7.5.relocated.tgz
 	destinationPath := "%s-%s.relocated.tgz"
 
@@ -16,9 +17,11 @@ func Example() {
 	chartMover, err := NewChartMover(
 		&ChartMoveRequest{
 			Source: Source{
-				// The Helm Chart can be provided in either tarball or directory form
-				Chart: ChartSpec{Local: &LocalChart{Path: "./helm_chart.tgz"}},
-				// path to file containing rules such as // {{.image.registry}}:{{.image.tag}}
+				Chart: ChartSpec{
+					// The source intermediate bundle path to place the charts and all its dependencies
+					IntermediateBundle: &IntermediateBundle{Path: "helm_chart.intermediate-bundle.tar"},
+				},
+				// no path to hints file as it is already comming inside the intermediate bundle
 				ImageHintsFile: "./image-hints.yaml",
 			},
 			Target: Target{
@@ -38,6 +41,7 @@ func Example() {
 	}
 
 	// Perform the push, rewrite and repackage of the Helm Chart
+	// All origin data is taken from within the source intermediate bundle
 	err = chartMover.Move()
 	if err != nil {
 		fmt.Println(err)
