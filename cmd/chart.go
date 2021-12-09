@@ -117,7 +117,14 @@ func moveChart(cmd *cobra.Command, args []string) error {
 			Rules: *targetRewriteRules,
 		},
 	}
-	moveRequest.Source.Chart.Local = &mover.LocalChart{Path: args[0]}
+	inputChartPath := args[0]
+	if mover.IsIntermediateBundle(inputChartPath) {
+		cmd.Println("Intermediate bundle provided")
+		moveRequest.Source.Chart.IntermediateBundle = &mover.IntermediateBundle{Path: inputChartPath}
+	} else {
+		cmd.Println("Chart provided")
+		moveRequest.Source.Chart.Local = &mover.LocalChart{Path: inputChartPath}
+	}
 	if toArchive != "" {
 		moveRequest.Target.Chart.IntermediateBundle = &mover.IntermediateBundle{Path: toArchive}
 	} else {
@@ -129,7 +136,7 @@ func moveChart(cmd *cobra.Command, args []string) error {
 		var loadingError *mover.ChartLoadingError
 		if errors.As(err, &loadingError) {
 			return loadingError
-		} else if err == mover.ErrImageHintsMissing {
+		} else if errors.Is(err, mover.ErrImageHintsMissing) {
 			return fmt.Errorf("image patterns file is required. Please try again with '--image-patterns <image patterns file>' or as part of the Helm chart at [chart]/%s file", mover.EmbeddedHintsFilename)
 		} else if err == mover.ErrOCIRewritesMissing {
 			return fmt.Errorf("at least one rewrite rule must be given. Please try again with --registry and/or --repo-prefix")

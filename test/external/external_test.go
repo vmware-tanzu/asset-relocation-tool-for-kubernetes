@@ -74,6 +74,21 @@ var _ = Describe("External tests", func() {
 		steps.Then("the command says the intermediate bundle is complete")
 	})
 
+	Scenario("running chart move from intermediate bundle", func() {
+		oldprefix := customRepoPrefix
+		customRepoPrefix += "-unbundled"
+		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart-intermediate.tar --repo-prefix %s", customRepoPrefix))
+		steps.And("the move is computed")
+		steps.Then("the command says that the unbundled & rewritten image will be pushed")
+		steps.And("the command says that the rewritten images will be written to the chart and subchart")
+		steps.And("the command exits without error")
+		steps.And("the chart name and version is shown before relocation")
+		steps.And("the rewritten image is pushed")
+		steps.And("the modified chart is written")
+		steps.And("the location of the chart is shown")
+		customRepoPrefix = oldprefix
+	})
+
 	steps.Define(func(define Definitions) {
 		test.DefineCommonSteps(define)
 
@@ -117,7 +132,8 @@ var _ = Describe("External tests", func() {
 
 		define.Then(`^the command says that the unbundled & rewritten image will be pushed$`, func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Image copies:"))
-			Eventually(test.CommandSession.Out).Should(Say("harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest \\(from bundle\\) => harbor-repo.vmware.com/%s/tiny:tiniest \\(sha256:[a-z0-9]*\\) \\(push required\\)", customRepoPrefix))
+			Eventually(test.CommandSession.Out).Should(Say("\\(bundle ../fixtures/testchart-intermediate.tar:harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest\\) => harbor-repo.vmware.com/%s/tiny:tiniest \\(sha256:[a-z0-9]*\\) \\(push required\\)", customRepoPrefix))
+			Eventually(test.CommandSession.Out).Should(Say("\\(bundle ../fixtures/testchart-intermediate.tar:harbor-repo.vmware.com/dockerhub-proxy-cache/library/busybox:1.33.1\\) => harbor-repo.vmware.com/%s/busybox@sha256:[a-z0-9]* \\(sha256:[a-z0-9]*\\) \\(push required\\)", customRepoPrefix))
 		})
 
 		define.Then(`^the command says that the rewritten images will be written to the chart and subchart$`, func() {
@@ -189,7 +205,7 @@ var _ = Describe("External tests", func() {
 		define.Then(`^the command says it is writing the container images$`, func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Processing image harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest\n"))
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Processing image harbor-repo.vmware.com/dockerhub-proxy-cache/library/busybox:1.33.1\n"))
-			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Writing all 2 images...\n"))
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Writing 2 images...\n"))
 		})
 
 		define.Then(`^the command says the intermediate bundle is complete$`, func() {

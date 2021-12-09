@@ -4,7 +4,9 @@
 package mover
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,8 +18,14 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 )
 
+var (
+	// ErrNotIntermediateBundle when a verified path does not have expected intermediate bundle contents
+	ErrNotIntermediateBundle = errors.New("not an intermediate chart bundle")
+)
+
 const (
 	originalChart = "original-chart"
+	imagesTar     = "images.tar"
 
 	defaultPerm fs.FileMode = 0644
 )
@@ -100,7 +108,7 @@ func packImages(tfw *tarFileWriter, imageChanges []*internal.ImageChange, logger
 	if err != nil {
 		return fmt.Errorf("failed to stat %s: %w", imagesTarFilename, err)
 	}
-	return tfw.WriteIOFile("images.tar", info.Size(), f, defaultPerm)
+	return tfw.WriteIOFile(imagesTar, info.Size(), f, defaultPerm)
 }
 
 func tarImages(imageChanges []*internal.ImageChange, logger Logger) (string, error) {
@@ -119,9 +127,89 @@ func tarImages(imageChanges []*internal.ImageChange, logger Logger) (string, err
 		logger.Printf("Processing image %s\n", change.ImageReference.Name())
 	}
 
-	logger.Printf("Writing all %d images...\n", len(refToImage))
+	logger.Printf("Writing %d images...\n", len(refToImage))
 	if err := tarball.MultiRefWrite(refToImage, imagesFile); err != nil {
 		return "", err
 	}
 	return imagesFile.Name(), nil
+}
+
+// IsIntermediateBundle returns tue only if VerifyIntermediateBundle finds no errors
+func IsIntermediateBundle(bundlePath string) bool {
+	return verifyIntermediateBundle(bundlePath) == nil
+}
+
+// VerifyIntermediateBundle returns true if the path points to an uncompressed
+// tarball with:
+//  A hints.yaml YAML file
+//  A manifest.json for the images
+//  A directory container an unpacked chart directory with valid YAMLs Chart.yaml & values.yaml
+func verifyIntermediateBundle(bundlePath string) error {
+	expectedFiles := []string{
+		"hints.yaml",
+		originalChart + "/Chart.yaml",
+		originalChart + "/values.yaml",
+		imagesTar,
+	}
+	for _, filename := range expectedFiles {
+		r, err := openFromTar(bundlePath, filename)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s from tar: %w", filename, err)
+		}
+		defer r.Close()
+	}
+	return nil
+}
+
+type intermediateBundle struct {
+	bundlePath string
+}
+
+func newBundle(bundlePath string) *intermediateBundle {
+	return &intermediateBundle{bundlePath}
+}
+
+func (ib *intermediateBundle) extractChartTo(dir string) error {
+	err := untar(ib.bundlePath, originalChart, dir)
+	if err != nil {
+		return fmt.Errorf("failed to untar chart from bundle %s into %s: %w",
+			ib.bundlePath, dir, err)
+	}
+	return nil
+}
+
+func (ib *intermediateBundle) loadImageHints(log Logger) ([]byte, error) {
+	r, err := openFromTar(ib.bundlePath, IntermediateBundleHintsFilename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract %s from bundle at %s: %w",
+			IntermediateBundleHintsFilename, ib.bundlePath, err)
+	}
+	return io.ReadAll(r)
+}
+
+// tag gets us a name.Tag from a name.Reference interface
+// for some reason we do have name.Reference, which is accepted as is by the
+// saving code using tarball.MultiRefWrite, but for loading the tarball.Image
+// requires a name.Tag
+func tag(imageRef name.Reference) (name.Tag, error) {
+	if tag, ok := (imageRef).(name.Tag); ok {
+		return tag, nil
+	}
+	return name.Tag{}, fmt.Errorf("not sure how to convert imageRef %+#v to a tag", imageRef)
+}
+
+func (ib *intermediateBundle) loadImage(imageRef name.Reference) (v1.Image, string, error) {
+	tag, err := tag(imageRef)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to make tag from %s: %w", imageRef.Name(), err)
+	}
+	image, err := tarball.Image(newTarInTarOpener(ib.bundlePath, imagesTar), &tag)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to export image %s from tarball %s: %w", tag.Name(), ib.bundlePath, err)
+	}
+	digest, err := image.Digest()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get image digest for %s: %w", tag.Name(), err)
+	}
+	return image, digest.String(), nil
 }

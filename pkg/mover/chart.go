@@ -11,6 +11,8 @@ import (
 	"regexp"
 
 	"github.com/avast/retry-go"
+	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -139,6 +141,7 @@ type ChartMover struct {
 	chart                     *chart.Chart
 	logger                    Logger
 	retries                   uint
+	intermediateBundle        *intermediateBundle
 	// raw contents of the hints file. Sample:
 	// test/fixtures/testchart.images.yaml
 	rawHints []byte
@@ -160,13 +163,8 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		return nil, err
 	}
 
-	if req.Source.Chart.Local != nil {
-		err := cm.loadChart(req.Source.Chart.Local.Path)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		return nil, fmt.Errorf("must provide a local chart as input")
+	if err := cm.loadChart(&req.Source); err != nil {
+		return nil, err
 	}
 
 	if req.Target.Chart.IntermediateBundle != nil {
@@ -183,23 +181,19 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 		}
 	}
 
-	var err error
-	cm.rawHints, err = loadHints(req.Source.ImageHintsFile, cm.chart, cm.logger)
-	if err != nil {
-		return nil, err
+	if err := cm.loadImageHints(&req.Source); err != nil {
+		return nil, fmt.Errorf("failed to load hints file: %w", err)
 	}
-	if cm.rawHints == nil {
-		return nil, ErrImageHintsMissing
-	}
+
 	imagePatterns, err := internal.ParseImagePatterns(cm.rawHints)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse image patterns: %w", err)
 	}
 
 	cm.logger.Println("Computing relocation...\n")
-	imageChanges, err := cm.pullOriginalImages(imagePatterns)
+	imageChanges, err := cm.loadOriginalImages(imagePatterns)
 	if err != nil {
-		return nil, fmt.Errorf("failed to pull original images: %w", err)
+		return nil, err
 	}
 
 	imageChanges, chartChanges, err := cm.computeChanges(imageChanges, &req.Target.Rules)
@@ -230,12 +224,81 @@ func (cm *ChartMover) Print() {
 	cm.printMove()
 }
 
-func (cm *ChartMover) loadChart(chartPath string) error {
-	var err error
-	cm.chart, err = loader.Load(chartPath)
-	if err != nil {
-		return &ChartLoadingError{Path: chartPath, Inner: err}
+// loadChart loads the chart in memory from the intermediate bundle or a given path
+func (cm *ChartMover) loadChart(src *Source) error {
+	if src.Chart.Local != nil {
+		return cm.loadChartFromPath(src.Chart.Local.Path)
+	} else if src.Chart.IntermediateBundle != nil {
+		return cm.loadChartFromIntermediateBundle(src.Chart.IntermediateBundle.Path)
 	}
+	return fmt.Errorf("must provide either a local chart or an intermediate bundle as input")
+}
+
+// loadChartFromIntermediateBundle loads the chart in memory after extracting
+// its files from the bundle into a temporary directory
+func (cm *ChartMover) loadChartFromIntermediateBundle(bundlePath string) error {
+	cm.intermediateBundle = newBundle(bundlePath)
+
+	chartPath, err := os.MkdirTemp("", "bundle-chart-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary directory to extract bundled chart %s: %w",
+			cm.intermediateBundle.bundlePath, err)
+	}
+	defer os.RemoveAll(chartPath)
+
+	if err := cm.intermediateBundle.extractChartTo(chartPath); err != nil {
+		return err
+	}
+
+	return cm.loadChartFromPath(chartPath)
+}
+
+// loadChartFromPath load the chart in memory from a given path
+func (cm *ChartMover) loadChartFromPath(path string) error {
+	var err error
+	if cm.chart, err = loader.Load(path); err != nil {
+		return &ChartLoadingError{Path: path, Inner: err}
+	}
+	return nil
+}
+
+// loadImageHints loads the image hints in memory.
+// Uses loadImageHintsFromBundle or loadImageHintsFromFileOrChart.
+func (cm *ChartMover) loadImageHints(src *Source) error {
+	if src.Chart.IntermediateBundle != nil {
+		if src.ImageHintsFile != "" {
+			return fmt.Errorf("do not set a hints filename, the bundle already provides it")
+		}
+		if err := cm.loadImageHintsFromBundle(); err != nil {
+			return err
+		}
+	} else if err := cm.loadImageHintsFromFileOrChart(src.ImageHintsFile); err != nil {
+		return err
+	}
+	if cm.rawHints == nil {
+		return ErrImageHintsMissing
+	}
+	return nil
+}
+
+// loadImageHintsFromBundle loads the image hints from the intermediate bundle
+func (cm *ChartMover) loadImageHintsFromBundle() error {
+	rawHints, err := cm.intermediateBundle.loadImageHints(cm.logger)
+	if err != nil {
+		return err
+	}
+	cm.rawHints = rawHints
+	return nil
+}
+
+// loadImageHintsFromFileOrChart loads the image hints from a given file or the
+// chart, if the hints file is present inside.
+func (cm *ChartMover) loadImageHintsFromFileOrChart(imageHintsFile string) error {
+	rawHints, err := loadImageHints(imageHintsFile, cm.chart, cm.logger)
+	if err != nil {
+		return err
+	}
+	cm.rawHints = rawHints
 	return nil
 }
 
@@ -265,8 +328,12 @@ func (cm *ChartMover) printMove() {
 		if change.ShouldPush() {
 			pushRequiredTxt = "push required"
 		}
+		src := change.ImageReference.Name()
+		if cm.intermediateBundle != nil {
+			src = fmt.Sprintf("(bundle %s:%s)", cm.intermediateBundle.bundlePath, src)
+		}
 		log.Printf(" %s => %s (%s) (%s)\n",
-			change.ImageReference.Name(), change.RewrittenReference.Name(), change.Digest, pushRequiredTxt)
+			src, change.RewrittenReference.Name(), change.Digest, pushRequiredTxt)
 	}
 
 	var chartToModify *chart.Chart
@@ -343,12 +410,39 @@ func validateTarget(target *Target) error {
 	return nil
 }
 
-func (cm *ChartMover) pullOriginalImages(patterns []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
+// imageLoadFn defines how an image is loaded
+type imageLoadFn func(name.Reference) (v1.Image, string, error)
+
+// loadOriginalImages will load container images from a remote registry or a local intermediate bundle.
+// The heavy lifting is done by loadImageChanges, but here the actual image load
+// function is selected.
+func (cm *ChartMover) loadOriginalImages(imagePatterns []*internal.ImageTemplate) ([]*internal.ImageChange, error) {
+	loadFn := func(originalImage name.Reference) (v1.Image, string, error) {
+		return cm.sourceContainerRegistry.Pull(originalImage)
+	}
+	action := "pull"
+	if cm.intermediateBundle != nil {
+		loadFn = func(originalImage name.Reference) (v1.Image, string, error) {
+			return cm.intermediateBundle.loadImage(originalImage)
+		}
+		action = "load"
+	}
+	imageChanges, err := loadImageChanges(cm.chart, imagePatterns, loadFn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to %s original images: %w", action, err)
+	}
+	return imageChanges, nil
+}
+
+// loadImageChanges loads images from a loader function load and wraps them as
+// ImageChange appropriately. As the load function is abstracted away this
+// can be loading remote or local images the same way.
+func loadImageChanges(chart *chart.Chart, patterns []*internal.ImageTemplate, load imageLoadFn) ([]*internal.ImageChange, error) {
 	var changes []*internal.ImageChange
 	imageCache := map[string]*internal.ImageChange{}
 
 	for _, pattern := range patterns {
-		originalImage, err := pattern.Render(cm.chart)
+		originalImage, err := pattern.Render(chart)
 		if err != nil {
 			return nil, err
 		}
@@ -359,7 +453,7 @@ func (cm *ChartMover) pullOriginalImages(patterns []*internal.ImageTemplate) ([]
 		}
 
 		if imageCache[originalImage.Name()] == nil {
-			image, digest, err := cm.sourceContainerRegistry.Pull(originalImage)
+			image, digest, err := load(originalImage)
 			if err != nil {
 				return nil, err
 			}
@@ -479,35 +573,38 @@ func saveChart(chart *chart.Chart, toChartFilename string) error {
 }
 
 // load hints from either a given hints file or a chart-embedded hints file
-func loadHints(imageHintsFile string, chart *chart.Chart, log Logger) ([]byte, error) {
+func loadImageHints(imageHintsFile string, chart *chart.Chart, log Logger) ([]byte, error) {
 	if imageHintsFile != "" {
-		rawHints, err := loadHintsFromFile(imageHintsFile, log)
+		rawHints, err := notNilData(loadImageHintsFromFile(imageHintsFile, log))
 		if err != nil {
 			return nil, err
 		}
 		return rawHints, nil
 	}
 	// If the hints file is not provided, try to find the hints inside the Chart
-	return loadHintsFromChart(chart, log), nil
+	return loadImageHintsFromChart(chart, log)
 }
 
-func loadHintsFromChart(chart *chart.Chart, log Logger) []byte {
+func loadImageHintsFromChart(chart *chart.Chart, log Logger) ([]byte, error) {
 	// We get the file form the parsed chart object, otherwise the chart might
 	// have come from a tar or tgz, so its files might not be directly available
 	// on disk at this point.
 	// In the general case, retrieving the hints file from disk is more work.
 	for _, file := range chart.Files {
-		if file.Name == EmbeddedHintsFilename && file.Data != nil {
+		if file.Name == EmbeddedHintsFilename {
+			if file.Data == nil {
+				return nil, errors.New("empty hints file in chart")
+			}
 			log.Printf("%s hints file found\n", EmbeddedHintsFilename)
-			return file.Data
+			return file.Data, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
-// loadHintsFromFile from a file
-func loadHintsFromFile(hintsFile string, log Logger) ([]byte, error) {
-	contents, err := os.ReadFile(hintsFile)
+// loadImageHintsFromFile from a file
+func loadImageHintsFromFile(hintsFile string, log Logger) ([]byte, error) {
+	contents, err := notNilData(os.ReadFile(hintsFile))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the image patterns file: %w", err)
 	}
@@ -533,4 +630,11 @@ func WithLogger(l Logger) Option {
 
 func targetOutput(targetFormat, name, version string) string {
 	return fmt.Sprintf(targetFormat, name, version)
+}
+
+func notNilData(data []byte, err error) ([]byte, error) {
+	if err == nil && data == nil {
+		return nil, errors.New("no data loaded")
+	}
+	return data, err
 }
