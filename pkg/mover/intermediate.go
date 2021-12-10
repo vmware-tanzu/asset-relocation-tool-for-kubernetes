@@ -95,7 +95,7 @@ func tarChart(tfw *tarFileWriter, chart *chart.Chart) error {
 
 func packImages(tfw *tarFileWriter, imageChanges []*internal.ImageChange, logger Logger) error {
 	cacheDir := cacheDir()
-	if err := os.Mkdir(cacheDir, 0700); err != nil {
+	if err := os.Mkdir(cacheDir, 0700); err != nil && !errors.Is(err, os.ErrExist) {
 		return fmt.Errorf("failed to create save cache: %w", err)
 	}
 	imagesTarFilename, err := tarImages(imageChanges, cacheDir, logger)
