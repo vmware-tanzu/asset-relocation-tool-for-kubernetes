@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/avast/retry-go"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -35,6 +36,9 @@ var (
 
 	// ErrOCIRewritesMissing indicates that no rewrite rules have been provided
 	ErrOCIRewritesMissing = errors.New("at least one rewrite rule is required")
+
+	// ErrDuplicateChartFiles found in the input chart
+	ErrDuplicateChartFiles = errors.New("duplicated chart files found")
 )
 
 type ChartLoadingError struct {
@@ -164,7 +168,10 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	}
 
 	if err := cm.loadChart(&req.Source); err != nil {
-		return nil, err
+		if !errors.Is(err, ErrDuplicateChartFiles) {
+			return nil, err
+		}
+		cm.logger.Printf("Warning: %v", err)
 	}
 
 	if req.Target.Chart.IntermediateBundle != nil {
@@ -256,10 +263,58 @@ func (cm *ChartMover) loadChartFromIntermediateBundle(bundlePath string) error {
 // loadChartFromPath load the chart in memory from a given path
 func (cm *ChartMover) loadChartFromPath(path string) error {
 	var err error
-	if cm.chart, err = loader.Load(path); err != nil {
+	var chart *chart.Chart
+	if chart, err = loader.Load(path); err != nil {
 		return &ChartLoadingError{Path: path, Inner: err}
 	}
-	return nil
+	cm.chart, err = deduplicateChartFiles(chart)
+	return err
+}
+
+// deduplicateChartFiles finds and fixes duplicate files at inchart.
+// If duplicates are found an error is returned, the caller might want to
+// report and proceed anyway as the output chat is clean of duplicates.
+func deduplicateChartFiles(inchart *chart.Chart) (*chart.Chart, error) {
+	nameStats := map[string]int{}
+	deduplicated := []*chart.File{}
+	for _, file := range inchart.Raw {
+		times := nameStats[file.Name]
+		times++
+		nameStats[file.Name] = times
+		if times == 1 {
+			deduplicated = append(deduplicated, file)
+		}
+	}
+	duplicatesFound := len(deduplicated) < len(inchart.Raw)
+	if duplicatesFound {
+		summary := duplicatesSummary(nameStats)
+		outchart, err := loader.LoadFiles(bufferedFiles(deduplicated))
+		if err != nil {
+			return outchart, err
+		}
+		return outchart, fmt.Errorf("%w:\n%s", ErrDuplicateChartFiles, summary)
+	}
+	return inchart, nil
+}
+
+// duplicatesSummary dumps a line per duplicate file with more than one occurrence
+func duplicatesSummary(nameStats map[string]int) string {
+	sb := &strings.Builder{}
+	for name, times := range nameStats {
+		if times > 1 {
+			fmt.Fprintf(sb, "%s appears %d times", name, times)
+		}
+	}
+	return sb.String()
+}
+
+// bufferedFiles converts a list of chart.File to chartBuffered.File
+func bufferedFiles(files []*chart.File) []*loader.BufferedFile {
+	bufFiles := []*loader.BufferedFile{}
+	for _, file := range files {
+		bufFiles = append(bufFiles, &loader.BufferedFile{Name: file.Name, Data: file.Data})
+	}
+	return bufFiles
 }
 
 // loadImageHints loads the image hints in memory.
