@@ -94,10 +94,11 @@ func tarChart(tfw *tarFileWriter, chart *chart.Chart) error {
 }
 
 func packImages(tfw *tarFileWriter, imageChanges []*internal.ImageChange, logger Logger) error {
-	if err := os.MkdirAll(cachedir(), defaultPerm); err != nil {
+	cacheDir := cacheDir()
+	if err := os.MkdirAll(cacheDir, 0750); err != nil {
 		return fmt.Errorf("failed to create save cache: %w", err)
 	}
-	imagesTarFilename, err := tarImages(imageChanges, logger)
+	imagesTarFilename, err := tarImages(imageChanges, cacheDir, logger)
 	if err != nil {
 		return fmt.Errorf("failed to pack images: %w", err)
 	}
@@ -114,7 +115,7 @@ func packImages(tfw *tarFileWriter, imageChanges []*internal.ImageChange, logger
 	return tfw.WriteIOFile(imagesTar, info.Size(), f, defaultPerm)
 }
 
-func tarImages(imageChanges []*internal.ImageChange, logger Logger) (string, error) {
+func tarImages(imageChanges []*internal.ImageChange, cacheDir string, logger Logger) (string, error) {
 	imagesFile, err := os.CreateTemp("", "image-tar-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary images tar file: %w", err)
@@ -126,7 +127,7 @@ func tarImages(imageChanges []*internal.ImageChange, logger Logger) (string, err
 		if _, ok := refToImage[change.ImageReference]; ok {
 			continue
 		}
-		refToImage[change.ImageReference] = newCachedImage(change.Image)
+		refToImage[change.ImageReference] = internal.NewCachedImage(change.Image, cacheDir)
 		logger.Printf("Processing image %s\n", change.ImageReference.Name())
 	}
 
@@ -217,105 +218,6 @@ func (ib *intermediateBundle) loadImage(imageRef name.Reference) (v1.Image, stri
 	return image, digest.String(), nil
 }
 
-type cachedImage struct {
-	v1.Image
-}
-
-func newCachedImage(img v1.Image) v1.Image {
-	return &cachedImage{Image: img}
-}
-
-type cachedLayer struct {
-	v1.Layer
-}
-
-func newCachedLayer(layer v1.Layer) v1.Layer {
-	return cachedLayer{Layer: layer}
-}
-
-func wrapAsCachedLayer(layer v1.Layer) v1.Layer {
-	if _, ok := (layer).(cachedLayer); ok {
-		return layer // Already a cached layer, so just return it
-	}
-	return &cachedLayer{Layer: layer}
-}
-
-func (img *cachedImage) Layers() ([]v1.Layer, error) {
-	layers, err := img.Image.Layers()
-	for i, layer := range layers {
-		layers[i] = wrapAsCachedLayer(layer)
-	}
-	return layers, err
-}
-
-func (img *cachedImage) LayerByDigest(hash v1.Hash) (v1.Layer, error) {
-	layer, err := img.LayerByDigest(hash)
-	return wrapAsCachedLayer(layer), err
-}
-
-func (img *cachedImage) LayerByDiffID(hash v1.Hash) (v1.Layer, error) {
-	layer, err := img.LayerByDiffID(hash)
-	return wrapAsCachedLayer(layer), err
-}
-
-func (ly cachedLayer) Uncompressed() (io.ReadCloser, error) {
-	r, err := ly.openCached()
-	if err == fs.ErrNotExist {
-		r, err = ly.dumpAndCache()
-	}
-	return r, err
-}
-
-func (ly *cachedLayer) openCached() (io.ReadCloser, error) {
-	digest, err := ly.Digest()
-	if err != nil {
-		return nil, err
-	}
-	return os.Open(cachedDigestFilename(digest))
-}
-
-type teeLayerDump struct {
-	io.Reader
-	digest v1.Hash
-	f      *os.File
-	r      io.ReadCloser
-}
-
-func newTeeLayerDump(digest v1.Hash, f *os.File, r io.ReadCloser) io.ReadCloser {
-	return &teeLayerDump{Reader: io.TeeReader(r, f), f: f, r: r}
-}
-
-func (tld *teeLayerDump) Close() error {
-	if err := tld.r.Close(); err != nil {
-		return err
-	}
-	tmpName := tld.f.Name()
-	if err := tld.f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmpName, cachedDigestFilename(tld.digest))
-}
-
-func (ly *cachedLayer) dumpAndCache() (io.ReadCloser, error) {
-	f, err := os.CreateTemp(cachedir(), "incoming-layer-*")
-	if err != nil {
-		return nil, err
-	}
-	in, err := ly.Uncompressed()
-	if err != nil {
-		return in, err
-	}
-	digest, err := ly.Digest()
-	if err != nil {
-		return nil, err
-	}
-	return newTeeLayerDump(digest, f, in), nil
-}
-
-func cachedDigestFilename(digest v1.Hash) string {
-	return filepath.Join(cachedir(), fmt.Sprintf("%s-%s", digest.Algorithm, digest.Hex))
-}
-
-func cachedir() string {
+func cacheDir() string {
 	return filepath.Join(os.TempDir(), "relok8s-save-cache")
 }
