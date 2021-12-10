@@ -4,11 +4,17 @@
 package mover
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
+)
+
+var (
+	// errDuplicateChartFiles found in the input chart
+	errDuplicateChartFiles = errors.New("duplicated chart files found")
 )
 
 // deduplicatedFile holds how many occurrences of a file we have and its latest contents
@@ -38,7 +44,7 @@ func deduplicateChartFiles(inchart *chart.Chart) (*chart.Chart, error) {
 		if err != nil {
 			return outchart, err
 		}
-		return outchart, fmt.Errorf("%w:\n%s", ErrDuplicateChartFiles, dedups)
+		return outchart, fmt.Errorf("%w:\n%s", errDuplicateChartFiles, dedups)
 	}
 	return inchart, nil
 }

@@ -35,9 +35,6 @@ var (
 
 	// ErrOCIRewritesMissing indicates that no rewrite rules have been provided
 	ErrOCIRewritesMissing = errors.New("at least one rewrite rule is required")
-
-	// ErrDuplicateChartFiles found in the input chart
-	ErrDuplicateChartFiles = errors.New("duplicated chart files found")
 )
 
 type ChartLoadingError struct {
@@ -167,7 +164,7 @@ func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	}
 
 	if err := cm.loadChart(&req.Source); err != nil {
-		if !errors.Is(err, ErrDuplicateChartFiles) {
+		if !errors.Is(err, errDuplicateChartFiles) {
 			return nil, err
 		}
 		cm.logger.Printf("Warning: %v", err)
