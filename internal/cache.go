@@ -82,7 +82,7 @@ func (img *cachedImage) LayerByDiffID(hash v1.Hash) (v1.Layer, error) {
 	return img.cachedLayer(layer), err
 }
 
-// nreCachedLayer wraps a v1.Layer, usually a remote one, so that its download
+// newCachedLayer wraps a v1.Layer, usually a remote one, so that its download
 // is cached at the given dir.
 func newCachedLayer(layer v1.Layer, dir string) cachedLayer {
 	return cachedLayer{Layer: layer, dir: dir}
