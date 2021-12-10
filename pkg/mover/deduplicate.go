@@ -11,7 +11,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
-// deduplicatedFile holds hoe many times a file appears and its latest contents
+// deduplicatedFile holds how many occurrences of a file we have and its latest contents
 type deduplicatedFile struct {
 	times int
 	data  []byte
