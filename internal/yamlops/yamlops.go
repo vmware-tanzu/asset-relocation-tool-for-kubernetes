@@ -94,11 +94,6 @@ func UpdateMap(doc []byte, pathSpec, selectorFilter string, selectors, values ma
 	}
 	maps := SearchNodes(root, ".", matchers...)
 
-	// Fail if there are no nodes to update
-	if len(maps) == 0 {
-		return nil, fmt.Errorf("can't find any nodes, path=%q, selector=%q", pathSpec, selectorFilter)
-	}
-
 	// Build list of required value replacements. For now, the fields to be
 	// updated must exist and the current value must be a string.
 	var valueReplacements []valueReplacement

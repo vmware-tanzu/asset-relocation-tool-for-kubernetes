@@ -66,10 +66,8 @@ func (a *RewriteAction) ToMap() map[string]interface{} {
 	return node
 }
 
-// Apply will try to execute the rewrite action declaration on the given Helm Chart subcharts
+// Apply will try to execute the rewrite action declaration on the given Helm Chart or sub-charts
 func (a *RewriteAction) Apply(chart *chart.Chart) error {
-
-	// The update is not in one of its direct dependencies so let's try to update the current chart
 	chartToApply, relativeRewriteRule := a.FindChartDestination(chart)
 	return applyUpdate(chartToApply, relativeRewriteRule)
 }
