@@ -310,7 +310,7 @@ func (cm *ChartMover) printSaveIntermediateBundle() {
 	for _, change := range cm.imageChanges {
 		app := change.ImageReference.Context().Name()
 		version := change.ImageReference.Identifier()
-		fullImageName := fmt.Sprintf("%s:%s", app, version)
+		fullImageName := fmt.Sprintf("%s:%s (%s)", app, version, change.Digest)
 		names[fullImageName] = true
 	}
 
