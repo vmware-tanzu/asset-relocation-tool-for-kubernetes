@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/avast/retry-go"
@@ -255,11 +256,53 @@ func (cm *ChartMover) loadChartFromIntermediateBundle(bundlePath string) error {
 
 // loadChartFromPath load the chart in memory from a given path
 func (cm *ChartMover) loadChartFromPath(path string) error {
-	var err error
-	if cm.chart, err = loader.Load(path); err != nil {
-		return &ChartLoadingError{Path: path, Inner: err}
+	// always unpack the chart tarball to a directory to avoid issues loading
+	// files if the tgz contains replicated entries
+	dir := path
+	info, err := os.Stat(path)
+	if err != nil {
+		return &ChartLoadingError{Path: dir, Inner: err}
+	}
+	if !info.IsDir() {
+		tmpdir, err := os.MkdirTemp("", "expanded-chart-*")
+		if err != nil {
+			return fmt.Errorf("failed to make temporary directory: %w", err)
+		}
+		defer os.RemoveAll(tmpdir)
+		if err != nil {
+			return fmt.Errorf("failed to detect the chart directory name: %w", err)
+		}
+		if err := untarz(true, path, "*", tmpdir); err != nil {
+			return fmt.Errorf("failed to extract chart: %w", err)
+		}
+		chartname, err := detectChartName(tmpdir)
+		if err != nil {
+			return fmt.Errorf("failed to detect chartname from extracted chart: %w", err)
+		}
+		dir = filepath.Join(tmpdir, chartname)
+	}
+	if cm.chart, err = loader.Load(dir); err != nil {
+		return &ChartLoadingError{Path: dir, Inner: err}
 	}
 	return nil
+}
+
+func detectChartName(chartdir string) (string, error) {
+	d, err := os.Open(chartdir)
+	if err != nil {
+		return "", fmt.Errorf("failed to open chart dir: %w", err)
+	}
+	files, err := d.Readdir(1)
+	if err != nil {
+		return "", fmt.Errorf("failed to list chart dir: %w", err)
+	}
+	if len(files) < 1 {
+		return "", fmt.Errorf("no files at chart dir %s", chartdir)
+	}
+	if !files[0].IsDir() {
+		return "", fmt.Errorf("no chart subdir at chart dir %s", chartdir)
+	}
+	return files[0].Name(), nil
 }
 
 // loadImageHints loads the image hints in memory.

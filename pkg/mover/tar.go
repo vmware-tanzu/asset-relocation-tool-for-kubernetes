@@ -5,6 +5,7 @@ package mover
 
 import (
 	"archive/tar"
+	"compress/gzip"
 	"errors"
 	"fmt"
 	"io"
@@ -74,23 +75,17 @@ func (tfw *tarFileWriter) WriteIOFile(name string, size int64, r io.Reader, perm
 // The tarPath can be a single file or a directory. On the second case,
 // all files prefixed by that directory will be extracted to dstDir.
 func untar(tarFile, tarPath, dstDir string) error {
-	pathPrefix := tarPath
-	if tarPath == "" {
-		pathPrefix = "*"
-	}
-	f, err := os.Open(tarFile)
-	if err != nil {
-		return fmt.Errorf("failed to open tar file %s: %w", tarFile, err)
-	}
-	defer f.Close()
-	tr := tar.NewReader(f)
+	return untarz(false /*gunzip*/, tarFile, tarPath, dstDir)
+}
+
+func untarIO(tr *tar.Reader, pathPrefix, dstDir string) error {
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
 			return nil // End of archive
 		}
 		if err != nil {
-			return fmt.Errorf("failed to untar %s: %w", tarFile, err)
+			return err
 		}
 		// skip files not under pathPrefix
 		if pathPrefix != "*" && !strings.HasPrefix(hdr.Name, pathPrefix) {
@@ -169,4 +164,29 @@ func newTarInTarOpener(tarFile, tarInTarFile string) func() (io.ReadCloser, erro
 	return func() (io.ReadCloser, error) {
 		return openFromTar(tarFile, tarInTarFile)
 	}
+}
+
+func untarz(gunzip bool, tarzFile, tarPath, dstDir string) error {
+	pathPrefix := tarPath
+	if tarPath == "" {
+		pathPrefix = "*"
+	}
+	f, err := os.Open(tarzFile)
+	if err != nil {
+		return fmt.Errorf("failed to open tarball file %s: %w", tarzFile, err)
+	}
+	defer f.Close()
+	in := io.Reader(f)
+	if gunzip {
+		gzr, err := gzip.NewReader(f)
+		if err != nil {
+			return fmt.Errorf("failed to read gzip stream: %w", err)
+		}
+		in = gzr
+	}
+	tr := tar.NewReader(in)
+	if err := untarIO(tr, pathPrefix, dstDir); err != nil {
+		return fmt.Errorf("failed to untar %s: %w", tarzFile, err)
+	}
+	return nil
 }
