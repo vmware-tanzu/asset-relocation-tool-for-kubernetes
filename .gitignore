@@ -8,3 +8,7 @@ build/*
 .idea
 *.iml
 
+
+dist/
+
+next-semver/next-semver
