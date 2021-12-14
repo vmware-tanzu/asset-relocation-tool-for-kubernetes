@@ -261,6 +261,7 @@ func (cm *ChartMover) loadChartFromPath(path string) error {
 	if isChartFile(path) {
 		// always unpack the chart tarball to a directory to avoid issues loading
 		// files if the tgz contains replicated entries
+		// https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/issues/111
 		if dir, err = expandedChartDir(path); err != nil {
 			return err
 		}
