@@ -94,7 +94,11 @@ func tarChart(tfw *tarFileWriter, chart *chart.Chart) error {
 }
 
 func packImages(tfw *tarFileWriter, imageChanges []*internal.ImageChange, logger Logger) error {
-	imagesTarFilename, err := tarImages(imageChanges, logger)
+	cacheDir := cacheDir()
+	if err := os.Mkdir(cacheDir, 0700); err != nil && !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("failed to create save cache: %w", err)
+	}
+	imagesTarFilename, err := tarImages(imageChanges, cacheDir, logger)
 	if err != nil {
 		return fmt.Errorf("failed to pack images: %w", err)
 	}
@@ -111,7 +115,7 @@ func packImages(tfw *tarFileWriter, imageChanges []*internal.ImageChange, logger
 	return tfw.WriteIOFile(imagesTar, info.Size(), f, defaultPerm)
 }
 
-func tarImages(imageChanges []*internal.ImageChange, logger Logger) (string, error) {
+func tarImages(imageChanges []*internal.ImageChange, cacheDir string, logger Logger) (string, error) {
 	imagesFile, err := os.CreateTemp("", "image-tar-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary images tar file: %w", err)
@@ -123,7 +127,7 @@ func tarImages(imageChanges []*internal.ImageChange, logger Logger) (string, err
 		if _, ok := refToImage[change.ImageReference]; ok {
 			continue
 		}
-		refToImage[change.ImageReference] = change.Image
+		refToImage[change.ImageReference] = internal.NewCachedImage(change.Image, cacheDir)
 		logger.Printf("Processing image %s\n", change.ImageReference.Name())
 	}
 
@@ -212,4 +216,8 @@ func (ib *intermediateBundle) loadImage(imageRef name.Reference) (v1.Image, stri
 		return nil, "", fmt.Errorf("failed to get image digest for %s: %w", tag.Name(), err)
 	}
 	return image, digest.String(), nil
+}
+
+func cacheDir() string {
+	return filepath.Join(os.TempDir(), "relok8s-save-cache")
 }
