@@ -15,12 +15,35 @@ import (
 )
 
 // cachedImage wraps a remote image with a local layer cache at dir
+//
+// See v1.Image interface:
+// https://github.com/google/go-containerregistry/blob/main/pkg/v1/image.go
+//
+// A cachedImage behaves exactly as the wrapped v1.Image except that all layer methods:
+// - Layers
+// - LayerByDigest
+// - LayerByDiffID
+// Are made to return layers wrapped behind a cachedLayer.
 type cachedImage struct {
 	v1.Image
 	dir string
 }
 
 // cachedLayer wraps a remote layer with a local cache at dir
+//
+// See v1.Layer interface:
+// https://github.com/google/go-containerregistry/blob/main/pkg/v1/layer.go
+//
+// A cachedLayer holds a reference to the original (remote) image layer,
+// when opening the layer stream with methods:
+// - Uncompressed
+// - Compressed
+// The cached layer will try first to find the stream as a file in the local
+// cache at directory dir.
+// If the local cache file is not found, the wrapped (remote) layer is opened
+// instead, but the download is streamed to a local file cache on each read.
+// When the EOF is reached in the downloaded stream, the local cache file is
+// closed and ready to be used instead of the remote layer.
 type cachedLayer struct {
 	v1.Layer
 	dir string
@@ -28,8 +51,8 @@ type cachedLayer struct {
 
 // teeLayerDump allows to download a layer while saving it in a cached file
 // at the same time.
-// Once the teeLayerDump is closed and if the stream has been fully read,
-// the local cached file can be used instead of the remote download.
+// Once the original reader source reaches EOF, the local cached file is closed
+// and renamed so that it can be used instead of the remote download.
 type teeLayerDump struct {
 	dump       io.Reader
 	layer      *cachedLayer
@@ -39,21 +62,21 @@ type teeLayerDump struct {
 	done       bool
 }
 
-// NewCachedImage wrap a v1.Image, usually a remote one, so that layer downloads
-// are cached at the given dir.
-// Once the first download happens from an image layer, the following download
+// NewCachedImage wraps a v1.Image, usually a remote one, so that layer
+// downloads are cached at the given dir.
+// Once the first download happens from an image layer, the next download
 // won't happen and instead the layer is copied from that local directory cache.
 func NewCachedImage(img v1.Image, dir string) v1.Image {
 	return &cachedImage{Image: img, dir: dir}
 }
 
-// wrapAsCachedLayer returns a cachedLayer ensuring the wrapping only happens
-// once, as it will not wrap a layer that is already a cachedLayer
+// cachedLayer returns a cachedLayer ensuring the wrapping only happens
+// once. It never wraps a layer that is already a cachedLayer
 //
-// The reason for this is that a v1.Image interface can return layers from
-// different methods and we do not know if one of them consumes layers from
-// another so we do not know when the wrap must happen. We need to do it on
-// every method but avoid wrapping the layer several times.
+// In general, a v1.Image interface can return layers from 3 different methods
+// and cannot know if one of them consumes layers from another, so we do not
+// know when the wrap must happen. We need to do it on every method but avoid
+// wrapping layers several times.
 func (img *cachedImage) cachedLayer(layer v1.Layer) cachedLayer {
 	if ly, ok := (layer).(cachedLayer); ok {
 		return ly // Already a cached layer, so just return it
@@ -62,6 +85,8 @@ func (img *cachedImage) cachedLayer(layer v1.Layer) cachedLayer {
 }
 
 // Layers implements v1.Image's Layers wrapping layers as cachedLayers
+// See v1.Image interface:
+// https://github.com/google/go-containerregistry/blob/main/pkg/v1/image.go
 func (img *cachedImage) Layers() ([]v1.Layer, error) {
 	layers, err := img.Image.Layers()
 	for i, layer := range layers {
@@ -71,42 +96,46 @@ func (img *cachedImage) Layers() ([]v1.Layer, error) {
 }
 
 // LayerByDigest implements v1.Image's LayerByDigest wrapping layers as cachedLayers
+// See v1.Image interface:
+// https://github.com/google/go-containerregistry/blob/main/pkg/v1/image.go
 func (img *cachedImage) LayerByDigest(hash v1.Hash) (v1.Layer, error) {
 	layer, err := img.Image.LayerByDigest(hash)
 	return img.cachedLayer(layer), err
 }
 
 // LayerByDiffID implements v1.Image's LayerByDiffID wrapping layers as cachedLayers
+// See v1.Image interface:
+// https://github.com/google/go-containerregistry/blob/main/pkg/v1/image.go
 func (img *cachedImage) LayerByDiffID(hash v1.Hash) (v1.Layer, error) {
 	layer, err := img.Image.LayerByDiffID(hash)
 	return img.cachedLayer(layer), err
 }
 
-// newCachedLayer wraps a v1.Layer, usually a remote one, so that its download
-// is cached at the given dir.
+// newCachedLayer wraps a v1.Layer, usually a remote one, so that its first
+// download is cached at the given dir.
 func newCachedLayer(layer v1.Layer, dir string) cachedLayer {
 	return cachedLayer{Layer: layer, dir: dir}
 }
 
-// Uncompressed implements v1.Layer's Uncompressed so that the IO can be read
-// from a local cached file, is available.
-// Otherwise the original stream is open but it is dumped to a local cached file
-// while it is being consumed.
+// Uncompressed implements v1.Layer's Uncompressed so that the input can be read
+// from a local cached file when available.
+// See v1.Layer interface:
+// https://github.com/google/go-containerregistry/blob/main/pkg/v1/layer.go
 func (ly cachedLayer) Uncompressed() (io.ReadCloser, error) {
 	return ly.openLayer(false)
 }
 
-// Compressed implements v1.Layer's Compressed so that the IO can be read
-// from a local cached file, is available.
-// Otherwise the original stream is open but it is dumped to a local cached file
-// while it is being consumed.
+// Compressed implements v1.Layer's Compressed so that the input can be read
+// from a local cached file when available.
+// See v1.Layer interface:
+// https://github.com/google/go-containerregistry/blob/main/pkg/v1/layer.go
 func (ly cachedLayer) Compressed() (io.ReadCloser, error) {
 	return ly.openLayer(true)
 }
 
 // openLayer tries to open the local cached file for the layer first,
-// if not found, then it opens a download dump to consume the layer at the same
-// time it is being saved on a local cache file.
+// if not found, then it opens a download dump to consume the original layer
+// at the same time it is being saved on a local cache file.
 func (ly cachedLayer) openLayer(compressed bool) (io.ReadCloser, error) {
 	r, err := ly.openCached(compressed)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -135,6 +164,10 @@ func (ly *cachedLayer) openCached(compressed bool) (io.ReadCloser, error) {
 
 // dumpAndCache uses a teeLayerDump to download a copy of the layer to a local
 // file while the uncompressed stream is being consumed
+//
+// Note that teeLayerDump uses a io.TeeReader: https://pkg.go.dev/io#TeeReader
+// That way, each read from the downloaded stream is also written to a local
+// file
 func (ly *cachedLayer) dumpAndCache(rc io.ReadCloser, compressed bool) (io.ReadCloser, error) {
 	f, err := os.CreateTemp(ly.dir, fmt.Sprintf("incoming-layer-*%s", layerExtension(compressed)))
 	if err != nil {
@@ -158,7 +191,8 @@ func (tld *teeLayerDump) Read(buf []byte) (int, error) {
 	return n, err
 }
 
-// createCachedLayerFile turns a temporary download file into a cached layer file
+// createCachedLayerFile turns the temporary download file into a cached layer
+// file
 func (tld *teeLayerDump) createCachedLayerFile() error {
 	if err := tld.f.Close(); err != nil {
 		return fmt.Errorf("failed to close temporary download file: %w", err)
@@ -176,21 +210,19 @@ func (tld *teeLayerDump) createCachedLayerFile() error {
 	return nil
 }
 
-// Close implements a io.Closer completing the caching of a layer download
-// to a local file. Only if the layer stream was fully downloaded the local
-// copy can be used as a cache, otherwise the downloaded copy is discarded.
+// Close implements io.Closer for the original download stream to be closed
 func (tld *teeLayerDump) Close() error {
 	return tld.rc.Close()
 }
 
 // cachedLayerPath returns the full path to a local cached layer file given
-// the cache directory and the layer digest and whether or not is compressed
+// the cache directory, the layer digest and whether or not is compressed
 func cachedLayerPath(dir string, digest v1.Hash, compressed bool) string {
 	return filepath.Join(dir, cachedLayerFilename(digest, compressed))
 }
 
-// cachedLayerFilename builds a cached layer filename from the digest and whether
-// or not is compressed
+// cachedLayerFilename builds a cached layer filename from the digest and
+// whether or not is compressed
 func cachedLayerFilename(digest v1.Hash, compressed bool) string {
 	return fmt.Sprintf("%s-%s%s", digest.Algorithm, digest.Hex, layerExtension(compressed))
 }
