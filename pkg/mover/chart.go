@@ -266,6 +266,7 @@ func (cm *ChartMover) loadChartFromPath(path string) error {
 		}
 		defer os.RemoveAll(filepath.Dir(dir)) // clean it up on function exit
 	}
+
 	if cm.chart, err = loader.Load(dir); err != nil {
 		return &ChartLoadingError{Path: dir, Inner: err}
 	}
@@ -282,9 +283,11 @@ func expandedChartDir(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to make temporary directory: %w", err)
 	}
+
 	if err := chartutil.ExpandFile(tmpdir, path); err != nil {
 		return "", fmt.Errorf("failed to extract chart: %w", err)
 	}
+
 	chartname, err := detectChartName(tmpdir)
 	if err != nil {
 		return "", fmt.Errorf("failed to detect chartname from extracted chart: %w", err)
