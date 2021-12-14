@@ -65,6 +65,15 @@ var _ = Describe("External tests", func() {
 		steps.And("the modified chart contains the digest tagged image")
 	})
 
+	Scenario("chart with complex global registry", func() {
+		steps.When("running relok8s chart move -y ../fixtures/complex-chart --registry harbor-repo.vmware.com/tanzu_isv_engineering_private")
+		steps.Then("the command exits without error")
+		steps.Then("the modified complex chart is written")
+		steps.And("the image has the right global registry change")
+		steps.And("the change is written to the parent chart values file")
+		steps.And("no changes are written to the sub chart values file")
+	})
+
 	Scenario("running chart move to intermediate bundle", func() {
 		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate.tar", tmpDir))
 		steps.And("the move is computed")
@@ -131,6 +140,11 @@ var _ = Describe("External tests", func() {
 			Eventually(test.CommandSession.Out).Should(Say("harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest => harbor-repo.vmware.com/%s/tiny:tiniest \\(sha256:[a-z0-9]*\\) \\(push required\\)", customRepoPrefix))
 		})
 
+		define.Then(`^the image has the right global registry change$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Image copies:"))
+			Eventually(test.CommandSession.Out).Should(Say("harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest => harbor-repo.vmware.com/tanzu_isv_engineering_private/tiny:tiniest \\(sha256:[a-z0-9]*\\)"))
+		})
+
 		define.Then(`^the command says that the unbundled & rewritten image will be pushed$`, func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Image copies:"))
 			Eventually(test.CommandSession.Out).Should(Say("\\(bundle ../fixtures/testchart-intermediate.tar:harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest\\) => harbor-repo.vmware.com/%s/tiny:tiniest \\(sha256:[a-z0-9]*\\) \\(push required\\)", customRepoPrefix))
@@ -150,6 +164,15 @@ var _ = Describe("External tests", func() {
 		define.Then(`^the digest version is written to the chart$`, func() {
 			Eventually(test.CommandSession.Out).Should(Say("Changes to be applied to testchart/values.yaml:"))
 			Eventually(test.CommandSession.Out).Should(Say(fmt.Sprintf("  .sameImageButNoTagRequirement.image: harbor-repo.vmware.com/%s/tiny@sha256:[a-z0-9]*", customRepoPrefix)))
+		})
+
+		define.Then(`^the change is written to the parent chart values file$`, func() {
+			Eventually(test.CommandSession.Out).Should(Say("Changes to be applied to complex-chart/values.yaml:"))
+			Eventually(test.CommandSession.Out).Should(Say("  .global.imageRegistry: harbor-repo.vmware.com/tanzu_isv_engineering_private"))
+		})
+
+		define.Then(`^no changes are written to the sub chart values file$`, func() {
+			Eventually(test.CommandSession.Out).ShouldNot(Say("  .subchart-1.deployment.imageName"))
 		})
 
 		define.Then(`^the tagged versions are pushed$`, func() {
@@ -198,6 +221,20 @@ var _ = Describe("External tests", func() {
 			Expect(ok).To(BeTrue())
 			Expect(imageMap).To(HaveKey("image"))
 			Expect(imageMap["image"]).To(ContainSubstring(fmt.Sprintf("harbor-repo.vmware.com/%s/busybox@sha256:", customRepoPrefix)))
+		}, func() {
+			if modifiedChartPath != "" {
+				_ = os.Remove(modifiedChartPath)
+				modifiedChartPath = ""
+			}
+		})
+
+		define.Then(`^the modified complex chart is written$`, func() {
+			cwd, err := os.Getwd()
+			Expect(err).ToNot(HaveOccurred())
+
+			modifiedChartPath = filepath.Join(cwd, "complex-chart-1.0.0.relocated.tgz")
+			_, err = loader.Load(modifiedChartPath)
+			Expect(err).ToNot(HaveOccurred())
 		}, func() {
 			if modifiedChartPath != "" {
 				_ = os.Remove(modifiedChartPath)

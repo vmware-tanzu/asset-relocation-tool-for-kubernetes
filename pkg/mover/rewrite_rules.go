@@ -4,7 +4,8 @@
 package mover
 
 import (
-	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
 )
@@ -21,16 +22,23 @@ type RewriteRules struct {
 
 func (r *RewriteRules) Validate() error {
 	if r.Registry != "" {
-		_, err := name.NewRegistry(r.Registry, name.StrictValidation)
-		if err != nil {
-			return errors.New("registry rule is not valid")
+		if strings.Contains(r.Registry, "/") {
+			_, err := name.NewRepository(r.Registry, name.StrictValidation)
+			if err != nil {
+				return fmt.Errorf("registry rule is not valid: %w", err)
+			}
+		} else {
+			_, err := name.NewRegistry(r.Registry, name.StrictValidation)
+			if err != nil {
+				return fmt.Errorf("registry rule is not valid: %w", err)
+			}
 		}
 	}
 
 	if r.RepositoryPrefix != "" {
 		_, err := name.NewRepository(r.RepositoryPrefix)
 		if err != nil {
-			return errors.New("repository prefix is not valid")
+			return fmt.Errorf("repository prefix rule is not valid: %w", err)
 		}
 	}
 

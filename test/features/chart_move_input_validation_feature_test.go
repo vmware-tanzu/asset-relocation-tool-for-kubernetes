@@ -4,6 +4,8 @@
 package features_test
 
 import (
+	"regexp"
+
 	. "github.com/bunniesandbeatings/goerkin"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -105,11 +107,11 @@ var _ = Describe("relok8s chart move input validation", func() {
 		})
 
 		define.Then(`^it says that the registry is invalid$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: registry rule is not valid"))
+			Expect(test.CommandSession.Err).To(Say(regexp.QuoteMeta("Error: registry rule is not valid: registries must be valid RFC 3986 URI authorities: what:is:this?")))
 		})
 
 		define.Then(`^it says that the repository prefix is invalid$`, func() {
-			Expect(test.CommandSession.Err).To(Say("Error: repository prefix is not valid"))
+			Expect(test.CommandSession.Err).To(Say(regexp.QuoteMeta("Error: repository prefix rule is not valid: repository can only contain the runes `abcdefghijklmnopqrstuvwxyz0123456789_-./`: 'What+is$this???'")))
 		})
 	})
 })
