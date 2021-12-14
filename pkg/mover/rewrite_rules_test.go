@@ -28,6 +28,16 @@ var _ = Describe("RewriteRules", func() {
 		})
 	})
 
+	Context("compound registry rule", func() {
+		It("returns no error", func() {
+			rules := mover.RewriteRules{
+				Registry: "projects.vmware.com/myproject",
+			}
+			err := rules.Validate()
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
 	Context("valid repository prefix", func() {
 		It("returns no error", func() {
 			rules := mover.RewriteRules{
@@ -56,7 +66,7 @@ var _ = Describe("RewriteRules", func() {
 			}
 			err := rules.Validate()
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("registry rule is not valid"))
+			Expect(err.Error()).To(Equal("registry rule is not valid: registries must be valid RFC 3986 URI authorities: a host with spaces"))
 		})
 	})
 
@@ -67,7 +77,7 @@ var _ = Describe("RewriteRules", func() {
 			}
 			err := rules.Validate()
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("repository prefix is not valid"))
+			Expect(err.Error()).To(Equal("repository prefix rule is not valid: repository can only contain the runes `abcdefghijklmnopqrstuvwxyz0123456789_-./`: repositories/cannot/contain+plusses"))
 		})
 	})
 
@@ -79,7 +89,7 @@ var _ = Describe("RewriteRules", func() {
 			}
 			err := rules.Validate()
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("registry rule is not valid"))
+			Expect(err.Error()).To(Equal("registry rule is not valid: registries must be valid RFC 3986 URI authorities: a.domain.with.an.invalid.port:lolwut"))
 		})
 	})
 })
