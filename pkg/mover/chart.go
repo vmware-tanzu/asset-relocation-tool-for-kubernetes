@@ -300,6 +300,7 @@ func expandedChartDir(path string) (string, error) {
 
 // detectChartName expects chartdir to contain a single subdirectory, matching
 // the chartname
+// See: https://v2.helm.sh/docs/developing_charts/#the-chart-file-structure
 func detectChartName(chartdir string) (string, error) {
 	d, err := os.Open(chartdir)
 	if err != nil {
