@@ -310,11 +310,8 @@ func detectChartName(chartdir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to list chart dir: %w", err)
 	}
-	if len(files) < 1 {
-		return "", fmt.Errorf("no files at chart dir %s", chartdir)
-	}
-	if len(files) > 1 {
-		return "", fmt.Errorf("too many entries at chart dir %s", chartdir)
+	if len(files) != 1 {
+		return "", fmt.Errorf("expected a single entry at chart dir %s", chartdir)
 	}
 	if !files[0].IsDir() {
 		return "", fmt.Errorf("no chart subdir at chart dir %s", chartdir)

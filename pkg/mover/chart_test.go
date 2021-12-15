@@ -640,6 +640,39 @@ var _ = Describe("LoadImagePatterns", func() {
 	})
 })
 
+func stringsContains(strings []string, s string) bool {
+	for _, str := range strings {
+		if s == str {
+			return true
+		}
+	}
+	return false
+}
+
+var _ = Describe("loadChartFromPath", func() {
+	It("loads chart directory directly", func() {
+		cm := &ChartMover{}
+		err := cm.loadChartFromPath(filepath.Join(fixturesRoot, "testchart"))
+		Expect(err).ToNot(HaveOccurred())
+	})
+	It("loads chart tarball unpacking it and consumes last of any duplicate", func() {
+		cm := &ChartMover{}
+		err := cm.loadChartFromPath(filepath.Join(fixturesRoot, "testchart-with-duplicates.tgz"))
+		Expect(err).ToNot(HaveOccurred())
+		filenames := []string{}
+		chartYamlFound := false
+		for _, file := range cm.chart.Raw {
+			Expect(stringsContains(filenames, file.Name)).ToNot(BeTrue())
+			filenames = append(filenames, file.Name)
+			if file.Name == "Chart.yaml" {
+				chartYamlFound = true
+				Expect(string(file.Data)).To(ContainSubstring("A chart for testing relok8s modified"))
+			}
+		}
+		Expect(chartYamlFound).To(BeTrue())
+	})
+})
+
 func TestNamespacedPath(t *testing.T) {
 	tests := []struct {
 		inputPath  string
