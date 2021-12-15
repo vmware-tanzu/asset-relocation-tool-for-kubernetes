@@ -15,13 +15,14 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
 
+// LayersStats holds final stats on image layers downloads or cached usage
 type LayersStats struct {
 	CachedBytes, DownloadedBytes int64
 }
 
 // layersStats gather stats on image layers downloads or cached usage
 type layersStats struct {
-	m     sync.RWMutex
+	m     sync.Mutex
 	stats LayersStats
 }
 
