@@ -258,7 +258,7 @@ func (cm *ChartMover) loadChartFromIntermediateBundle(bundlePath string) error {
 func (cm *ChartMover) loadChartFromPath(path string) error {
 	var err error
 	dir := path
-	if isChartFile(path) {
+	if notChartDir(path) {
 		// always unpack the chart tarball to a directory to avoid issues loading
 		// files if the tgz contains replicated entries
 		// https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/issues/111
@@ -274,7 +274,8 @@ func (cm *ChartMover) loadChartFromPath(path string) error {
 	return nil
 }
 
-func isChartFile(path string) bool {
+// notChartDir returns true if the path is not a chart dir
+func notChartDir(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
 }
