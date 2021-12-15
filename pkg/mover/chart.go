@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/avast/retry-go"
@@ -256,10 +257,66 @@ func (cm *ChartMover) loadChartFromIntermediateBundle(bundlePath string) error {
 // loadChartFromPath load the chart in memory from a given path
 func (cm *ChartMover) loadChartFromPath(path string) error {
 	var err error
-	if cm.chart, err = loader.Load(path); err != nil {
-		return &ChartLoadingError{Path: path, Inner: err}
+	dir := path
+	if notChartDir(path) {
+		// always unpack the chart tarball to a directory to avoid issues loading
+		// files if the tgz contains replicated entries
+		// https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/issues/111
+		if dir, err = expandedChartDir(path); err != nil {
+			return err
+		}
+		defer os.RemoveAll(filepath.Dir(dir)) // clean it up on function exit
+	}
+
+	if cm.chart, err = loader.Load(dir); err != nil {
+		return &ChartLoadingError{Path: dir, Inner: err}
 	}
 	return nil
+}
+
+// notChartDir returns true if the path is not a chart dir
+func notChartDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+func expandedChartDir(path string) (string, error) {
+	tmpdir, err := os.MkdirTemp("", "expanded-chart-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to make temporary directory: %w", err)
+	}
+
+	// chartutil.ExpandFile extracts the tgz tarball at path into tmpdir for us
+	if err := chartutil.ExpandFile(tmpdir, path); err != nil {
+		return "", fmt.Errorf("failed to extract chart: %w", err)
+	}
+
+	chartname, err := detectChartName(tmpdir)
+	if err != nil {
+		return "", fmt.Errorf("failed to detect chartname from extracted chart: %w", err)
+	}
+	return filepath.Join(tmpdir, chartname), nil
+}
+
+// detectChartName expects chartdir to contain a single subdirectory, matching
+// the chartname
+// See: https://v2.helm.sh/docs/developing_charts/#the-chart-file-structure
+func detectChartName(chartdir string) (string, error) {
+	d, err := os.Open(chartdir)
+	if err != nil {
+		return "", fmt.Errorf("failed to open chart dir: %w", err)
+	}
+	files, err := d.Readdir(2)
+	if err != nil {
+		return "", fmt.Errorf("failed to list chart dir: %w", err)
+	}
+	if len(files) != 1 {
+		return "", fmt.Errorf("expected a single entry at chart dir %s", chartdir)
+	}
+	if !files[0].IsDir() {
+		return "", fmt.Errorf("no chart subdir at chart dir %s", chartdir)
+	}
+	return files[0].Name(), nil
 }
 
 // loadImageHints loads the image hints in memory.
