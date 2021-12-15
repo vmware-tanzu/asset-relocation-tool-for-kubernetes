@@ -10,9 +10,32 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
+
+type LayersStats struct {
+	CachedBytes, DownloadedBytes int64
+}
+
+// layersStats gather stats on image layers downloads or cached usage
+type layersStats struct {
+	m     sync.RWMutex
+	stats LayersStats
+}
+
+func (ls *layersStats) addDownloaded(size int64) {
+	ls.m.Lock()
+	defer ls.m.Unlock()
+	ls.stats.DownloadedBytes += size
+}
+
+func (ls *layersStats) addCached(size int64) {
+	ls.m.Lock()
+	defer ls.m.Unlock()
+	ls.stats.CachedBytes += size
+}
 
 // cachedImage wraps a remote image with a local layer cache at dir
 //
@@ -24,9 +47,10 @@ import (
 // - LayerByDigest
 // - LayerByDiffID
 // Are made to return layers wrapped behind a cachedLayer.
-type cachedImage struct {
+type CachedImage struct {
 	v1.Image
-	dir string
+	dir   string
+	stats layersStats
 }
 
 // cachedLayer wraps a remote layer with a local cache at dir
@@ -46,7 +70,7 @@ type cachedImage struct {
 // closed and ready to be used instead of the remote layer.
 type cachedLayer struct {
 	v1.Layer
-	dir string
+	image *CachedImage
 }
 
 // teeLayerDump allows to download a layer while saving it in a cached file
@@ -66,8 +90,19 @@ type teeLayerDump struct {
 // downloads are cached at the given dir.
 // Once the first download happens from an image layer, the next download
 // won't happen and instead the layer is copied from that local directory cache.
-func NewCachedImage(img v1.Image, dir string) v1.Image {
-	return &cachedImage{Image: img, dir: dir}
+func NewCachedImage(img v1.Image, dir string) *CachedImage {
+	return &CachedImage{Image: img, dir: dir}
+}
+
+// LayerStats returns a copy of the latest layer stats gathered
+func (img *CachedImage) Stats() LayersStats {
+	return img.stats.stats
+}
+
+// newCachedLayer wraps a v1.Layer, usually a remote one, so that its first
+// download is cached at the given dir.
+func (img *CachedImage) newCachedLayer(layer v1.Layer) cachedLayer {
+	return cachedLayer{Layer: layer, image: img}
 }
 
 // cachedLayer returns a cachedLayer ensuring the wrapping only happens
@@ -77,17 +112,17 @@ func NewCachedImage(img v1.Image, dir string) v1.Image {
 // and cannot know if one of them consumes layers from another, so we do not
 // know when the wrap must happen. We need to do it on every method but avoid
 // wrapping layers several times.
-func (img *cachedImage) cachedLayer(layer v1.Layer) cachedLayer {
+func (img *CachedImage) cachedLayer(layer v1.Layer) cachedLayer {
 	if ly, ok := (layer).(cachedLayer); ok {
 		return ly // Already a cached layer, so just return it
 	}
-	return newCachedLayer(layer, img.dir)
+	return img.newCachedLayer(layer)
 }
 
 // Layers implements v1.Image's Layers wrapping layers as cachedLayers
 // See v1.Image interface:
 // https://github.com/google/go-containerregistry/blob/main/pkg/v1/image.go
-func (img *cachedImage) Layers() ([]v1.Layer, error) {
+func (img *CachedImage) Layers() ([]v1.Layer, error) {
 	layers, err := img.Image.Layers()
 	for i, layer := range layers {
 		layers[i] = img.cachedLayer(layer)
@@ -98,7 +133,7 @@ func (img *cachedImage) Layers() ([]v1.Layer, error) {
 // LayerByDigest implements v1.Image's LayerByDigest wrapping layers as cachedLayers
 // See v1.Image interface:
 // https://github.com/google/go-containerregistry/blob/main/pkg/v1/image.go
-func (img *cachedImage) LayerByDigest(hash v1.Hash) (v1.Layer, error) {
+func (img *CachedImage) LayerByDigest(hash v1.Hash) (v1.Layer, error) {
 	layer, err := img.Image.LayerByDigest(hash)
 	return img.cachedLayer(layer), err
 }
@@ -106,15 +141,9 @@ func (img *cachedImage) LayerByDigest(hash v1.Hash) (v1.Layer, error) {
 // LayerByDiffID implements v1.Image's LayerByDiffID wrapping layers as cachedLayers
 // See v1.Image interface:
 // https://github.com/google/go-containerregistry/blob/main/pkg/v1/image.go
-func (img *cachedImage) LayerByDiffID(hash v1.Hash) (v1.Layer, error) {
+func (img *CachedImage) LayerByDiffID(hash v1.Hash) (v1.Layer, error) {
 	layer, err := img.Image.LayerByDiffID(hash)
 	return img.cachedLayer(layer), err
-}
-
-// newCachedLayer wraps a v1.Layer, usually a remote one, so that its first
-// download is cached at the given dir.
-func newCachedLayer(layer v1.Layer, dir string) cachedLayer {
-	return cachedLayer{Layer: layer, dir: dir}
 }
 
 // Uncompressed implements v1.Layer's Uncompressed so that the input can be read
@@ -149,6 +178,11 @@ func (ly cachedLayer) openLayer(compressed bool) (io.ReadCloser, error) {
 		}
 		return ly.dumpAndCache(r, compressed)
 	}
+	size, err := ly.Size()
+	if err != nil {
+		return r, fmt.Errorf("failed to get layer size: %w", err)
+	}
+	ly.image.stats.addCached(size)
 	return r, err
 }
 
@@ -158,7 +192,7 @@ func (ly *cachedLayer) openCached(compressed bool) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	cachedPath := cachedLayerPath(ly.dir, digest, compressed)
+	cachedPath := cachedLayerPath(ly.image.dir, digest, compressed)
 	return os.Open(cachedPath)
 }
 
@@ -169,10 +203,15 @@ func (ly *cachedLayer) openCached(compressed bool) (io.ReadCloser, error) {
 // That way, each read from the downloaded stream is also written to a local
 // file
 func (ly *cachedLayer) dumpAndCache(rc io.ReadCloser, compressed bool) (io.ReadCloser, error) {
-	f, err := os.CreateTemp(ly.dir, fmt.Sprintf("incoming-layer-*%s", layerExtension(compressed)))
+	f, err := os.CreateTemp(ly.image.dir, fmt.Sprintf("incoming-layer-*%s", layerExtension(compressed)))
 	if err != nil {
 		return nil, err
 	}
+	size, err := ly.Size()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get layer size: %w", err)
+	}
+	ly.image.stats.addDownloaded(size)
 	return &teeLayerDump{
 		dump:       io.TeeReader(rc, f),
 		layer:      ly,
@@ -202,7 +241,7 @@ func (tld *teeLayerDump) createCachedLayerFile() error {
 		return fmt.Errorf("failed to get digest from layer: %w", err)
 	}
 	tmpName := tld.f.Name()
-	cachedPath := cachedLayerPath(tld.layer.dir, digest, tld.compressed)
+	cachedPath := cachedLayerPath(tld.layer.image.dir, digest, tld.compressed)
 	if err := os.Rename(tmpName, cachedPath); err != nil {
 		return fmt.Errorf("failed to rename cached layer file: %w", err)
 	}

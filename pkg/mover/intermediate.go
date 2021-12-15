@@ -123,11 +123,14 @@ func tarImages(imageChanges []*internal.ImageChange, cacheDir string, logger Log
 	defer imagesFile.Close()
 
 	refToImage := map[name.Reference]v1.Image{}
+	cachedImages := []*internal.CachedImage{}
 	for _, change := range imageChanges {
 		if _, ok := refToImage[change.ImageReference]; ok {
 			continue
 		}
-		refToImage[change.ImageReference] = internal.NewCachedImage(change.Image, cacheDir)
+		cachedImage := internal.NewCachedImage(change.Image, cacheDir)
+		cachedImages = append(cachedImages, cachedImage)
+		refToImage[change.ImageReference] = cachedImage
 		logger.Printf("Processing image %s\n", change.ImageReference.Name())
 	}
 
@@ -135,7 +138,18 @@ func tarImages(imageChanges []*internal.ImageChange, cacheDir string, logger Log
 	if err := tarball.MultiRefWrite(refToImage, imagesFile); err != nil {
 		return "", err
 	}
+	stats(logger, cachedImages)
 	return imagesFile.Name(), nil
+}
+
+func stats(logger Logger, cachedImages []*internal.CachedImage) {
+	var cached, total int64
+	for _, cachedImage := range cachedImages {
+		stats := cachedImage.Stats()
+		cached += stats.CachedBytes
+		total += stats.DownloadedBytes + stats.CachedBytes
+	}
+	logger.Printf("Local cache saved %d out of %d bytes in layer downloads\n", cached, total)
 }
 
 // IsIntermediateBundle returns tue only if VerifyIntermediateBundle finds no errors

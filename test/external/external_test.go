@@ -75,7 +75,6 @@ var _ = Describe("External tests", func() {
 	})
 
 	Scenario("running chart move to intermediate bundle", func() {
-		start := time.Now()
 		steps.When("removing relok8s-save-cache")
 		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate.tar", tmpDir))
 		steps.And("the move is computed")
@@ -83,27 +82,18 @@ var _ = Describe("External tests", func() {
 		steps.Then("the command says it is writing the hints file")
 		steps.Then("the command says it is writing the Helm Chart files")
 		steps.Then("the command says it is writing the container images")
+		steps.Then("the command says local cache saved 0 bytes in downloads")
 		steps.Then("the command says the intermediate bundle is complete")
 		steps.Then("relok8s-save-cache contains expected layer")
-		firstSaveDuration := time.Since(start)
 
-		start2 := time.Now()
-		info, err := os.Stat(expectedLayerFile())
-		Expect(err).ToNot(HaveOccurred())
-		modtime := info.ModTime()
 		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate-2.tar", tmpDir))
 		steps.And("the move is computed")
 		steps.Then("the command says it will archive the chart")
 		steps.Then("the command says it is writing the hints file")
 		steps.Then("the command says it is writing the Helm Chart files")
 		steps.Then("the command says it is writing the container images")
+		steps.Then("the command says local cache saved 767322 bytes in downloads")
 		steps.Then("the command says the intermediate bundle 2 is complete")
-		steps.Then("relok8s-save-cache contains expected layer")
-		secondSaveDuration := time.Since(start2)
-		info, err = os.Stat(expectedLayerFile())
-		Expect(err).ToNot(HaveOccurred())
-		Expect(info.ModTime()).To(Equal(modtime))
-		Expect(secondSaveDuration).To(BeNumerically("<", firstSaveDuration))
 	})
 
 	Scenario("running chart move from intermediate bundle", func() {
@@ -249,6 +239,14 @@ var _ = Describe("External tests", func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Processing image harbor-repo.vmware.com/tanzu_isv_engineering/tiny:tiniest\n"))
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Processing image harbor-repo.vmware.com/dockerhub-proxy-cache/library/busybox:1.33.1\n"))
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Writing 2 images...\n"))
+		})
+
+		define.Then(`^the command says local cache saved 0 bytes in downloads$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Local cache saved 0 out of 767322 bytes in layer downloads\n"))
+		})
+
+		define.Then(`^the command says local cache saved 767322 bytes in downloads$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Local cache saved 767322 out of 767322 bytes in layer downloads\n"))
 		})
 
 		define.Then(`^the command says the intermediate bundle is complete$`, func() {
