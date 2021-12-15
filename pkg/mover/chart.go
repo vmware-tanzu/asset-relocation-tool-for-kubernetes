@@ -286,6 +286,7 @@ func expandedChartDir(path string) (string, error) {
 		return "", fmt.Errorf("failed to make temporary directory: %w", err)
 	}
 
+	// chartutil.ExpandFile extracts the tgz tarball at path into tmpdir for us
 	if err := chartutil.ExpandFile(tmpdir, path); err != nil {
 		return "", fmt.Errorf("failed to extract chart: %w", err)
 	}
