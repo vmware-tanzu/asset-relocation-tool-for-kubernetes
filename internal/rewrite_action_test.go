@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -138,21 +137,30 @@ func TestApply(t *testing.T) {
 	}
 
 	// The chart we want as result
-	wantChart, err := loader.Load(filepath.Join("testdata", "applyoutput", "3-levels-chart"))
+	wantChartPath := filepath.Join("testdata", "applyoutput")
+	wantChart, err := loader.Load(filepath.Join(wantChartPath, "3-levels-chart"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	wantTar, wantDigest, err := packageChart(wantChart)
+	_, wantDigest, err := packageChart(wantChart)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	rewrites := []*internal.RewriteAction{
+		{Path: ".image.repository", Value: "changed-parent"},
+		{Path: ".subchart-1.image.repository", Value: "changed-subchart"},
+		{Path: ".subchart-1.image.tag", Value: "updated-tag"},
+		{Path: ".subchart-1.subchart-3.image.repository", Value: "changed-sub-sub-chart"},
+		{Path: ".subchart-2.image.tag", Value: "updated-tag"},
 	}
 
 	// Apply changes to the original chart
-	r1 := &internal.RewriteAction{Path: ".image.repository", Value: "changed"}
-	// subchart1R1 := &internal.RewriteAction{Path: ".subchart-1.image"}
-	if err := r1.Apply(originalChart); err != nil {
-		t.Fatal(err)
+	for _, r := range rewrites {
+		if err := r.Apply(originalChart); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	// Package the updated chart
@@ -161,12 +169,16 @@ func TestApply(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Update fixtures
+	if *update {
+		if err := chartutil.ExpandFile(wantChartPath, gotTar); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	if gotDigest != wantDigest {
 		t.Errorf("the resulting Chart does not match the fixture. got=%s, want=%s", gotDigest, wantDigest)
 	}
-
-	fmt.Println(gotTar)
-	fmt.Println(wantTar)
 }
 
 func packageChart(chart *chart.Chart) (string, string, error) {
