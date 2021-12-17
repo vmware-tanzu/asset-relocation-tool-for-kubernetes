@@ -4,9 +4,24 @@
 package internal_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"flag"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"helm.sh/helm/v3/pkg/chart"
+
+	"helm.sh/helm/v3/pkg/chartutil"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
+	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
 var _ = Describe("RewriteAction", func() {
@@ -103,10 +118,6 @@ var _ = Describe("RewriteAction", func() {
 		})
 	})
 
-	Describe("Apply", func() {
-
-	})
-
 	//Describe("FindChartDestination", func() {
 	//	Context("action refers to a chart dependency", func() {
 	//		It("returns the dependent chart", func() {
@@ -114,3 +125,71 @@ var _ = Describe("RewriteAction", func() {
 	//	})
 	//})
 })
+
+var update = flag.Bool("update-golden", false, "update golden files")
+
+const fixturesRoot = "../test/fixtures/"
+
+func TestApply(t *testing.T) {
+	// The chart we are going to modify
+	originalChart, err := loader.Load(filepath.Join(fixturesRoot, "3-levels-chart"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The chart we want as result
+	wantChart, err := loader.Load(filepath.Join("testdata", "applyoutput", "3-levels-chart"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantTar, wantDigest, err := packageChart(wantChart)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Apply changes to the original chart
+	r1 := &internal.RewriteAction{Path: ".image.repository", Value: "changed"}
+	// subchart1R1 := &internal.RewriteAction{Path: ".subchart-1.image"}
+	if err := r1.Apply(originalChart); err != nil {
+		t.Fatal(err)
+	}
+
+	// Package the updated chart
+	gotTar, gotDigest, err := packageChart(originalChart)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gotDigest != wantDigest {
+		t.Errorf("the resulting Chart does not match the fixture. got=%s, want=%s", gotDigest, wantDigest)
+	}
+
+	fmt.Println(gotTar)
+	fmt.Println(wantTar)
+}
+
+func packageChart(chart *chart.Chart) (string, string, error) {
+	// Package the chart
+	tempDir, err := ioutil.TempDir("", "relok8s-test")
+	if err != nil {
+		return "", "", err
+	}
+
+	tarPath, err := chartutil.Save(chart, tempDir)
+	if err != nil {
+		return "", "", err
+	}
+
+	hasher := sha256.New()
+	f, err := os.Open(tarPath)
+	if err != nil {
+		return "", "", err
+	}
+	defer f.Close()
+	if _, err := io.Copy(hasher, f); err != nil {
+		return "", "", err
+	}
+
+	return tarPath, hex.EncodeToString(hasher.Sum(nil)), nil
+}
