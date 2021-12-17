@@ -207,10 +207,11 @@ func (ib *intermediateBundle) loadImage(imageRef name.Reference) (v1.Image, stri
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to make tag from %s: %w", imageRef.Name(), err)
 	}
-	image, err := tarball.Image(newTarInTarOpener(ib.bundlePath, imagesTar), &tag)
+	loadedImage, err := tarball.Image(newTarInTarOpener(ib.bundlePath, imagesTar), &tag)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to export image %s from tarball %s: %w", tag.Name(), ib.bundlePath, err)
 	}
+	image := internal.FixedManifestImage(loadedImage)
 	digest, err := image.Digest()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get image digest for %s: %w", tag.Name(), err)
