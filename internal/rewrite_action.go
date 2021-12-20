@@ -5,6 +5,7 @@ package internal
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,6 +27,13 @@ type RewriteAction struct {
 
 func (a *RewriteAction) TopLevelKey() string {
 	return strings.Split(a.Path, ".")[1]
+}
+
+// removes the first part of the dot delimited string
+//.sub-1.foo.bar => .foo.bar
+func (a *RewriteAction) stripPrefix() string {
+	// Starting in 2 since there is an empty string as first element
+	return "." + strings.Join(strings.Split(a.Path, ".")[2:], ".")
 }
 
 func (a *RewriteAction) GetPathToMap() string {
@@ -58,54 +66,50 @@ func (a *RewriteAction) ToMap() map[string]interface{} {
 	return node
 }
 
-func (a *RewriteAction) Apply(input *chart.Chart) (*chart.Chart, error) {
-	dependencies := input.Dependencies()
-	foundInDependency := false
-	for dependencyIndex, dependency := range dependencies {
-		if dependency.Name() == a.TopLevelKey() {
-			foundInDependency = true
-			valuesIndex, data := GetChartValues(dependency)
-			value := map[string]string{
-				a.GetKey(): a.Value,
-			}
-			newData, err := yamlops2.UpdateMap(data, a.GetSubPathToMap(), "", nil, value)
-			if err != nil {
-				return nil, fmt.Errorf("failed to apply modification to %s: %w", dependency.Name(), err)
-			}
-
-			dependencies[dependencyIndex].Raw[valuesIndex].Data = newData
-		}
-	}
-
-	if foundInDependency {
-		input.SetDependencies(dependencies...)
-	} else {
-		valuesIndex, data := GetChartValues(input)
-		value := map[string]string{
-			a.GetKey(): a.Value,
-		}
-		newData, err := yamlops2.UpdateMap(data, a.GetPathToMap(), "", nil, value)
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply modification to %s: %w", input.Name(), err)
-		}
-
-		input.Raw[valuesIndex].Data = newData
-	}
-
-	return input, nil
+// Apply will try to execute the rewrite action declaration on the given Helm Chart or sub-charts
+func (a *RewriteAction) Apply(chart *chart.Chart) error {
+	chartToApply, relativeRewriteRule := a.FindChartDestination(chart)
+	return applyUpdate(chartToApply, relativeRewriteRule)
 }
 
-func (a *RewriteAction) FindChartDestination(parentChart *chart.Chart) *chart.Chart {
+// Apply the yaml update described in the rewrite action to the provided Helm Chart
+func applyUpdate(chart *chart.Chart, a *RewriteAction) error {
+	valuesIndex, data := getChartValues(chart)
+	value := map[string]string{
+		a.GetKey(): a.Value,
+	}
+
+	newData, err := yamlops2.UpdateMap(data, a.GetPathToMap(), "", nil, value)
+	if err != nil {
+		return fmt.Errorf("failed to apply modification to %s: %w", chart.Name(), err)
+	}
+
+	chart.Raw[valuesIndex].Data = newData
+
+	return nil
+}
+
+// FindChartDestination will recursively find the Helm Chart a rewrite action will apply to
+// by starting on a parentChart
+// Additionally it will return the rewrite action with path relative to that Helm Chart
+func (a *RewriteAction) FindChartDestination(parentChart *chart.Chart) (*chart.Chart, *RewriteAction) {
 	for _, subchart := range parentChart.Dependencies() {
 		if subchart.Name() == a.TopLevelKey() {
-			return subchart
+			// Recursively perform the check stripping out the rewrite prefix
+			// and providing the actual subchart reference
+			subChartRewriteAction := &RewriteAction{
+				Path:  a.stripPrefix(),
+				Value: a.Value,
+			}
+
+			return subChartRewriteAction.FindChartDestination(subchart)
 		}
 	}
 
-	return parentChart
+	return parentChart, a
 }
 
-func GetChartValues(chart *chart.Chart) (int, []byte) {
+func getChartValues(chart *chart.Chart) (int, []byte) {
 	for fileIndex, file := range chart.Raw {
 		if file.Name == chartutil.ValuesfileName {
 			return fileIndex, file.Data
@@ -116,7 +120,7 @@ func GetChartValues(chart *chart.Chart) (int, []byte) {
 
 type ValuesMap map[string]interface{}
 
-func BuildValuesMap(chart *chart.Chart, rewriteActions []*RewriteAction) map[string]interface{} {
+func buildValuesMap(chart *chart.Chart) map[string]interface{} {
 	values := chart.Values
 	if values == nil {
 		values = map[string]interface{}{}
@@ -124,28 +128,39 @@ func BuildValuesMap(chart *chart.Chart, rewriteActions []*RewriteAction) map[str
 
 	// Add values for chart dependencies
 	for _, dependency := range chart.Dependencies() {
-		values[dependency.Name()] = merge.Merge(dependency.Values, values[dependency.Name()])
+		// recursively load the dependency values
+		values[dependency.Name()] = merge.Merge(buildValuesMap(dependency), values[dependency.Name()])
 	}
 
-	// Apply rewrite actions
+	return values
+}
+
+func applyRewrites(values map[string]interface{}, rewriteActions []*RewriteAction) (map[string]interface{}, error) {
 	for _, action := range rewriteActions {
 		actionMap := action.ToMap()
 		result := merge.Merge(values, actionMap)
 		var ok bool
 		values, ok = result.(map[string]interface{})
 		if !ok {
-			return nil
+			return nil, errors.New("can't apply rewrites to Chart values, invalid format")
 		}
 	}
 
-	return values
+	return values, nil
 }
 
 func (t *ImageTemplate) Render(chart *chart.Chart, rewriteActions ...*RewriteAction) (name.Reference, error) {
-	values := BuildValuesMap(chart, rewriteActions)
+	values := buildValuesMap(chart)
+
+	// Apply rewrite actions
+	var err error
+	values, err = applyRewrites(values, rewriteActions)
+	if err != nil {
+		return nil, err
+	}
 
 	output := bytes.Buffer{}
-	err := t.Template.Execute(&output, values)
+	err = t.Template.Execute(&output, values)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render image: %w", err)
 	}

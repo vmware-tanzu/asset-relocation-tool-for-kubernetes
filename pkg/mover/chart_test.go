@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
+
+	"helm.sh/helm/v3/pkg/chart"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -690,5 +693,36 @@ func TestNamespacedPath(t *testing.T) {
 		if got, want := namespacedPath(tc.inputPath, tc.chartName), tc.outputPath; got != want {
 			t.Errorf("got=%s; want=%s", got, want)
 		}
+	}
+}
+
+func TestGroupChangesByChart(t *testing.T) {
+	rootChart, err := loader.Load(filepath.Join(fixturesRoot, "3-levels-chart"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Rewrites that affect 3 chart levels, parent -> subchart -> subchart
+	r1 := &internal.RewriteAction{Path: ".image"}
+	subchart1R1 := &internal.RewriteAction{Path: ".subchart-1.image"}
+	subchart1R2 := &internal.RewriteAction{Path: ".subchart-1.image2"}
+	subchart2R1 := &internal.RewriteAction{Path: ".subchart-2.image"}
+	subchart1Subchart3 := &internal.RewriteAction{Path: ".subchart-1.subchart-3.image"}
+	rewrites := []*internal.RewriteAction{r1, subchart1R1, subchart1R2, subchart1Subchart3, subchart2R1}
+
+	// Expected output
+	want := make(map[*chart.Chart][]*internal.RewriteAction)
+	// parent chart
+	want[rootChart] = []*internal.RewriteAction{r1}
+	// Subchart1
+	want[rootChart.Dependencies()[0]] = []*internal.RewriteAction{subchart1R1, subchart1R2}
+	// Subchart2
+	want[rootChart.Dependencies()[1]] = []*internal.RewriteAction{subchart2R1}
+	// Subchart1.Subchart3
+	want[rootChart.Dependencies()[0].Dependencies()[0]] = []*internal.RewriteAction{subchart1Subchart3}
+
+	// Compare output
+	if got := groupChangesByChart(rewrites, rootChart); !reflect.DeepEqual(got, want) {
+		t.Errorf("got=%v; want=%v", got, want)
 	}
 }

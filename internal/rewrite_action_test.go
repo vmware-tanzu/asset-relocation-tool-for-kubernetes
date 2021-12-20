@@ -4,9 +4,21 @@
 package internal_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"flag"
+	"io/ioutil"
+	"path/filepath"
+	"testing"
+
+	"helm.sh/helm/v3/pkg/chart"
+
+	"helm.sh/helm/v3/pkg/chartutil"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
+	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
 var _ = Describe("RewriteAction", func() {
@@ -103,10 +115,6 @@ var _ = Describe("RewriteAction", func() {
 		})
 	})
 
-	Describe("Apply", func() {
-
-	})
-
 	//Describe("FindChartDestination", func() {
 	//	Context("action refers to a chart dependency", func() {
 	//		It("returns the dependent chart", func() {
@@ -114,3 +122,91 @@ var _ = Describe("RewriteAction", func() {
 	//	})
 	//})
 })
+
+var update = flag.Bool("update-golden", false, "update golden files")
+
+const fixturesRoot = "../test/fixtures/"
+
+func TestApply(t *testing.T) {
+	// The chart we are going to modify
+	originalChart, err := loader.Load(filepath.Join(fixturesRoot, "3-levels-chart"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The chart we want as result
+	wantChartPath := filepath.Join("testdata", "applyoutput")
+	wantChart, err := loader.Load(filepath.Join(wantChartPath, "3-levels-chart"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, wantDigest, err := packageChart(wantChart)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rewrites := []*internal.RewriteAction{
+		{Path: ".image.repository", Value: "changed-parent"},
+		{Path: ".subchart-1.image.repository", Value: "changed-subchart"},
+		{Path: ".subchart-1.image.tag", Value: "updated-tag"},
+		{Path: ".subchart-1.subchart-3.image.repository", Value: "changed-sub-sub-chart"},
+		{Path: ".subchart-2.image.tag", Value: "updated-tag"},
+	}
+
+	// Apply changes to the original chart
+	for _, r := range rewrites {
+		if err := r.Apply(originalChart); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Package the updated chart
+	gotTar, gotDigest, err := packageChart(originalChart)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Update fixtures
+	if *update {
+		if err := chartutil.ExpandFile(wantChartPath, gotTar); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if gotDigest != wantDigest {
+		t.Errorf("the resulting Chart does not match the fixture. got=%s, want=%s", gotDigest, wantDigest)
+	}
+}
+
+// packageChart will return the chart in tarball format as well as its content digest
+func packageChart(chart *chart.Chart) (string, string, error) {
+	tempDir, err := ioutil.TempDir("", "relok8s-test")
+	if err != nil {
+		return "", "", err
+	}
+
+	// reload the chart to make sure the rewrites take effect
+	// 1 - package chart
+	tarPath, err := chartutil.Save(chart, tempDir)
+	if err != nil {
+		return "", "", err
+	}
+
+	// 2 - Reload the Chart from the packaged one
+	chart, err = loader.Load(tarPath)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Calculate the digest from the Chart files
+	// the digest from the packaged chart will differ since tar.gz adds timestamps
+	hasher := sha256.New()
+	for _, file := range chart.Raw {
+		if _, err := hasher.Write(file.Data); err != nil {
+			return "", "", err
+		}
+	}
+
+	return tarPath, hex.EncodeToString(hasher.Sum(nil)), nil
+}

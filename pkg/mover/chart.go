@@ -380,6 +380,7 @@ func (cm *ChartMover) printSaveIntermediateBundle() {
 func (cm *ChartMover) printMove() {
 	log := cm.logger
 	log.Println("Image copies:")
+
 	for _, change := range cm.imageChanges {
 		pushRequiredTxt := "already exists"
 		if change.ShouldPush() {
@@ -393,17 +394,32 @@ func (cm *ChartMover) printMove() {
 			src, change.RewrittenReference.Name(), change.Digest, pushRequiredTxt)
 	}
 
-	var chartToModify *chart.Chart
-	for _, change := range cm.chartChanges {
-		destination := change.FindChartDestination(cm.chart)
-		if chartToModify != destination {
-			chartToModify = destination
-			log.Printf("\nChanges to be applied to %s/values.yaml:\n", chartToModify.ChartFullPath())
+	for chartToModify, changes := range groupChangesByChart(cm.chartChanges, cm.chart) {
+		log.Printf("\nChanges to be applied to %s/values.yaml:\n", chartToModify.ChartFullPath())
+		for _, change := range changes {
+			// Remove chart name from the path since we are already indicating what values.yaml file we are changing
+			log.Printf("  %s: %s\n", namespacedPath(change.Path, chartToModify.Name()), change.Value)
 		}
 
-		// Remove chart name from the path since we are already indicating what values.yaml file we are changing
-		log.Printf("  %s: %s\n", namespacedPath(change.Path, chartToModify.Name()), change.Value)
+		log.Println()
 	}
+}
+
+// Return the grouped set of changes by Helm Chart.
+// Meaning that changes to be performed to a given helm chart will be returned under the same map key
+func groupChangesByChart(changes []*internal.RewriteAction, rootChart *chart.Chart) map[*chart.Chart][]*internal.RewriteAction {
+	groupedChanges := make(map[*chart.Chart][]*internal.RewriteAction)
+
+	for _, change := range changes {
+		destination, _ := change.FindChartDestination(rootChart)
+		if changesForChart, ok := groupedChanges[destination]; ok {
+			groupedChanges[destination] = append(changesForChart, change)
+		} else {
+			groupedChanges[destination] = []*internal.RewriteAction{change}
+		}
+	}
+
+	return groupedChanges
 }
 
 // namespacedPath removes the chartName from the beginning of the full path
@@ -614,11 +630,9 @@ func (cm *ChartMover) pushRewrittenImages(imageChanges []*internal.ImageChange) 
 }
 
 func modifyChart(originalChart *chart.Chart, actions []*internal.RewriteAction, toChartFilename string) error {
-	var err error
 	modifiedChart := originalChart
 	for _, action := range actions {
-		modifiedChart, err = action.Apply(modifiedChart)
-		if err != nil {
+		if err := action.Apply(modifiedChart); err != nil {
 			return err
 		}
 	}
