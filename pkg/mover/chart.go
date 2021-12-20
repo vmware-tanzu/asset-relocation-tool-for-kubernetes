@@ -487,7 +487,6 @@ func validateTarget(target *Target) error {
 type imageLoadFn func(name.Reference) (v1.Image, string, error)
 
 // loadOriginalImages will load container images from a remote registry or a local intermediate bundle.
-// loadOriginalImages will load container images from a remote registry or a local intermediate bundle.
 // The heavy lifting is done by loadImageChanges, but here the actual image load
 // function is selected.
 func (cm *ChartMover) loadOriginalImages(imagePatterns []*internal.ImageTemplate) ([]*internal.ImageChange, error) {

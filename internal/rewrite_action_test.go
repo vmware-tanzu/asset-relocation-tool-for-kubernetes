@@ -7,9 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
-	"io"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -181,26 +179,33 @@ func TestApply(t *testing.T) {
 	}
 }
 
+// packageChart will return the chart in tarball format as well as its content digest
 func packageChart(chart *chart.Chart) (string, string, error) {
-	// Package the chart
 	tempDir, err := ioutil.TempDir("", "relok8s-test")
 	if err != nil {
 		return "", "", err
 	}
 
+	// reload the chart to make sure the rewrites take effect
+	// 1 - package chart
 	tarPath, err := chartutil.Save(chart, tempDir)
 	if err != nil {
 		return "", "", err
 	}
 
-	hasher := sha256.New()
-	f, err := os.Open(tarPath)
+	// 2 - Reload the Chart from the packaged one
+	chart, err = loader.Load(tarPath)
 	if err != nil {
 		return "", "", err
 	}
-	defer f.Close()
-	if _, err := io.Copy(hasher, f); err != nil {
-		return "", "", err
+
+	// Calculate the digest from the Chart files
+	// the digest from the packaged chart will differ since tar.gz adds timestamps
+	hasher := sha256.New()
+	for _, file := range chart.Raw {
+		if _, err := hasher.Write(file.Data); err != nil {
+			return "", "", err
+		}
 	}
 
 	return tarPath, hex.EncodeToString(hasher.Sum(nil)), nil
