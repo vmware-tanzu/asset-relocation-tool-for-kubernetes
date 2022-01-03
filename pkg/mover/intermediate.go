@@ -1,4 +1,4 @@
-// Copyright 2021 VMware, Inc.
+// Copyright 2022 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
 
 package mover
@@ -207,10 +207,21 @@ func (ib *intermediateBundle) loadImage(imageRef name.Reference) (v1.Image, stri
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to make tag from %s: %w", imageRef.Name(), err)
 	}
+
 	image, err := tarball.Image(newTarInTarOpener(ib.bundlePath, imagesTar), &tag)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to export image %s from tarball %s: %w", tag.Name(), ib.bundlePath, err)
 	}
+
+	// Re-cast the image to follow Docker indented manifest computation
+	// See https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/issues/120 for more info
+	// IMPORTANT: This modification only makes sense if the source image (the one pulled into this intermediate tarball)
+	// was originally pushed using the Docker CLI/libraries
+	// Other clients such as bazel or podman do not follow the same indentation practices so
+	// TODO(migmartri): Store the original manifest in our intermediate bundle instead to preserve
+	// the actual manifest used in the source image without making assumptions on the tooling used
+	image = internal.NewCanonicalDockerImage(image)
+
 	digest, err := image.Digest()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get image digest for %s: %w", tag.Name(), err)
