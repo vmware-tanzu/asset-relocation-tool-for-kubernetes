@@ -103,7 +103,7 @@ test-performance: local-registry-image
 	docker run -it --rm -p 5443:443 registry-tester /bin/registry-test -test.v -test.run=TestMove
 	docker run -it --rm -p 5443:443 registry-tester /bin/registry-test -test.v -test.run=TestSaveNLoad
 
-test: deps lint test-units test-features
+test: deps test-units test-features
 
 test-all: test test-registry test-external
 
