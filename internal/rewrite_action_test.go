@@ -1,4 +1,4 @@
-// Copyright 2021 VMware, Inc.
+// Copyright 2022 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
 
 package internal_test
@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -134,18 +135,6 @@ func TestApply(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The chart we want as result
-	wantChartPath := filepath.Join("testdata", "applyoutput")
-	wantChart, err := loader.Load(filepath.Join(wantChartPath, "3-levels-chart"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, wantDigest, err := packageChart(wantChart)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	rewrites := []*internal.RewriteAction{
 		{Path: ".image.repository", Value: "changed-parent"},
 		{Path: ".subchart-1.image.repository", Value: "changed-subchart"},
@@ -162,14 +151,30 @@ func TestApply(t *testing.T) {
 	}
 
 	// Package the updated chart
-	gotTar, gotDigest, err := packageChart(originalChart)
+	gotChartPath, gotDigest, err := packageChart(originalChart)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Update fixtures
+	// The chart we want as result
+	wantChartPath := filepath.Join("testdata", "applyoutput")
+	wantChart, err := loader.Load(filepath.Join(wantChartPath, "3-levels-chart"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, wantDigest, err := packageChart(wantChart)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Update fixtures by moving the newly generated chart into the output one for future comparisons
 	if *update {
-		if err := chartutil.ExpandFile(wantChartPath, gotTar); err != nil {
+		if err := os.RemoveAll(wantChartPath); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Rename(gotChartPath, wantChartPath); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -179,34 +184,40 @@ func TestApply(t *testing.T) {
 	}
 }
 
-// packageChart will return the chart in tarball format as well as its content digest
+// packageChart will return the chart in directory format as well as its content digest
 func packageChart(chart *chart.Chart) (string, string, error) {
-	tempDir, err := ioutil.TempDir("", "relok8s-test")
+	chartDir, err := ioutil.TempDir("", "relok8s-test")
 	if err != nil {
 		return "", "", err
 	}
 
-	// reload the chart to make sure the rewrites take effect
-	// 1 - package chart
-	tarPath, err := chartutil.Save(chart, tempDir)
-	if err != nil {
-		return "", "", err
-	}
-
-	// 2 - Reload the Chart from the packaged one
-	chart, err = loader.Load(tarPath)
-	if err != nil {
+	if err := chartutil.SaveDir(chart, chartDir); err != nil {
 		return "", "", err
 	}
 
 	// Calculate the digest from the Chart files
 	// the digest from the packaged chart will differ since tar.gz adds timestamps
 	hasher := sha256.New()
-	for _, file := range chart.Raw {
-		if _, err := hasher.Write(file.Data); err != nil {
-			return "", "", err
+
+	if err := filepath.Walk(chartDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
+		if !info.IsDir() {
+			data, err := ioutil.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if _, err := hasher.Write(data); err != nil {
+				return err
+
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return "", "", err
 	}
 
-	return tarPath, hex.EncodeToString(hasher.Sum(nil)), nil
+	return chartDir, hex.EncodeToString(hasher.Sum(nil)), nil
 }
