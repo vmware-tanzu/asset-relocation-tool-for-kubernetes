@@ -135,7 +135,6 @@ func TestApply(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Package the updated chart
 	rewrites := []*internal.RewriteAction{
 		{Path: ".image.repository", Value: "changed-parent"},
 		{Path: ".subchart-1.image.repository", Value: "changed-subchart"},
