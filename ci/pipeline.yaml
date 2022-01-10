@@ -80,17 +80,6 @@ resources:
       repository: asset-relocation-tool-for-kubernetes
       access_token: ((github.access_token))
 
-  - name: version
-    type: semver
-    icon: github
-    source:
-      driver: git
-      uri: git@github.com:vmware-tanzu/asset-relocation-tool-for-kubernetes.git
-      private_key: ((github.private_key))
-      branch: main
-      file: version
-      commit_message: "[ci skip] bump version to %version%"
-
   - name: nginx-chart
     type: helm-chart
     icon: kubernetes
@@ -143,7 +132,7 @@ jobs:
           REGISTRY_PASSWORD: ((harbor-private.token))
 
   - name: build
-    serial_groups: [version]
+    serial_groups: []
     plan:
       - in_parallel:
         - get: test-image
@@ -153,16 +142,13 @@ jobs:
           trigger: true
           passed:
             - test
-        - get: version
-          params:
-            bump: patch
       - in_parallel:
         - do:
           - task: build
             image: test-image
             file: source/ci/tasks/build.yaml
           - put: release
-            inputs: [build, source, version]
+            inputs: [build, source]
             params:
               name: version/version
               tag: version/version
@@ -174,8 +160,6 @@ jobs:
             image: test-image
             config:
               platform: linux
-              inputs:
-                - name: version
               outputs:
                 - name: args-file
               run:
@@ -208,22 +192,9 @@ jobs:
           - put: docker-image
             inputs:
               - image
-              - version
             params:
               image: image/image.tar
               additional_tags: version/version
-      - put: version
-        params:
-          file: version/version
-        inputs: detect
-
-  - name: bump-minor-version
-    serial_groups: [version]
-    plan:
-      - put: version
-        inputs: detect
-        params:
-          bump: minor
 
   - name: relocate-chart
     plan:

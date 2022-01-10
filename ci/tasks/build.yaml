@@ -5,7 +5,6 @@ platform: linux
 
 inputs:
   - name: source
-  - name: version
 
 outputs:
   - name: build
@@ -16,6 +15,5 @@ run:
   args:
     - -exc
     - |
-      export VERSION=$(cat ../version/version)
       make build-all
       cp build/* ../build
