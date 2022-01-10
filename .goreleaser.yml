@@ -1,10 +1,6 @@
 # Copyright 2022 VMware, Inc.
 # SPDX-License-Identifier: BSD-2-Clause
 # Make sure to check the documentation at https://goreleaser.com
-before:
-  hooks:
-    - make clean
-    - env VERSION="{{ .Version }}" make build
 builds:
   - env:
       - CGO_ENABLED=0
