@@ -8,7 +8,6 @@ builds:
       - -X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/cmd.Version={{ .Version }}
     goos:
       - linux
-      - windows
       - darwin
     binary: relok8s
 archives:
