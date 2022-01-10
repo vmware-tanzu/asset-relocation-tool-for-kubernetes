@@ -1,4 +1,4 @@
-// Copyright 2021 VMware, Inc.
+// Copyright 2022 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
 
 package external_test
@@ -85,7 +85,7 @@ var _ = Describe("External tests", func() {
 
 	Scenario("running chart move to intermediate bundle", func() {
 		start := time.Now()
-		steps.When("removing relok8s-save-cache")
+		steps.When("clear relok8s-save-cache")
 		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate.tar", tmpDir))
 		steps.And("the move is computed")
 		steps.Then("the command says it will archive the chart")
@@ -300,7 +300,7 @@ var _ = Describe("External tests", func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Writing hints.yaml...\n"))
 		})
 
-		define.When(`^removing relok8s-save-cache$`, func() {
+		define.When(`^clear relok8s-save-cache$`, func() {
 			err := os.RemoveAll(saveCacheFolder())
 			Expect(err).ToNot(HaveOccurred())
 		})
