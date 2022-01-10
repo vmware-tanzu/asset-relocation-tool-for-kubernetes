@@ -10,5 +10,3 @@ build/*
 
 
 dist/
-
-next-semver/next-semver
