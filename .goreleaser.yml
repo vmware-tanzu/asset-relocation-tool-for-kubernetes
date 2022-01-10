@@ -1,12 +1,13 @@
 # Make sure to check the documentation at https://goreleaser.com
-env:
-  - VERSION="{{ .Version }}"
 before:
   hooks:
-    - make build
+    - make clean
+    - env VERSION="{{ .Version }}" make build
 builds:
   - env:
       - CGO_ENABLED=0
+    ldflags:
+      - -X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/cmd.Version={{ .Version }}
     goos:
       - linux
       - windows
