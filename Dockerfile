@@ -1,4 +1,4 @@
-# Copyright 2021 VMware, Inc.
+# Copyright 2022 VMware, Inc.
 # SPDX-License-Identifier: BSD-2-Clause
 FROM golang:1.17 as builder
 ARG VERSION

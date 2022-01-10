@@ -1,4 +1,4 @@
-# Copyright 2021 VMware, Inc.
+# Copyright 2022 VMware, Inc.
 # SPDX-License-Identifier: BSD-2-Clause
 FROM harbor-repo.vmware.com/dockerhub-proxy-cache/library/photon:3.0-20210716
 

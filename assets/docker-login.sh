@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2021 VMware, Inc.
+# Copyright 2022 VMware, Inc.
 # SPDX-License-Identifier: BSD-2-Clause
 
 set -euo pipefail
