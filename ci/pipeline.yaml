@@ -72,14 +72,6 @@ resources:
       username: ((harbor-public.username))
       password: ((harbor-public.token))
 
-  - name: release
-    type: github-release
-    icon: github
-    source:
-      owner: vmware-tanzu
-      repository: asset-relocation-tool-for-kubernetes
-      access_token: ((github.access_token))
-
   - name: nginx-chart
     type: helm-chart
     icon: kubernetes
@@ -131,77 +123,10 @@ jobs:
           REGISTRY_USERNAME: ((harbor-private.username))
           REGISTRY_PASSWORD: ((harbor-private.token))
 
-  - name: build
-    serial_groups: []
-    plan:
-      - in_parallel:
-        - get: test-image
-          passed:
-            - test
-        - get: source
-          trigger: true
-          passed:
-            - test
-      - in_parallel:
-        - do:
-          - task: build
-            image: test-image
-            file: source/ci/tasks/build.yaml
-          - put: release
-            inputs: [build, source]
-            params:
-              name: version/version
-              tag: version/version
-              commitish: source/.git/ref
-              globs:
-                - build/*
-        - do:
-          - task: make-args-file
-            image: test-image
-            config:
-              platform: linux
-              outputs:
-                - name: args-file
-              run:
-                path: bash
-                args:
-                  - -exc
-                  - |
-                    echo "VERSION=$(cat version/version)" > args-file/args.env
-          - task: build-image
-            privileged: true
-            config:
-              platform: linux
-              image_resource:
-                type: registry-image
-                source:
-                  repository: harbor-repo.vmware.com/dockerhub-proxy-cache/concourse/oci-build-task
-                  username: ((harbor.username))
-                  password: ((harbor.token))
-              inputs:
-                - name: args-file
-                - name: source
-                  path: .
-              outputs:
-                - name: image
-              params:
-                BUILD_ARGS_FILE: args-file/args.env
-                REGISTRY_MIRRORS: mirror.kokoni.info
-              run:
-                path: build
-          - put: docker-image
-            inputs:
-              - image
-            params:
-              image: image/image.tar
-              additional_tags: version/version
-
   - name: relocate-chart
     plan:
       - in_parallel:
         - get: docker-image
-          passed:
-            - build
           trigger: true
         - get: nginx-chart
       - task: relocate
@@ -253,7 +178,6 @@ jobs:
                 ! diff --context=3 \
                   <(tar xzfO nginx-chart/*.tgz nginx/values.yaml) \
                   <(tar xzfO rewritten-chart/chart.tgz nginx/values.yaml)
-
 
   - name: test-pull-request
     serial: true
