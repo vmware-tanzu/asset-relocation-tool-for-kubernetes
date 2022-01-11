@@ -84,7 +84,6 @@ var _ = Describe("External tests", func() {
 	})
 
 	Scenario("running chart move to intermediate bundle", func() {
-		start := time.Now()
 		steps.When("clear relok8s-save-cache")
 		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate.tar", tmpDir))
 		steps.And("the move is computed")
@@ -94,9 +93,7 @@ var _ = Describe("External tests", func() {
 		steps.Then("the command says it is writing the container images")
 		steps.Then("the command says the intermediate bundle is complete")
 		steps.Then("relok8s-save-cache contains expected layer")
-		firstSaveDuration := time.Since(start)
 
-		start2 := time.Now()
 		info, err := os.Stat(expectedLayerFile())
 		Expect(err).ToNot(HaveOccurred())
 		modtime := info.ModTime()
@@ -104,11 +101,9 @@ var _ = Describe("External tests", func() {
 		steps.And("the move is computed")
 		steps.Then("the command says the intermediate bundle 2 is complete")
 		steps.Then("relok8s-save-cache contains expected layer")
-		secondSaveDuration := time.Since(start2)
 		info, err = os.Stat(expectedLayerFile())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(info.ModTime()).To(Equal(modtime))
-		Expect(secondSaveDuration).To(BeNumerically("<", firstSaveDuration))
 	})
 
 	Scenario("running chart move from intermediate bundle", func() {
