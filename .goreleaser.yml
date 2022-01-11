@@ -9,8 +9,6 @@ builds:
     binary: relok8s
 dockers:
   -
-    ids:
-      - release
     dockerfile: Dockerfile
     image_templates:
       - "ghcr.io/vmware-tanzu/asset-relocation-tool-for-kubernetes:{{ .Tag }}"
