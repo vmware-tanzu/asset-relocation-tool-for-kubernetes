@@ -1,0 +1,26 @@
+# Copyright 2022 VMware, Inc.
+# SPDX-License-Identifier: BSD-2-Clause
+# Make sure to check the documentation at https://goreleaser.com
+builds:
+  - env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/cmd.Version={{ .Version }}
+    binary: relok8s
+archives:
+  - replacements:
+      386: i386
+      amd64: x86_64
+    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}"
+    files:
+      - README.md
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

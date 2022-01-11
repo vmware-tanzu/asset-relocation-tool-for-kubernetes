@@ -8,3 +8,5 @@ build/*
 .idea
 *.iml
 
+# Releases
+dist/
