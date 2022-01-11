@@ -20,6 +20,7 @@ dockers:
       - "VERSION={{ .Version }}"
     extra_files:
       - assets/docker-login.sh
+      - relok8s
 archives:
   - replacements:
       386: i386
