@@ -84,7 +84,7 @@ var _ = Describe("External tests", func() {
 	})
 
 	Scenario("running chart move to intermediate bundle", func() {
-		steps.When("clear relok8s-save-cache")
+		steps.When("clear relok8s-save-cache expected layer")
 		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate.tar", tmpDir))
 		steps.And("the move is computed")
 		steps.Then("the command says it will archive the chart")
@@ -291,8 +291,8 @@ var _ = Describe("External tests", func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Writing hints.yaml...\n"))
 		})
 
-		define.When(`^clear relok8s-save-cache$`, func() {
-			err := os.RemoveAll(saveCacheFolder())
+		define.When(`^clear relok8s-save-cache expected layer$`, func() {
+			err := os.RemoveAll(expectedLayerFile())
 			Expect(err).ToNot(HaveOccurred())
 		})
 
