@@ -18,6 +18,8 @@ dockers:
     build_flag_templates:
       - "--build-arg"
       - "VERSION={{ .Version }}"
+    extra_files:
+      - assets/docker-login.sh
 archives:
   - replacements:
       386: i386
