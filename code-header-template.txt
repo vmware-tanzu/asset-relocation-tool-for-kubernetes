@@ -1,2 +1,2 @@
-Copyright {{YEAR}} VMware, Inc.
+Copyright {{copyright-year}} VMware, Inc.
 SPDX-License-Identifier: BSD-2-Clause

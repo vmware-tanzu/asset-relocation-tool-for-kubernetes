@@ -27,3 +27,6 @@ linters-settings:
     threshold: 400
   goheader:
     template-path: code-header-template.txt
+    values:
+      regexp:
+        copyright-year: 202[1-2]
