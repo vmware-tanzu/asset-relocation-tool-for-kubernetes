@@ -12,6 +12,6 @@ LABEL maintainer="tanzu-isv-engineering@groups.vmware.com"
 LABEL org.opencontainers.image.source https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes
 
 COPY assets/docker-login.sh /usr/local/bin/docker-login.sh
-COPY relok8s /usr/local/bin
+COPY ./relok8s /usr/local/bin
 ENTRYPOINT ["/usr/local/bin/relok8s"]
 
