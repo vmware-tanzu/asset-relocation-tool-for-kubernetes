@@ -12,6 +12,7 @@ RUN make test && make build
 FROM photon:4.0
 LABEL description="Asset Relocation Tool for Kubernetes"
 LABEL maintainer="tanzu-isv-engineering@groups.vmware.com"
+LABEL org.opencontainers.image.source https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes
 
 WORKDIR /
 
