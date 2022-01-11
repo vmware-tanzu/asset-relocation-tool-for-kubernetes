@@ -7,6 +7,17 @@ builds:
     ldflags:
       - -X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/cmd.Version={{ .Version }}
     binary: relok8s
+dockers:
+  -
+    dockerfile: Dockerfile
+    image_templates:
+      - "ghcr.io/vmware-tanzu/asset-relocation-tool-for-kubernetes:{{ .Tag }}"
+      - "ghcr.io/vmware-tanzu/asset-relocation-tool-for-kubernetes:latest"
+    build_flag_templates:
+      - "--build-arg"
+      - "VERSION={{ .Version }}"
+    extra_files:
+      - assets/docker-login.sh
 archives:
   - replacements:
       386: i386
