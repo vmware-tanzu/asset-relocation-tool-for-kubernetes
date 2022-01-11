@@ -41,3 +41,13 @@ To run all tests, including `test-external` do:
 ```bash
 make test-all
 ```
+
+### Releasing
+
+Releases are cut manually like this:
+
+```bash
+VERSION=X.Y.Z && git tag "v${VERSION}" && git push origin "v${VERSION}"
+```
+
+The `X.Y.Z` version must be a semver compliant version string. Once the tag is pushed, a GitHub Action will produce the corresponding release using goreleaser.
