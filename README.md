@@ -77,6 +77,13 @@ Rule                | Example                   | Input                         
 Registry            | `harbor-repo.vmware.com`  | `docker.io/mycompany/myapp:1.2.3` | `harbor-repo.vmware.com/mycompany/myapp:1.2.3`
 Repository Prefix   | `mytenant`                | `docker.io/mycompany/myapp:1.2.3` | `docker.io/mytenant/myapp:1.2.3`
 
+## Installation
+
+The latest version of the relok8s binary can be found in the [releases section](https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/releases). Additionally a containerized version can be also found [here](https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/pkgs/container/asset-relocation-tool-for-kubernetes)
+
+```bash
+
+```
 
 ## Running in CI
 
