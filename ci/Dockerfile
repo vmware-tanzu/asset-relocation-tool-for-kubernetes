@@ -8,9 +8,6 @@ WORKDIR /
 RUN yum -y install build-essential coreutils gawk gcc git go-1.17.2-1.ph3.x86_64 jq make
 ENV PATH="/root/go/bin:${PATH}"
 
-ARG GOLANGCI_LINT_VERSION="v1.42.0"
-RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin ${GOLANGCI_LINT_VERSION}
-
 # Install go packages used for building and testing
 RUN go get -u github.com/maxbrunsfeld/counterfeiter/v6 \
     github.com/onsi/ginkgo/ginkgo \
