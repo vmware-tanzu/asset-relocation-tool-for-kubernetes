@@ -29,9 +29,11 @@ func expectedLayerFile() string {
 }
 
 var _ = Describe("External tests", func() {
+
 	var (
-		customRepoPrefix string
-		tmpDir           string
+		tmpDir string
+		// set as var because it gets override in the test cases
+		customRepoPrefix = "tanzu_isv_engineering_private/ci-tests"
 	)
 
 	BeforeEach(func() {
@@ -49,8 +51,6 @@ var _ = Describe("External tests", func() {
 	})
 
 	steps := NewSteps()
-	// Using a custom repo prefix in every test run
-	customRepoPrefix = fmt.Sprintf("%s/ci-tests/%d", "tanzu_isv_engineering_private", time.Now().Unix())
 
 	Context("Unauthorized", func() {
 		Scenario("running chart move", func() {
@@ -62,7 +62,9 @@ var _ = Describe("External tests", func() {
 	})
 
 	Scenario("running chart move", func() {
-		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --repo-prefix %s", customRepoPrefix))
+		// Using forcePush (-f) option to simulate that the image in destination doesn't exist.
+		// Used as a workaround for https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/issues/134 since using many harbor paths cause transient errors
+		steps.When(fmt.Sprintf("running relok8s chart move -f -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --repo-prefix %s", customRepoPrefix))
 		steps.And("the move is computed")
 		steps.Then("the command says that the rewritten image will be pushed")
 		steps.And("the command says that the rewritten images will be written to the chart and subchart")
@@ -75,7 +77,7 @@ var _ = Describe("External tests", func() {
 	})
 
 	Scenario("chart with complex global registry", func() {
-		steps.When("running relok8s chart move -y ../fixtures/complex-chart --registry harbor-repo.vmware.com/tanzu_isv_engineering_private")
+		steps.When("running relok8s chart move -f -y ../fixtures/complex-chart --registry harbor-repo.vmware.com/tanzu_isv_engineering_private")
 		steps.Then("the command exits without error")
 		steps.Then("the modified complex chart is written")
 		steps.And("the image has the right global registry change")
@@ -85,7 +87,7 @@ var _ = Describe("External tests", func() {
 
 	Scenario("running chart move to intermediate bundle", func() {
 		steps.When("clear relok8s-save-cache expected layer")
-		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate.tar", tmpDir))
+		steps.When(fmt.Sprintf("running relok8s chart move -f -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate.tar", tmpDir))
 		steps.And("the move is computed")
 		steps.Then("the command says it will archive the chart")
 		steps.Then("the command says it is writing the hints file")
@@ -97,7 +99,7 @@ var _ = Describe("External tests", func() {
 		info, err := os.Stat(expectedLayerFile())
 		Expect(err).ToNot(HaveOccurred())
 		modtime := info.ModTime()
-		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate-2.tar", tmpDir))
+		steps.When(fmt.Sprintf("running relok8s chart move -f -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate-2.tar", tmpDir))
 		steps.And("the move is computed")
 		steps.Then("the command says the intermediate bundle 2 is complete")
 		steps.Then("relok8s-save-cache contains expected layer")
@@ -109,7 +111,7 @@ var _ = Describe("External tests", func() {
 	Scenario("running chart move from intermediate bundle", func() {
 		oldprefix := customRepoPrefix
 		customRepoPrefix += "-unbundled"
-		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart-intermediate.tar --repo-prefix %s", customRepoPrefix))
+		steps.When(fmt.Sprintf("running relok8s chart move -f -y ../fixtures/testchart-intermediate.tar --repo-prefix %s", customRepoPrefix))
 		steps.And("the move is computed")
 		steps.Then("the command says that the unbundled & rewritten image will be pushed")
 		steps.And("the command says that the rewritten images will be written to the chart and subchart")
