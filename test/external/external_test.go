@@ -1,4 +1,4 @@
-// Copyright 2021 VMware, Inc.
+// Copyright 2022 VMware, Inc.
 // SPDX-License-Identifier: BSD-2-Clause
 
 package external_test
@@ -18,6 +18,15 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gbytes"
 )
+
+func saveCacheFolder() string {
+	return filepath.Join(os.TempDir(), "relok8s-save-cache")
+}
+
+func expectedLayerFile() string {
+	layerFilename := "sha256-24fb2886d6f6c5d16481dd7608b47e78a8e92a13d6e64d87d57cb16d5f766d63.gz"
+	return filepath.Join(saveCacheFolder(), layerFilename)
+}
 
 var _ = Describe("External tests", func() {
 	var (
@@ -75,6 +84,7 @@ var _ = Describe("External tests", func() {
 	})
 
 	Scenario("running chart move to intermediate bundle", func() {
+		steps.When("clear relok8s-save-cache expected layer")
 		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate.tar", tmpDir))
 		steps.And("the move is computed")
 		steps.Then("the command says it will archive the chart")
@@ -82,6 +92,18 @@ var _ = Describe("External tests", func() {
 		steps.Then("the command says it is writing the Helm Chart files")
 		steps.Then("the command says it is writing the container images")
 		steps.Then("the command says the intermediate bundle is complete")
+		steps.Then("relok8s-save-cache contains expected layer")
+
+		info, err := os.Stat(expectedLayerFile())
+		Expect(err).ToNot(HaveOccurred())
+		modtime := info.ModTime()
+		steps.When(fmt.Sprintf("running relok8s chart move -y ../fixtures/testchart --image-patterns ../fixtures/testchart.images.yaml --to-intermediate-bundle %s/testchart-intermediate-2.tar", tmpDir))
+		steps.And("the move is computed")
+		steps.Then("the command says the intermediate bundle 2 is complete")
+		steps.Then("relok8s-save-cache contains expected layer")
+		info, err = os.Stat(expectedLayerFile())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.ModTime()).To(Equal(modtime))
 	})
 
 	Scenario("running chart move from intermediate bundle", func() {
@@ -261,13 +283,25 @@ var _ = Describe("External tests", func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Intermediate bundle complete at %s/testchart-intermediate.tar\n", tmpDir))
 		})
 
+		define.Then(`^the command says the intermediate bundle 2 is complete$`, func() {
+			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Intermediate bundle complete at %s/testchart-intermediate-2.tar\n", tmpDir))
+		})
+
 		define.Then(`^the command says it is writing the hints file$`, func() {
 			Eventually(test.CommandSession.Out, time.Minute).Should(Say("Writing hints.yaml...\n"))
 		})
 
-		define.Then(`^remove the archive folder at testchart-intermediate.tar$`, func() {
-			err := os.Remove("testchart-intermediate.tar")
+		define.When(`^clear relok8s-save-cache expected layer$`, func() {
+			err := os.RemoveAll(expectedLayerFile())
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		define.Then(`^relok8s-save-cache contains expected layer$`, func() {
+			info, err := os.Stat(expectedLayerFile())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.IsDir()).To(BeFalse())
+			Expect(info.Size()).To(Equal(int64(767322)))
+			Expect(time.Since(info.ModTime())).To(BeNumerically("<", 5*time.Minute))
 		})
 	})
 })
