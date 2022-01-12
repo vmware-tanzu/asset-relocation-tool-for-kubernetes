@@ -81,10 +81,6 @@ Repository Prefix   | `mytenant`                | `docker.io/mycompany/myapp:1.2
 
 The latest version of the relok8s binary can be found in the [releases section](https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/releases). Additionally a containerized version can be also found [here](https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/pkgs/container/asset-relocation-tool-for-kubernetes)
 
-```bash
-
-```
-
 ## Running in CI
 
 It may be useful to run `relok8s` inside a CI pipeline to automatically move a chart when there are updates.
