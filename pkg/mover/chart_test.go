@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"testing"
 
 	"helm.sh/helm/v3/pkg/chart"
@@ -714,12 +715,21 @@ func TestGroupChangesByChart(t *testing.T) {
 	want := make(map[*chart.Chart][]*internal.RewriteAction)
 	// parent chart
 	want[rootChart] = []*internal.RewriteAction{r1}
+
+	firstLevelDeps := rootChart.Dependencies()
+	// Sort dependencies since they come in arbitrary order
+	sort.Slice(firstLevelDeps, func(i, j int) bool {
+		return firstLevelDeps[i].Name() < firstLevelDeps[j].Name()
+	})
+
 	// Subchart1
-	want[rootChart.Dependencies()[0]] = []*internal.RewriteAction{subchart1R1, subchart1R2}
+	want[firstLevelDeps[0]] = []*internal.RewriteAction{subchart1R1, subchart1R2}
+
 	// Subchart2
-	want[rootChart.Dependencies()[1]] = []*internal.RewriteAction{subchart2R1}
+	want[firstLevelDeps[1]] = []*internal.RewriteAction{subchart2R1}
+
 	// Subchart1.Subchart3
-	want[rootChart.Dependencies()[0].Dependencies()[0]] = []*internal.RewriteAction{subchart1Subchart3}
+	want[firstLevelDeps[0].Dependencies()[0]] = []*internal.RewriteAction{subchart1Subchart3}
 
 	// Compare output
 	if got := groupChangesByChart(rewrites, rootChart); !reflect.DeepEqual(got, want) {
