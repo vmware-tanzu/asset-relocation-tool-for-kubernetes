@@ -58,8 +58,8 @@ func dockerLogout(t *testing.T, domain string) {
 	dockerLogin(t, domain, "", "")
 }
 
-func NewMoveRequest(chartPath, hints, target, targetRegistry, targetPrefix string) *mover.ChartMoveRequest {
-	return &mover.ChartMoveRequest{
+func NewMoveRequest(chartPath, hints, target, targetRegistry, targetPrefix string, useLocalKeychain bool) *mover.ChartMoveRequest {
+	req := &mover.ChartMoveRequest{
 		Source: mover.Source{
 			// The Helm Chart can be provided in either tarball or directory form
 			Chart: mover.ChartSpec{Local: &mover.LocalChart{Path: chartPath}},
@@ -76,6 +76,13 @@ func NewMoveRequest(chartPath, hints, target, targetRegistry, targetPrefix strin
 			},
 		},
 	}
+
+	if useLocalKeychain {
+		req.Source.Containers = mover.Containers{UseDefaultLocalKeychain: true}
+		req.Target.Containers = mover.Containers{UseDefaultLocalKeychain: true}
+	}
+
+	return req
 }
 
 func NewSaveRequest(chartPath, hints, bundle string) *mover.ChartMoveRequest {
@@ -85,6 +92,7 @@ func NewSaveRequest(chartPath, hints, bundle string) *mover.ChartMoveRequest {
 			Chart: mover.ChartSpec{Local: &mover.LocalChart{Path: chartPath}},
 			// path to file containing rules such as // {{.image.registry}}:{{.image.tag}}
 			ImageHintsFile: hints,
+			Containers:     mover.Containers{UseDefaultLocalKeychain: true},
 		},
 		Target: mover.Target{
 			Chart: mover.ChartSpec{IntermediateBundle: &mover.IntermediateBundle{Path: bundle}},
@@ -99,7 +107,8 @@ func NewLoadRequest(bundle, target, targetRegistry, targetPrefix string) *mover.
 			Chart: mover.ChartSpec{IntermediateBundle: &mover.IntermediateBundle{Path: bundle}},
 		},
 		Target: mover.Target{
-			Chart: mover.ChartSpec{Local: &mover.LocalChart{Path: target}},
+			Chart:      mover.ChartSpec{Local: &mover.LocalChart{Path: target}},
+			Containers: mover.Containers{UseDefaultLocalKeychain: true},
 			// Where to push and how to rewrite the found images
 			// i.e docker.io/bitnami/mariadb => myregistry.com/myteam/mariadb
 			Rules: mover.RewriteRules{
@@ -144,7 +153,7 @@ func TestRegistryDockerCredentials(t *testing.T) {
 	params := loadParamsFromEnv()
 	prepareDockerCA(t, params.certFile)
 	dockerLogin(t, params.domain, params.user, params.passwd)
-	got := relok8s(t, NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix))
+	got := relok8s(t, NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix, true))
 	var want error
 	if got != want {
 		t.Fatalf("want error %v got %v", want, got)
@@ -156,7 +165,7 @@ func TestRegistryCustomCredentials(t *testing.T) {
 	params := loadParamsFromEnv()
 	prepareDockerCA(t, params.certFile)
 	dockerLogout(t, params.domain)
-	req := NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix)
+	req := NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix, false)
 	req.Target.Containers.ContainerRepository = repo(params.domain, params.user, params.passwd)
 	got := relok8s(t, req)
 	var want error
@@ -170,7 +179,7 @@ func TestRegistryBadDockerCredentials(t *testing.T) {
 	params := loadParamsFromEnv()
 	prepareDockerCA(t, params.certFile)
 	dockerLogin(t, params.domain, BadUser, BadPasswd)
-	got := relok8s(t, NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix))
+	got := relok8s(t, NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix, true))
 	// retry.Error is incompatible with errors package, it cannot be unwrapped
 	_, ok := got.(retry.Error)
 	if !ok {
@@ -183,7 +192,7 @@ func TestRegistryBadCustomCredentials(t *testing.T) {
 	params := loadParamsFromEnv()
 	prepareDockerCA(t, params.certFile)
 	dockerLogout(t, params.domain)
-	req := NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix)
+	req := NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix, false)
 	req.Target.Containers.ContainerRepository = repo(params.domain, BadUser, BadPasswd)
 	got := relok8s(t, req)
 	// retry.Error is incompatible with errors package, it cannot be unwrapped
@@ -198,7 +207,7 @@ func TestMovePerformance(t *testing.T) {
 	params := loadParamsFromEnv()
 	prepareDockerCA(t, params.certFile)
 	dockerLogin(t, params.domain, params.user, params.passwd)
-	got := relok8s(t, NewMoveRequest(ComplexChart, ComplexHints, Target, params.domain, Prefix))
+	got := relok8s(t, NewMoveRequest(ComplexChart, ComplexHints, Target, params.domain, Prefix, true))
 	var want error
 	if got != want {
 		t.Fatalf("want error %v got %v", want, got)

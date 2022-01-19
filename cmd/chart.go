@@ -112,12 +112,16 @@ func moveChart(cmd *cobra.Command, args []string) error {
 		Source: mover.Source{
 			Chart:          mover.ChartSpec{},
 			ImageHintsFile: imagePatternsFile,
+			// Use local keychain for authentication
+			Containers: mover.Containers{UseDefaultLocalKeychain: true},
 		},
 		Target: mover.Target{
-			Chart: mover.ChartSpec{},
-			Rules: *targetRewriteRules,
+			Chart:      mover.ChartSpec{},
+			Rules:      *targetRewriteRules,
+			Containers: mover.Containers{UseDefaultLocalKeychain: true},
 		},
 	}
+
 	inputChartPath := args[0]
 	if mover.IsIntermediateBundle(inputChartPath) {
 		cmd.Println("Intermediate bundle provided")

@@ -76,7 +76,7 @@ func (nl noLogger) Println(i ...interface{}) {}
 // DefaultLogger to stdout
 var DefaultLogger Logger = defaultLogger{}
 
-// DefaultNoLogger swallows all logs
+// NoLogger swallows all logs
 var NoLogger Logger = noLogger{}
 
 // ChartMetadata exposes metadata about the Helm Chart to be relocated
@@ -103,6 +103,9 @@ type ContainerRepository struct {
 // Containers is the section for private repository definition
 type Containers struct {
 	ContainerRepository
+	// Use local keychain in the system (config/docker.json)
+	// This is useful to offer a CLI experience similar to docker
+	UseDefaultLocalKeychain bool
 }
 
 // ChartSpec of possible chart inputs or outputs
@@ -151,13 +154,11 @@ type ChartMover struct {
 // NewChartMover creates a ChartMover to relocate a chart following the given
 // imagePatters and rules.
 func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
-	sourceAuth := req.Source.Containers.ContainerRepository
-	targetAuth := req.Target.Containers.ContainerRepository
 	cm := &ChartMover{
 		logger:                  defaultLogger{},
 		retries:                 DefaultRetries,
-		sourceContainerRegistry: internal.NewContainerRegistryClient(sourceAuth),
-		targetContainerRegistry: internal.NewContainerRegistryClient(targetAuth),
+		sourceContainerRegistry: internal.NewContainerRegistryClient(getContainersKeychain(req.Source.Containers)),
+		targetContainerRegistry: internal.NewContainerRegistryClient(getContainersKeychain(req.Target.Containers)),
 	}
 
 	if err := validateTarget(&req.Target); err != nil {
