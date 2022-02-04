@@ -19,10 +19,11 @@ resources:
       repository: projects.registry.vmware.com/tanzu_isv_engineering/relok8s
 ```
 
-### Helm Chart
+### Helm Charts
 
-The pipeline also loads a Helm chart, using the [Helm Chart resource](https://github.com/jghiloni/helm-chart-resource).
-In this example, we are using the [Bitnami Nginx](https://bitnami.com/stack/nginx/helm) chart.
+The pipeline also loads a Helm chart, using the [Helm Chart resource](https://github.com/jghiloni/helm-chart-resource)
+(In this example, the [Bitnami Nginx](https://bitnami.com/stack/nginx/helm) chart),
+and it finally stores the relocated chart into a Harbor registry.
 
 ```yaml
 resource_types:
@@ -40,6 +41,15 @@ resources:
     icon: kubernetes
     source:
       repository_url: https://charts.bitnami.com/bitnami
+      chart: nginx
+
+  - name: relocated-chart
+    type: helm-chart
+    icon: kubernetes
+    source:
+      repository_url: https://harbor-repo.vmware.com/chartrepo/tanzu_isv_engineering_private
+      username: ((harbor-private.username))
+      password: ((harbor-private.token))
       chart: nginx
 ```
 
@@ -130,4 +140,15 @@ In a production setting, this task would not be necessary, but would likely be r
                 ! diff --context=3 \
                   <(tar xzfO nginx-chart/*.tgz nginx/values.yaml) \
                   <(tar xzfO rewritten-chart/chart.tgz nginx/values.yaml)
+```
+
+### put
+
+Finally, the relocated chart is pushed to the Harbor registry
+
+```yaml
+      - put: relocated-chart
+        inputs: detect
+        params:
+          repository: rewritten-chart/chart.tgz
 ```
