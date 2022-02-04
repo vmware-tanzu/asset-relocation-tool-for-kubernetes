@@ -24,6 +24,15 @@ resources:
       repository_url: https://charts.bitnami.com/bitnami
       chart: nginx
 
+  - name: relocated-chart
+    type: helm-chart
+    icon: kubernetes
+    source:
+      repository_url: https://harbor-repo.vmware.com/chartrepo/tanzu_isv_engineering_private
+      username: ((harbor-private.username))
+      password: ((harbor-private.token))
+      chart: nginx
+
 jobs:
   - name: relocate-chart
     plan:
@@ -91,3 +100,7 @@ jobs:
                 ! diff --context=3 \
                   <(tar xzfO nginx-chart/*.tgz nginx/values.yaml) \
                   <(tar xzfO rewritten-chart/chart.tgz nginx/values.yaml)
+      - put: relocated-chart
+        inputs: detect
+        params:
+          repository: rewritten-chart/chart.tgz
