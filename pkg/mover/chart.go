@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/google/go-containerregistry/pkg/authn"
+
 	"github.com/avast/retry-go"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -94,15 +96,15 @@ type LocalChart struct {
 // the hints file and container images
 type IntermediateBundle LocalChart
 
-// ContainerRepository defines a private repo name and credentials
-type ContainerRepository struct {
+// OCICredentials defines a private repo name and credentials
+type OCICredentials struct {
 	Server             string
 	Username, Password string
 }
 
-// Containers is the section for private repository definition
-type Containers struct {
-	ContainerRepository
+// ContainersAuth is the section for private repository credentials definition
+type ContainersAuth struct {
+	Credentials *OCICredentials
 	// Use local keychain in the system (config/docker.json)
 	// This is useful to offer a CLI experience similar to docker
 	UseDefaultLocalKeychain bool
@@ -118,14 +120,14 @@ type ChartSpec struct {
 type Source struct {
 	Chart          ChartSpec
 	ImageHintsFile string
-	Containers     Containers
+	ContainersAuth *ContainersAuth
 }
 
 // Target of the chart move
 type Target struct {
-	Chart      ChartSpec
-	Rules      RewriteRules
-	Containers Containers
+	Chart          ChartSpec
+	Rules          RewriteRules
+	ContainersAuth *ContainersAuth
 }
 
 // ChartMoveRequest defines a chart move
@@ -155,10 +157,12 @@ type ChartMover struct {
 // imagePatters and rules.
 func NewChartMover(req *ChartMoveRequest, opts ...Option) (*ChartMover, error) {
 	cm := &ChartMover{
-		logger:                  defaultLogger{},
-		retries:                 DefaultRetries,
-		sourceContainerRegistry: internal.NewContainerRegistryClient(getContainersKeychain(req.Source.Containers)),
-		targetContainerRegistry: internal.NewContainerRegistryClient(getContainersKeychain(req.Target.Containers)),
+		logger:  defaultLogger{},
+		retries: DefaultRetries,
+	}
+
+	if err := initializeContainersAuth(req, cm); err != nil {
+		return nil, err
 	}
 
 	if err := validateTarget(&req.Target); err != nil {
@@ -726,4 +730,32 @@ func notNilData(data []byte, err error) ([]byte, error) {
 		return nil, errors.New("no data loaded")
 	}
 	return data, err
+}
+
+// Initialize the ChartMover OCI credentials based on the provided request
+func initializeContainersAuth(req *ChartMoveRequest, cm *ChartMover) error {
+	var err error
+	if cm.sourceContainerRegistry, err = newContainerRegistryClient(req.Source.ContainersAuth); err != nil {
+		return err
+	}
+
+	if cm.targetContainerRegistry, err = newContainerRegistryClient(req.Target.ContainersAuth); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Return a private registry keychain or one for anonymous access
+func newContainerRegistryClient(auth *ContainersAuth) (*internal.ContainerRegistryClient, error) {
+	var keychain authn.Keychain
+	var err error
+
+	if auth != nil {
+		if keychain, err = getContainersKeychain(auth); err != nil {
+			return nil, err
+		}
+	}
+
+	return internal.NewContainerRegistryClient(keychain), nil
 }
