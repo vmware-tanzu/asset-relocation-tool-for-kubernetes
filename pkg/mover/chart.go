@@ -657,7 +657,7 @@ func stripDependencyRefs(c *chart.Chart) error {
 
 	// Apply to sub-charts too
 	for _, dep := range c.Dependencies() {
-		if err := stripDependenciesRefs(dep); err != nil {
+		if err := stripDependencyRefs(dep); err != nil {
 			return err
 		}
 	}
