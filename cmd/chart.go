@@ -113,12 +113,12 @@ func moveChart(cmd *cobra.Command, args []string) error {
 			Chart:          mover.ChartSpec{},
 			ImageHintsFile: imagePatternsFile,
 			// Use local keychain for authentication
-			Containers: mover.Containers{UseDefaultLocalKeychain: true},
+			ContainersAuth: &mover.ContainersAuth{UseDefaultLocalKeychain: true},
 		},
 		Target: mover.Target{
-			Chart:      mover.ChartSpec{},
-			Rules:      *targetRewriteRules,
-			Containers: mover.Containers{UseDefaultLocalKeychain: true},
+			Chart:          mover.ChartSpec{},
+			Rules:          *targetRewriteRules,
+			ContainersAuth: &mover.ContainersAuth{UseDefaultLocalKeychain: true},
 		},
 	}
 

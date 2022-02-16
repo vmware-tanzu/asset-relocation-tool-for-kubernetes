@@ -78,8 +78,8 @@ func NewMoveRequest(chartPath, hints, target, targetRegistry, targetPrefix strin
 	}
 
 	if useLocalKeychain {
-		req.Source.Containers = mover.Containers{UseDefaultLocalKeychain: true}
-		req.Target.Containers = mover.Containers{UseDefaultLocalKeychain: true}
+		req.Source.ContainersAuth = &mover.ContainersAuth{UseDefaultLocalKeychain: true}
+		req.Target.ContainersAuth = &mover.ContainersAuth{UseDefaultLocalKeychain: true}
 	}
 
 	return req
@@ -92,7 +92,7 @@ func NewSaveRequest(chartPath, hints, bundle string) *mover.ChartMoveRequest {
 			Chart: mover.ChartSpec{Local: &mover.LocalChart{Path: chartPath}},
 			// path to file containing rules such as // {{.image.registry}}:{{.image.tag}}
 			ImageHintsFile: hints,
-			Containers:     mover.Containers{UseDefaultLocalKeychain: true},
+			ContainersAuth: &mover.ContainersAuth{UseDefaultLocalKeychain: true},
 		},
 		Target: mover.Target{
 			Chart: mover.ChartSpec{IntermediateBundle: &mover.IntermediateBundle{Path: bundle}},
@@ -107,8 +107,8 @@ func NewLoadRequest(bundle, target, targetRegistry, targetPrefix string) *mover.
 			Chart: mover.ChartSpec{IntermediateBundle: &mover.IntermediateBundle{Path: bundle}},
 		},
 		Target: mover.Target{
-			Chart:      mover.ChartSpec{Local: &mover.LocalChart{Path: target}},
-			Containers: mover.Containers{UseDefaultLocalKeychain: true},
+			Chart:          mover.ChartSpec{Local: &mover.LocalChart{Path: target}},
+			ContainersAuth: &mover.ContainersAuth{UseDefaultLocalKeychain: true},
 			// Where to push and how to rewrite the found images
 			// i.e docker.io/bitnami/mariadb => myregistry.com/myteam/mariadb
 			Rules: mover.RewriteRules{
@@ -119,8 +119,8 @@ func NewLoadRequest(bundle, target, targetRegistry, targetPrefix string) *mover.
 	}
 }
 
-func repo(domain, user, passwd string) mover.ContainerRepository {
-	return mover.ContainerRepository{
+func repo(domain, user, passwd string) *mover.OCICredentials {
+	return &mover.OCICredentials{
 		Server:   domain,
 		Username: user,
 		Password: passwd,
@@ -166,7 +166,9 @@ func TestRegistryCustomCredentials(t *testing.T) {
 	prepareDockerCA(t, params.certFile)
 	dockerLogout(t, params.domain)
 	req := NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix, false)
-	req.Target.Containers.ContainerRepository = repo(params.domain, params.user, params.passwd)
+	req.Target.ContainersAuth = &mover.ContainersAuth{
+		Credentials: repo(params.domain, params.user, params.passwd),
+	}
 	got := relok8s(t, req)
 	var want error
 	if got != want {
@@ -193,7 +195,9 @@ func TestRegistryBadCustomCredentials(t *testing.T) {
 	prepareDockerCA(t, params.certFile)
 	dockerLogout(t, params.domain)
 	req := NewMoveRequest(TestChart, Hints, Target, params.domain, Prefix, false)
-	req.Target.Containers.ContainerRepository = repo(params.domain, BadUser, BadPasswd)
+	req.Target.ContainersAuth = &mover.ContainersAuth{
+		Credentials: repo(params.domain, BadUser, BadPasswd),
+	}
 	got := relok8s(t, req)
 	// retry.Error is incompatible with errors package, it cannot be unwrapped
 	_, ok := got.(retry.Error)
