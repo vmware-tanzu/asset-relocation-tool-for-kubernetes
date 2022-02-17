@@ -1,6 +1,11 @@
 apiVersion: v2
 name: 3-levels-chart
 description: A Helm chart for Kubernetes
+dependencies:
+  - name: subchart-1
+    version: 0.1.0
+  - name: subchart-2
+    version: 0.1.0
 
 # A chart can be either an 'application' or a 'library' chart.
 #
