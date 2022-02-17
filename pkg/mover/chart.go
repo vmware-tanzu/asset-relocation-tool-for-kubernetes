@@ -666,7 +666,8 @@ func stripDependencyRefs(c *chart.Chart) error {
 }
 
 func saveChart(chart *chart.Chart, toChartFilename string) error {
-	tempDir, err := ioutil.TempDir("", "relok8s-package*")
+	cwd, _ := os.Getwd()
+	tempDir, err := ioutil.TempDir(cwd, "relok8s-*")
 	if err != nil {
 		return err
 	}
