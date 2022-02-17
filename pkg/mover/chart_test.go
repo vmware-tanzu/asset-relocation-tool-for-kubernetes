@@ -12,6 +12,8 @@ import (
 	"sort"
 	"testing"
 
+	"helm.sh/helm/v3/pkg/chartutil"
+
 	"helm.sh/helm/v3/pkg/chart"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -735,4 +737,74 @@ func TestGroupChangesByChart(t *testing.T) {
 	if got := groupChangesByChart(rewrites, rootChart); !reflect.DeepEqual(got, want) {
 		t.Errorf("got=%v; want=%v", got, want)
 	}
+}
+
+// Check that a relocated Helm Chart does not contain information about their dependencies
+func TestStripDependencyRefs(t *testing.T) {
+	testChart, err := loader.Load(filepath.Join(fixturesRoot, "3-levels-chart"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := len(testChart.Metadata.Dependencies), 2; got != want {
+		t.Errorf("invalid number of dependencies, got=%d, want=%d", got, want)
+	}
+
+	if testChart.Lock == nil {
+		t.Error("Chart.lock file expected ")
+	}
+
+	firstLevelDeps := testChart.Dependencies()
+	// Sort dependencies since they come in arbitrary order
+	sortCharts(firstLevelDeps)
+
+	// Subchart1
+	if got, want := len(firstLevelDeps[0].Metadata.Dependencies), 1; got != want {
+		t.Errorf("invalid number of dependencies, got=%d, want=%d", got, want)
+	}
+
+	if firstLevelDeps[0].Lock == nil {
+		t.Error("Chart.lock file expected ")
+	}
+
+	// Strip dependencies and re-package chart
+	if err := stripDependencyRefs(testChart); err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir, err := os.MkdirTemp("", "external-tests-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Repackage chart
+	filename, err := chartutil.Save(testChart, tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Load from re-packaged version
+	modifiedChart, err := loader.Load(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	firstLevelDeps = modifiedChart.Dependencies()
+	sortCharts(firstLevelDeps)
+
+	for _, c := range []*chart.Chart{modifiedChart, firstLevelDeps[0]} {
+		if got := len(c.Metadata.Dependencies); got != 0 {
+			t.Errorf("expected no dependencies got=%d", got)
+		}
+
+		if c.Lock != nil {
+			t.Error("Chart.lock file unexpected ")
+		}
+	}
+}
+
+func sortCharts(charts []*chart.Chart) {
+	sort.Slice(charts, func(i, j int) bool {
+		return charts[i].Name() < charts[j].Name()
+	})
 }

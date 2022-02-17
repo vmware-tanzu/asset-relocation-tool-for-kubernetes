@@ -642,7 +642,31 @@ func modifyChart(originalChart *chart.Chart, actions []*internal.RewriteAction, 
 		}
 	}
 
+	// Remove dependencies references. The chart will still work because it has the dependencies vendored in charts/
+	// This just prevents users from overriding the relocation overrides applied by this tool
+	if err := stripDependencyRefs(modifiedChart); err != nil {
+		return err
+	}
+
 	return saveChart(modifiedChart, toChartFilename)
+}
+
+// Remove dependency references in the Helm Chart so helm dep update is not available once the chart has been relocated
+// See https://github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/issues/142#issue-1124233145
+// Removes recursively the Chart.lock file and the dependencies reference inside Chart.yaml
+func stripDependencyRefs(c *chart.Chart) error {
+	// By setting this to nil, chart.Save will re-save the Chart.yaml and ignore the lock
+	c.Metadata.Dependencies = nil
+	c.Lock = nil
+
+	// Apply to sub-charts too
+	for _, dep := range c.Dependencies() {
+		if err := stripDependencyRefs(dep); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func saveChart(chart *chart.Chart, toChartFilename string) error {
