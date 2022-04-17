@@ -5,7 +5,7 @@ FROM harbor-repo.vmware.com/dockerhub-proxy-cache/library/photon:3.0-20210716
 WORKDIR /
 
 # Install required packages
-RUN yum -y install build-essential coreutils gawk gcc git go-1.17.2-1.ph3.x86_64 jq make
+RUN yum -y install build-essential coreutils gawk gcc git go-1.18.2-1.ph3.x86_64 jq make
 ENV PATH="/root/go/bin:${PATH}"
 
 # Install go packages used for building and testing

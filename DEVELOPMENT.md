@@ -1,6 +1,6 @@
 ## Development
 
-The Asset Relocation Tool for Kubernetes is built with Golang 1.17.
+The Asset Relocation Tool for Kubernetes is built with Golang 1.18.
 
 ### Running tests
 
