@@ -733,15 +733,8 @@ func TestGroupChangesByChart(t *testing.T) {
 	// Subchart1.Subchart3
 	want[3] = ChartChanges{chart: firstLevelDeps[0].Dependencies()[0], changes: []*internal.RewriteAction{subchart1Subchart3}}
 
-	for i, w := range want {
-		fmt.Printf("w[%d] = %+v\n", i, w)
-	}
-
 	// Compare output
 	if got := orderedChangesByChart(rewrites, rootChart); !reflect.DeepEqual(got, want) {
-		for i, g := range got {
-			fmt.Printf("g[%d] = %+v\n", i, g)
-		}
 		t.Errorf("got=%v; want=%v", got, want)
 	}
 }
