@@ -441,7 +441,9 @@ func orderByChartHierarchy(groupedChanges map[*chart.Chart][]*internal.RewriteAc
 	}
 
 	sort.Slice(allChanges, func(i, j int) bool {
-		return allChanges[i].chart.ChartFullPath() < allChanges[j].chart.ChartFullPath()
+		a := allChanges[i].chart.ChartFullPath()
+		b := allChanges[j].chart.ChartFullPath()
+		return len(a) < len(b) || a < b
 	})
 	return allChanges
 }
