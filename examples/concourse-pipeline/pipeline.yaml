@@ -24,6 +24,16 @@ resources:
       repository_url: https://charts.bitnami.com/bitnami
       chart: nginx
 
+  - name: nginx-image-hints-file
+    type: git
+    icon: github
+    source:
+      uri: git@github.com:vmware-tanzu/asset-relocation-tool-for-kubernetes.git
+      private_key: ((github.private_key))
+      branch: main
+      paths:
+        - examples/concourse-pipeline/image-hints.yaml
+
   - name: relocated-chart
     type: helm-chart
     icon: kubernetes
@@ -40,24 +50,7 @@ jobs:
           - get: relok8s
           - get: nginx-chart
             trigger: true
-      - task: make-image-hints-file
-        image: relok8s
-        config:
-          platform: linux
-          outputs:
-            - name: nginx-chart-hints
-          run:
-            path: bash
-            args:
-              - -exc
-              - |
-                cat > nginx-chart-hints/image-hints.yaml <<EOF
-                ---
-                - "{{ .image.registry }}/{{ .image.repository }}:{{ .image.tag }}"
-                - "{{ .cloneStaticSiteFromGit.image.registry }}/{{ .cloneStaticSiteFromGit.image.repository }}:{{ .cloneStaticSiteFromGit.image.tag }}"
-                - "{{ .ldapDaemon.image.registry }}/{{ .ldapDaemon.image.repository }}:{{ .ldapDaemon.image.tag }}"
-                - "{{ .metrics.image.registry }}/{{ .metrics.image.repository }}:{{ .metrics.image.tag }}"
-                EOF
+          - get: nginx-image-hints-file
       - task: relocate
         image: relok8s
         config:
@@ -68,7 +61,7 @@ jobs:
             REGISTRY_PASSWORD: ((harbor-private.token))
           inputs:
             - name: nginx-chart
-            - name: nginx-chart-hints
+            - name: nginx-image-hints-file
           outputs:
             - name: rewritten-chart
           run:
@@ -80,7 +73,7 @@ jobs:
 
                 relok8s chart move nginx-chart/*.tgz \
                   --yes \
-                  --image-patterns nginx-chart-hints/image-hints.yaml \
+                  --image-patterns nginx-image-hints-file/examples/concourse-pipeline/image-hints.yaml \
                   --registry "${REGISTRY_SERVER}" \
                   --repo-prefix tanzu_isv_engineering_private
                 mv *.relocated.tgz rewritten-chart/chart.tgz
