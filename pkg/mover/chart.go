@@ -155,7 +155,7 @@ type ChartMover struct {
 }
 
 type ChartChanges struct {
-	chart                     *chart.Chart
+	chart   *chart.Chart
 	changes []*internal.RewriteAction
 }
 
@@ -440,8 +440,8 @@ func orderByChartHierarchy(groupedChanges map[*chart.Chart][]*internal.RewriteAc
 		allChanges = append(allChanges, ChartChanges{chart: chart, changes: changes})
 	}
 
-	sort.Slice(allChanges, func(i, j int) bool { 
-		return allChanges[i].chart.ChartFullPath() < allChanges[j].chart.ChartFullPath() 
+	sort.Slice(allChanges, func(i, j int) bool {
+		return allChanges[i].chart.ChartFullPath() < allChanges[j].chart.ChartFullPath()
 	})
 	return allChanges
 }
