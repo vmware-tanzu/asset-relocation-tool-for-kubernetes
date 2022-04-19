@@ -1,0 +1,5 @@
+---
+- "{{ .image.registry }}/{{ .image.repository }}:{{ .image.tag }}"
+- "{{ .cloneStaticSiteFromGit.image.registry }}/{{ .cloneStaticSiteFromGit.image.repository }}:{{ .cloneStaticSiteFromGit.image.tag }}"
+- "{{ .metrics.image.registry }}/{{ .metrics.image.repository }}:{{ .metrics.image.tag }}"
+
