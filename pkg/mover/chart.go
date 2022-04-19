@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 
@@ -443,7 +444,9 @@ func orderByChartHierarchy(groupedChanges map[*chart.Chart][]*internal.RewriteAc
 	sort.Slice(allChanges, func(i, j int) bool {
 		a := allChanges[i].chart.ChartFullPath()
 		b := allChanges[j].chart.ChartFullPath()
-		return len(a) < len(b) || a < b
+		pathA := strings.Split(a, "/")
+		pathB := strings.Split(b, "/")
+		return len(pathA) < len(pathB) || a < b
 	})
 	return allChanges
 }
