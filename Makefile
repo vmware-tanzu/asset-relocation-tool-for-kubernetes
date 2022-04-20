@@ -10,10 +10,16 @@ default: build
 .PHONY: deps-go-binary deps-counterfeiter deps-ginkgo deps-golangci-lint
 
 GO_VERSION := $(shell go version)
+PREFERRED_VERSION=1.18
+PREVIOUS_VERSION=1.17
+VERSION_MATCHED := $(shell go version | grep "$(PREFERRED_VERSION)\|$(PREVIOUS_VERSION)")
 
 deps-go-binary:
 ifndef GO_VERSION
 	$(error Go not installed)
+endif
+ifndef VERSION_MATCHED
+       $(error Required Go versions are $(PREFERRED_VERSION) or $(PREVIOUS_VERSION), but we have $(GO_VERSION))
 endif
 	@:
 
