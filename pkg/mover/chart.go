@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 
@@ -151,6 +153,11 @@ type ChartMover struct {
 	// raw contents of the hints file. Sample:
 	// test/fixtures/testchart.images.yaml
 	rawHints []byte
+}
+
+type ChartChanges struct {
+	chart   *chart.Chart
+	changes []*internal.RewriteAction
 }
 
 // NewChartMover creates a ChartMover to relocate a chart following the given
@@ -399,20 +406,20 @@ func (cm *ChartMover) printMove() {
 			src, change.RewrittenReference.Name(), change.Digest, pushRequiredTxt)
 	}
 
-	for chartToModify, changes := range groupChangesByChart(cm.chartChanges, cm.chart) {
-		log.Printf("\nChanges to be applied to %s/values.yaml:\n", chartToModify.ChartFullPath())
-		for _, change := range changes {
+	for _, chartChanges := range orderedChangesByChart(cm.chartChanges, cm.chart) {
+		log.Printf("\nChanges to be applied to %s/values.yaml:\n", chartChanges.chart.ChartFullPath())
+		for _, change := range chartChanges.changes {
 			// Remove chart name from the path since we are already indicating what values.yaml file we are changing
-			log.Printf("  %s: %s\n", namespacedPath(change.Path, chartToModify.Name()), change.Value)
+			log.Printf("  %s: %s\n", namespacedPath(change.Path, chartChanges.chart.Name()), change.Value)
 		}
 
 		log.Println()
 	}
 }
 
-// Return the grouped set of changes by Helm Chart.
+// Return the ordered set of changes grouped by Helm Chart.
 // Meaning that changes to be performed to a given helm chart will be returned under the same map key
-func groupChangesByChart(changes []*internal.RewriteAction, rootChart *chart.Chart) map[*chart.Chart][]*internal.RewriteAction {
+func orderedChangesByChart(changes []*internal.RewriteAction, rootChart *chart.Chart) []ChartChanges {
 	groupedChanges := make(map[*chart.Chart][]*internal.RewriteAction)
 
 	for _, change := range changes {
@@ -424,7 +431,24 @@ func groupChangesByChart(changes []*internal.RewriteAction, rootChart *chart.Cha
 		}
 	}
 
-	return groupedChanges
+	return orderByChartHierarchy(groupedChanges)
+}
+
+func orderByChartHierarchy(groupedChanges map[*chart.Chart][]*internal.RewriteAction) []ChartChanges {
+	allChanges := make([]ChartChanges, 0, len(groupedChanges))
+
+	for chart, changes := range groupedChanges {
+		allChanges = append(allChanges, ChartChanges{chart: chart, changes: changes})
+	}
+
+	sort.Slice(allChanges, func(i, j int) bool {
+		a := allChanges[i].chart.ChartFullPath()
+		b := allChanges[j].chart.ChartFullPath()
+		pathA := strings.Split(a, "/")
+		pathB := strings.Split(b, "/")
+		return len(pathA) < len(pathB) || a < b
+	})
+	return allChanges
 }
 
 // namespacedPath removes the chartName from the beginning of the full path

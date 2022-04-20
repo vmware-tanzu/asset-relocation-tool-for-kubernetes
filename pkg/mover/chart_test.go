@@ -714,9 +714,9 @@ func TestGroupChangesByChart(t *testing.T) {
 	rewrites := []*internal.RewriteAction{r1, subchart1R1, subchart1R2, subchart1Subchart3, subchart2R1}
 
 	// Expected output
-	want := make(map[*chart.Chart][]*internal.RewriteAction)
+	want := make([]ChartChanges, 4)
 	// parent chart
-	want[rootChart] = []*internal.RewriteAction{r1}
+	want[0] = ChartChanges{chart: rootChart, changes: []*internal.RewriteAction{r1}}
 
 	firstLevelDeps := rootChart.Dependencies()
 	// Sort dependencies since they come in arbitrary order
@@ -725,16 +725,16 @@ func TestGroupChangesByChart(t *testing.T) {
 	})
 
 	// Subchart1
-	want[firstLevelDeps[0]] = []*internal.RewriteAction{subchart1R1, subchart1R2}
+	want[1] = ChartChanges{chart: firstLevelDeps[0], changes: []*internal.RewriteAction{subchart1R1, subchart1R2}}
 
 	// Subchart2
-	want[firstLevelDeps[1]] = []*internal.RewriteAction{subchart2R1}
+	want[2] = ChartChanges{chart: firstLevelDeps[1], changes: []*internal.RewriteAction{subchart2R1}}
 
 	// Subchart1.Subchart3
-	want[firstLevelDeps[0].Dependencies()[0]] = []*internal.RewriteAction{subchart1Subchart3}
+	want[3] = ChartChanges{chart: firstLevelDeps[0].Dependencies()[0], changes: []*internal.RewriteAction{subchart1Subchart3}}
 
 	// Compare output
-	if got := groupChangesByChart(rewrites, rootChart); !reflect.DeepEqual(got, want) {
+	if got := orderedChangesByChart(rewrites, rootChart); !reflect.DeepEqual(got, want) {
 		t.Errorf("got=%v; want=%v", got, want)
 	}
 }
