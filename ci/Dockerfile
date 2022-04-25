@@ -1,6 +1,6 @@
 # Copyright 2021 VMware, Inc.
 # SPDX-License-Identifier: BSD-2-Clause
-FROM harbor-repo.vmware.com/dockerhub-proxy-cache/library/ubuntu
+FROM harbor-repo.vmware.com/dockerhub-proxy-cache/library/ubuntu:20.04
 
 WORKDIR /
 
