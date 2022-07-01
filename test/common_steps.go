@@ -26,6 +26,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes",
 		"-ldflags",
 		"-X github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/cmd.Version=1.2.3",
+		"-buildvcs=false", // See: https://github.com/golang/go/issues/49004
 	)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 })
