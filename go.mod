@@ -7,7 +7,7 @@ require (
 	github.com/bunniesandbeatings/goerkin v0.1.4-beta
 	github.com/divideandconquer/go-merge v0.0.0-20160829212531-bc6b3a394b4e
 	github.com/google/go-containerregistry v0.12.1
-	github.com/onsi/ginkgo v1.16.4
+	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.20.1
 	github.com/spf13/cobra v1.6.0
 	gopkg.in/yaml.v2 v2.4.0
