@@ -1,6 +1,6 @@
 module github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes
 
-go 1.18
+go 1.20
 
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
@@ -19,7 +19,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
-	github.com/docker/cli v23.0.1+incompatible // indirect
+	github.com/docker/cli v23.0.3+incompatible // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/docker/docker v23.0.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
