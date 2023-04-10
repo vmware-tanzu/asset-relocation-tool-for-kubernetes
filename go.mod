@@ -8,7 +8,7 @@ require (
 	github.com/divideandconquer/go-merge v0.0.0-20160829212531-bc6b3a394b4e
 	github.com/google/go-containerregistry v0.14.0
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.26.0
+	github.com/onsi/gomega v1.27.6
 	github.com/spf13/cobra v1.6.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
