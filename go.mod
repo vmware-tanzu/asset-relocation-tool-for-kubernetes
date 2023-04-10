@@ -1,6 +1,6 @@
 module github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes
 
-go 1.18
+go 1.20
 
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
