@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// +k8s:openapi-gen=true
 // +k8s:deepcopy-gen=package
 // +k8s:protobuf-gen=package
+// +k8s:openapi-gen=true
+// +k8s:prerelease-lifecycle-gen=true
 
-// +groupName=resource.k8s.io
+// +groupName=certificates.k8s.io
 
-// Package v1alpha1 is the v1alpha1 version of the resource API.
-package v1alpha1 // import "k8s.io/api/resource/v1alpha1"
+package v1alpha1 // import "k8s.io/api/certificates/v1alpha1"
