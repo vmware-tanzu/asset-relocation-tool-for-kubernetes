@@ -11,7 +11,7 @@ github.com/bunniesandbeatings/goerkin
 ## explicit; go 1.19
 github.com/containerd/stargz-snapshotter/estargz
 github.com/containerd/stargz-snapshotter/estargz/errorutil
-# github.com/cyphar/filepath-securejoin v0.2.3
+# github.com/cyphar/filepath-securejoin v0.2.4
 ## explicit; go 1.13
 github.com/cyphar/filepath-securejoin
 # github.com/divideandconquer/go-merge v0.0.0-20160829212531-bc6b3a394b4e
