@@ -14,8 +14,9 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 	"helm.sh/helm/v3/pkg/chart"
+
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 )
 
 var (
@@ -183,7 +184,7 @@ func (ib *intermediateBundle) extractChartTo(dir string) error {
 	return nil
 }
 
-func (ib *intermediateBundle) loadImageHints(log Logger) ([]byte, error) {
+func (ib *intermediateBundle) loadImageHints() ([]byte, error) {
 	r, err := openFromTar(ib.bundlePath, IntermediateBundleHintsFilename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract %s from bundle at %s: %w",

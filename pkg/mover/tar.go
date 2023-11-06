@@ -132,9 +132,9 @@ func openFromTar(tarFile, filePath string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open tar file %s: %w", tarFile, err)
 	}
-	close := true
+	closeTar := true
 	defer func() {
-		if close {
+		if closeTar {
 			f.Close()
 		}
 	}()
@@ -153,7 +153,7 @@ func openFromTar(tarFile, filePath string) (io.ReadCloser, error) {
 				currentDir := filepath.Dir(filePath)
 				return openFromTar(tarFile, path.Join(currentDir, hdr.Linkname))
 			}
-			close = false
+			closeTar = false
 			return tarredFile{
 				Reader: tf,
 				Closer: f,

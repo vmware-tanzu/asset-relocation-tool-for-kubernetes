@@ -73,9 +73,9 @@ func (l defaultLogger) Println(i ...interface{}) {
 
 type noLogger struct{}
 
-func (nl noLogger) Printf(format string, i ...interface{}) {}
+func (nl noLogger) Printf(_ string, _ ...interface{}) {}
 
-func (nl noLogger) Println(i ...interface{}) {}
+func (nl noLogger) Println(_ ...interface{}) {}
 
 // DefaultLogger to stdout
 var DefaultLogger Logger = defaultLogger{}
@@ -352,7 +352,7 @@ func (cm *ChartMover) loadImageHints(src *Source) error {
 
 // loadImageHintsFromBundle loads the image hints from the intermediate bundle
 func (cm *ChartMover) loadImageHintsFromBundle() error {
-	rawHints, err := cm.intermediateBundle.loadImageHints(cm.logger)
+	rawHints, err := cm.intermediateBundle.loadImageHints()
 	if err != nil {
 		return err
 	}
@@ -716,7 +716,7 @@ func saveChart(chart *chart.Chart, toChartFilename string) error {
 // load hints from either a given hints file or a chart-embedded hints file
 func loadImageHints(imageHintsFile string, chart *chart.Chart, log Logger) ([]byte, error) {
 	if imageHintsFile != "" {
-		rawHints, err := notNilData(loadImageHintsFromFile(imageHintsFile, log))
+		rawHints, err := notNilData(loadImageHintsFromFile(imageHintsFile))
 		if err != nil {
 			return nil, err
 		}
@@ -744,7 +744,7 @@ func loadImageHintsFromChart(chart *chart.Chart, log Logger) ([]byte, error) {
 }
 
 // loadImageHintsFromFile from a file
-func loadImageHintsFromFile(hintsFile string, log Logger) ([]byte, error) {
+func loadImageHintsFromFile(hintsFile string) ([]byte, error) {
 	contents, err := notNilData(os.ReadFile(hintsFile))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the image patterns file: %w", err)
