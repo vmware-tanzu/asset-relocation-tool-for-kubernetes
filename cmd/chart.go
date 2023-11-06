@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
 	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/pkg/mover"
 )
 
@@ -50,7 +51,7 @@ func init() {
 	rootCmd.AddCommand(chartCmd)
 }
 
-func validateChartArgs(cmd *cobra.Command, args []string) error {
+func validateChartArgs(_ *cobra.Command, args []string) error {
 	if len(args) < 1 {
 		return errors.New("requires a chart argument")
 	} else if len(args) > 1 {
