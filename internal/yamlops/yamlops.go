@@ -30,30 +30,29 @@ import (
 //
 // Update a Chart's values.yaml to set a specific image's reference:
 //
-//     UpdateMap(doc, ".images.postgresql", "", nil, map[string]string{
-//         "registry": "docker.io",
-//         "repository": "bitnami/postgresql",
-//         "tag": "11.6.0-debian-10-r5",
-//     })
+//	UpdateMap(doc, ".images.postgresql", "", nil, map[string]string{
+//	    "registry": "docker.io",
+//	    "repository": "bitnami/postgresql",
+//	    "tag": "11.6.0-debian-10-r5",
+//	})
 //
 // Update a Chart's values.yaml to replace any uses of a general purpose image:
 //
-//     UpdateMap(doc, "", "",map[string]string{
-//         "repository": "bitnami/minideb",
-//     }, map[string]string{
-//         "registry": "custom.images.org",
-//         "repository": "custom-general-purpose",
-//         "tag": "1.2.3",
-//     })
+//	UpdateMap(doc, "", "",map[string]string{
+//	    "repository": "bitnami/minideb",
+//	}, map[string]string{
+//	    "registry": "custom.images.org",
+//	    "repository": "custom-general-purpose",
+//	    "tag": "1.2.3",
+//	})
 //
 // Update a Chart's dependencies to rewrite a chart registry:
 //
-//     UpdateMap(doc, "", ".dependencies", map[string]string{
-//         "repository": "https://charts.bitnami.com/bitnami",
-//     }, map[string]string{
-//         "repository": "custom.charts.org",
-//     })
-//
+//	UpdateMap(doc, "", ".dependencies", map[string]string{
+//	    "repository": "https://charts.bitnami.com/bitnami",
+//	}, map[string]string{
+//	    "repository": "custom.charts.org",
+//	})
 func UpdateMap(doc []byte, pathSpec, selectorFilter string, selectors, values map[string]string) ([]byte, error) {
 	root, err := parse(doc)
 	if err != nil {

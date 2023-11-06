@@ -30,7 +30,7 @@ func (a *RewriteAction) TopLevelKey() string {
 }
 
 // removes the first part of the dot delimited string
-//.sub-1.foo.bar => .foo.bar
+// .sub-1.foo.bar => .foo.bar
 func (a *RewriteAction) stripPrefix() string {
 	// Starting in 2 since there is an empty string as first element
 	return "." + strings.Join(strings.Split(a.Path, ".")[2:], ".")
