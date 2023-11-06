@@ -145,9 +145,10 @@ func IsIntermediateBundle(bundlePath string) bool {
 
 // VerifyIntermediateBundle returns true if the path points to an uncompressed
 // tarball with:
-//  A hints.yaml YAML file
-//  A manifest.json for the images
-//  A directory container an unpacked chart directory with valid YAMLs Chart.yaml & values.yaml
+//
+//	A hints.yaml YAML file
+//	A manifest.json for the images
+//	A directory container an unpacked chart directory with valid YAMLs Chart.yaml & values.yaml
 func verifyIntermediateBundle(bundlePath string) error {
 	expectedFiles := []string{
 		"hints.yaml",

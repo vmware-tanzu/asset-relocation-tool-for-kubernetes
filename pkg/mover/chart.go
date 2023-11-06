@@ -6,7 +6,6 @@ package mover
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,10 +17,11 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
+
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 )
 
 const (
@@ -459,7 +459,7 @@ func namespacedPath(fullpath, chartName string) string {
 }
 
 /*
-  Move performs the relocation.
+	Move performs the relocation.
 
 A regular move executes the Chart relocation which includes
 - Push all the images to their new locations
@@ -695,7 +695,7 @@ func stripDependencyRefs(c *chart.Chart) error {
 
 func saveChart(chart *chart.Chart, toChartFilename string) error {
 	cwd, _ := os.Getwd()
-	tempDir, err := ioutil.TempDir(cwd, "relok8s-*")
+	tempDir, err := os.MkdirTemp(cwd, "relok8s-*")
 	if err != nil {
 		return err
 	}

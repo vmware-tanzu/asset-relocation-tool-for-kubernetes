@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,8 +17,9 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 	"helm.sh/helm/v3/pkg/chart/loader"
+
+	"github.com/vmware-tanzu/asset-relocation-tool-for-kubernetes/internal"
 )
 
 var _ = Describe("RewriteAction", func() {
@@ -186,7 +186,7 @@ func TestApply(t *testing.T) {
 
 // packageChart will return the chart in directory format as well as its content digest
 func packageChart(chart *chart.Chart) (string, string, error) {
-	chartDir, err := ioutil.TempDir("", "relok8s-test")
+	chartDir, err := os.MkdirTemp("", "relok8s-test")
 	if err != nil {
 		return "", "", err
 	}
@@ -204,7 +204,7 @@ func packageChart(chart *chart.Chart) (string, string, error) {
 			return err
 		}
 		if !info.IsDir() {
-			data, err := ioutil.ReadFile(path)
+			data, err := os.ReadFile(path)
 			if err != nil {
 				return err
 			}
