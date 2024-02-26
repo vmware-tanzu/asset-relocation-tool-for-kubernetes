@@ -236,7 +236,7 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1 => github.com/atomatt/yaml v0.0.0-20200403124456-7b932d16ab90
 ## explicit
 gopkg.in/yaml.v3
-# helm.sh/helm/v3 v3.14.1
+# helm.sh/helm/v3 v3.14.2
 ## explicit; go 1.21
 helm.sh/helm/v3/internal/sympath
 helm.sh/helm/v3/internal/version
