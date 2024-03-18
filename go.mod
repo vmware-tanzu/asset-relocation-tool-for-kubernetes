@@ -6,7 +6,7 @@ require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/bunniesandbeatings/goerkin v0.1.4-beta
 	github.com/divideandconquer/go-merge v0.0.0-20160829212531-bc6b3a394b4e
-	github.com/google/go-containerregistry v0.16.1
+	github.com/google/go-containerregistry v0.19.1
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.29.0
 	github.com/spf13/cobra v1.8.0
